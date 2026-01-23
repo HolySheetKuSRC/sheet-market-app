@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -27,6 +27,7 @@ const THEME = {
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState<boolean>(true);
+  const router = useRouter();
 
   const handleTabChange = (mode: boolean) => {
     if (mode !== isLogin) {
@@ -35,6 +36,14 @@ export default function AuthScreen() {
       }
       setIsLogin(mode);
     }
+  };
+
+  const handleNavigationToHome = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    // สั่งเปลี่ยนหน้าไปยังหน้า Home ในกลุ่ม Drawer
+    router.replace('/(drawer)/home' as any);
   };
 
   return (
@@ -93,11 +102,15 @@ export default function AuthScreen() {
                 </View>
 
                 {/* คัดเลือกฟอร์มที่จะแสดง */}
-                {isLogin ? <LoginForm /> : <RegisterForm />}
+                {isLogin ? (
+                  <LoginForm onAuthSuccess={handleNavigationToHome} />
+                ) : (
+                  <RegisterForm onAuthSuccess={handleNavigationToHome} />
+                )}
               </View>
             </View>
             
-            {/* Footer Spacer - ดันเนื้อหาขึ้นตอนเปิดคีย์บอร์ด */}
+            {/* Footer Spacer */}
             <View style={{ height: 40 }} />
           </View>
         </ScrollView>
@@ -107,14 +120,7 @@ export default function AuthScreen() {
 }
 
 /* ---------------- Login Component ---------------- */
-const LoginForm = () => {
-  const handleLogin = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    console.log('Login attempt');
-  };
-
+const LoginForm = ({ onAuthSuccess }: { onAuthSuccess: () => void }) => {
   return (
     <View style={styles.form}>
       <Text style={styles.inputLabel}>Email</Text>
@@ -138,7 +144,7 @@ const LoginForm = () => {
         <Text style={styles.forgotText}>Forgot Password?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.mainButton} onPress={handleLogin}>
+      <TouchableOpacity style={styles.mainButton} onPress={onAuthSuccess}>
         <Text style={styles.mainButtonText}>Sign In</Text>
       </TouchableOpacity>
 
@@ -159,14 +165,7 @@ const LoginForm = () => {
 };
 
 /* ---------------- Register Component ---------------- */
-const RegisterForm = () => {
-  const handleRegister = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    }
-    console.log('Register attempt');
-  };
-
+const RegisterForm = ({ onAuthSuccess }: { onAuthSuccess: () => void }) => {
   return (
     <View style={styles.form}>
       <View style={styles.dotContainer}>
@@ -186,7 +185,7 @@ const RegisterForm = () => {
       <Text style={styles.inputLabel}>Confirm Password</Text>
       <TextInput style={styles.input} secureTextEntry placeholder="Repeat password" placeholderTextColor="#94A3B8"/>
 
-      <TouchableOpacity style={[styles.mainButton, { marginTop: 10 }]} onPress={handleRegister}>
+      <TouchableOpacity style={[styles.mainButton, { marginTop: 10 }]} onPress={onAuthSuccess}>
         <Text style={styles.mainButtonText}>Create Account</Text>
       </TouchableOpacity>
 
@@ -201,57 +200,46 @@ const RegisterForm = () => {
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
   container: { flex: 1, backgroundColor: THEME.bg },
-  
-  // จุดสำคัญ: ทำให้ ScrollView ยืดเต็มจอและจัดเนื้อหาไว้กลางจอ
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
   },
-
   mainWrapper: {
     flex: 1,
     paddingHorizontal: 32,
     paddingTop: Platform.OS === 'android' ? 20 : 0,
   },
-
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 60,
   },
-
   helpText: {
     fontSize: 14,
     fontWeight: '600',
     color: THEME.textSub,
   },
-
   centeredContent: {
     alignItems: 'center',
     paddingVertical: 20,
   },
-
   registerMargin: {
     paddingTop: 10,
   },
-
   formConstraint: {
     width: '100%',
     maxWidth: 400,
   },
-
   welcomeContainer: {
     alignItems: 'center',
     marginBottom: 24,
   },
-
   title: {
     fontSize: 32,
     fontWeight: '800',
     color: THEME.textMain,
     letterSpacing: -0.5,
   },
-
   subtitle: {
     textAlign: 'center',
     color: THEME.textSub,
@@ -260,7 +248,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingHorizontal: 10,
   },
-
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#E2E8F0',
@@ -269,13 +256,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 24,
   },
-
   tabButton: {
     paddingVertical: 10,
     paddingHorizontal: 36,
     borderRadius: 12,
   },
-
   activeTab: {
     backgroundColor: THEME.surface,
     ...Platform.select({
@@ -289,21 +274,17 @@ const styles = StyleSheet.create({
       },
     }),
   },
-
   tabText: {
     fontWeight: '700',
     color: THEME.textSub,
     fontSize: 14,
   },
-
   activeTabText: {
     color: THEME.primary,
   },
-
   form: {
     width: '100%',
   },
-
   inputLabel: {
     fontWeight: '700',
     marginBottom: 6,
@@ -311,7 +292,6 @@ const styles = StyleSheet.create({
     color: THEME.textMain,
     marginLeft: 4,
   },
-
   input: {
     backgroundColor: THEME.surface,
     borderWidth: 1,
@@ -322,7 +302,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     color: THEME.textMain,
   },
-
   forgotText: {
     textAlign: 'right',
     fontWeight: '700',
@@ -330,7 +309,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: THEME.primary,
   },
-
   alreadyText: {
     textAlign: 'center',
     fontWeight: '600',
@@ -338,7 +316,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: THEME.textSub,
   },
-
   mainButton: {
     backgroundColor: THEME.primary,
     padding: 16,
@@ -355,32 +332,27 @@ const styles = StyleSheet.create({
       },
     }),
   },
-
   mainButtonText: {
     fontWeight: 'bold',
     fontSize: 16,
     color: '#FFF',
   },
-
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 20,
   },
-
   line: {
     flex: 1,
     height: 1,
     backgroundColor: THEME.border,
   },
-
   orText: {
     marginHorizontal: 12,
     color: THEME.textSub,
     fontSize: 13,
     fontWeight: '600',
   },
-
   googleButton: {
     backgroundColor: THEME.surface,
     borderWidth: 1,
@@ -389,19 +361,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
   },
-
   googleButtonText: {
     fontWeight: '700',
     fontSize: 15,
     color: THEME.textMain,
   },
-
   dotContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginBottom: 20,
   },
-
   dot: {
     width: 24,
     height: 6,
@@ -409,13 +378,8 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginHorizontal: 4,
   },
-
   activeDot: {
     backgroundColor: THEME.primary,
     width: 36,
-  },
-
-  footerSpacer: {
-    height: 20,
   },
 });
