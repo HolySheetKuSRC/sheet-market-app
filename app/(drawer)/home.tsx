@@ -3,10 +3,15 @@ import { DrawerActions } from '@react-navigation/native';
 import { useNavigation, useRouter } from 'expo-router';
 import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// 1. Import มาจากไฟล์ _layout
+import { useNotification } from '../_layout';
 
 export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  
+  // 2. ประกาศเรียกใช้งาน Hook เพื่อดึงฟังก์ชัน notify ออกมา
+  const notify = useNotification();
 
   return (
     <View style={styles.container}>
@@ -19,7 +24,11 @@ export default function HomeScreen() {
              <Ionicons name="search" size={20} color="#999" />
              <TextInput placeholder="ค้นหาชื่อวิชา..." style={{flex:1, marginLeft: 10}} />
         </View>
-        <Ionicons name="notifications-outline" size={24} color="#333" />
+        
+        {/* 3. เพิ่ม TouchableOpacity ครอบ Ionicons และใส่ onPress */}
+        <TouchableOpacity onPress={() => notify("คุณมีการแจ้งเตือนใหม่! 🔔")}>
+            <Ionicons name="notifications-outline" size={24} color="#333" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -80,7 +89,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
         </ScrollView>
 
-        {/* AI Tutor Chat Section (จำลอง UI แชทด้านขวา) */}
+        {/* AI Tutor Chat Section */}
         <View style={styles.chatContainer}>
             <View style={styles.chatHeader}>
                 <View style={{flexDirection:'row', alignItems:'center'}}>
@@ -94,13 +103,11 @@ export default function HomeScreen() {
             </View>
             
             <View style={styles.chatBody}>
-                {/* User Message */}
                 <View style={styles.msgRowRight}>
                     <View style={styles.msgBubbleBlue}>
                         <Text style={styles.msgTextWhite}>ใกล้สอบมิดเทอมวิชาแคลแล้ว แนะนำชีทหน่อยครับ</Text>
                     </View>
                 </View>
-                {/* AI Message */}
                 <View style={styles.msgRowLeft}>
                     <View style={styles.aiAvatarSmall}><MaterialCommunityIcons name="robot" size={14} color="#FFF"/></View>
                     <View style={styles.msgBubbleGray}>
@@ -111,7 +118,6 @@ export default function HomeScreen() {
                     </View>
                 </View>
             </View>
-            {/* Chat Input */}
             <View style={styles.chatInputRow}>
                 <TextInput placeholder="Chat with AI Tutor" style={styles.chatInput} />
                 <View style={styles.sendBtn}><Ionicons name="send" size={16} color="#FFF"/></View>
@@ -123,16 +129,15 @@ export default function HomeScreen() {
   );
 }
 
+// ... styles เหมือนเดิมของคุณ ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   topBar: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', paddingTop: 50, justifyContent: 'space-between' },
   searchBar: { flex: 1, flexDirection: 'row', backgroundColor: '#F0F0F0', borderRadius: 20, padding: 8, marginHorizontal: 16, alignItems: 'center' },
   scrollContent: { padding: 20, paddingBottom: 40 },
-  
   headerSection: { marginBottom: 20 },
   greetingTitle: { fontSize: 28, fontWeight: '900', color: '#6C63FF' },
   greetingSubtitle: { color: '#64748B', fontSize: 14 },
-
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
   statCard: { width: '31%', backgroundColor: '#FFF', padding: 12, borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2, height: 120, justifyContent: 'space-between' },
   statTitle: { fontSize: 12, fontWeight: 'bold', color: '#333' },
@@ -141,11 +146,9 @@ const styles = StyleSheet.create({
   iconCircleBlue: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#6C63FF', justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   iconCircleOrange: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFA500', justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   iconCirclePurple: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#C084FC', justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
-
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   seeAll: { color: '#6C63FF', fontSize: 12 },
-
   horizontalList: { marginBottom: 30 },
   hCard: { width: 200, backgroundColor: '#FFF', borderRadius: 12, padding: 10, marginRight: 15, flexDirection: 'row', alignItems: 'center' },
   hCardImg: { width: 60, height: 80, borderRadius: 8, backgroundColor: '#EEE' },
@@ -156,8 +159,6 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: '#EEF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   tagText: { fontSize: 10, color: '#6C63FF' },
   priceText: { fontWeight: 'bold', color: '#6C63FF' },
-
-  // Chat UI
   chatContainer: { backgroundColor: '#FFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#EEE' },
   chatHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   aiAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#C084FC', justifyContent: 'center', alignItems: 'center' },
