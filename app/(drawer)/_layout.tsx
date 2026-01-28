@@ -22,7 +22,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       <DrawerContentScrollView {...props}>
         {/* เมนูหน้าหลัก */}
         <DrawerItem
-          label="หน้าหลัก (Home)"
+          label="หน้าหลัก"
           focused={focusedRouteName === 'home'} // เช็คว่าตรงกับชื่อไฟล์ home.tsx ไหม
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
@@ -32,7 +32,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
 
         {/* เมนู Marketplace */}
         <DrawerItem
-          label="ซื้อชีทสรุป"
+          label="ซื้อขายชีทสรุป"
           focused={focusedRouteName === 'marketplace'} // เช็คว่าตรงกับชื่อไฟล์ marketplace.tsx ไหม
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
@@ -44,7 +44,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         <Text style={styles.menuGroupTitle}>ตัวช่วยพิเศษ</Text>
 
         <DrawerItem
-          label="สิ่งที่ฉันอยากได้"
+          label="รายการโปรด"
           focused={focusedRouteName === 'favorite'}
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
