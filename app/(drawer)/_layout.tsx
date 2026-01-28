@@ -1,4 +1,3 @@
-// app/(drawer)/_layout.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentComponentProps, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
@@ -8,7 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const router = useRouter();
-  
+
   // หาชื่อหน้าปัจจุบันจาก props.state
   const focusedRouteName = props.state.routeNames[props.state.index];
 
@@ -30,7 +29,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           icon={({ color }) => <Ionicons name="home-outline" size={24} color={color} />}
           onPress={() => router.push('/(drawer)/home' as any)}
         />
-        
+
         {/* เมนู Marketplace */}
         <DrawerItem
           label="ซื้อชีทสรุป"
@@ -43,7 +42,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
 
         <View style={styles.divider} />
         <Text style={styles.menuGroupTitle}>ตัวช่วยพิเศษ</Text>
-        
+
         <DrawerItem
           label="สิ่งที่ฉันอยากได้"
           focused={focusedRouteName === 'favorite'}
@@ -57,9 +56,20 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           label="ออกจากระบบ"
           icon={() => <Ionicons name="log-out-outline" size={24} color="red" />}
           labelStyle={{ color: 'red' }}
-          onPress={() => router.replace('/' as any)} 
+          onPress={() => router.replace('/' as any)}
         />
       </DrawerContentScrollView>
+
+      <DrawerItem
+        label="ตะกร้าสินค้า"
+        // เช็ค focused โดยดูว่า path ปัจจุบันคือ /cart หรือไม่
+        focused={focusedRouteName === 'cart'}
+        activeTintColor={THEME_COLOR}
+        activeBackgroundColor="#EEF2FF"
+        icon={({ color }) => <Ionicons name="cart-outline" size={24} color={color} />}
+        // ✅ แก้ไขตรงนี้: ตัด (drawer) ออก เพราะไฟล์อยู่นอกโฟลเดอร์ drawer แล้ว
+        onPress={() => router.push('/cart' as any)}
+      />
 
       <View style={styles.userFooter}>
         <View style={styles.avatarPlaceholder}><Text>🐷</Text></View>

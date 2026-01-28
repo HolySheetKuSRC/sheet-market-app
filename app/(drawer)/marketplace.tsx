@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerActions } from '@react-navigation/native';
 import { useNavigation, useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // Mock Data
@@ -11,16 +12,30 @@ const MOCK_SHEETS = [
   { id: '4', title: 'Academic Writing Cheat Sheet', author: 'EngMaster', price: 49, rating: 3.0, tag: 'English', image: 'https://via.placeholder.com/150' },
   { id: '5', title: 'Data Struct & C++ Bootcamp', author: 'CodeKung', price: 89, rating: 3.5, tag: 'Programming', image: 'https://via.placeholder.com/150' },
   { id: '6', title: '# Zero to Hero Java', author: 'JavaMan', price: 59, rating: 3.0, tag: 'Java', image: 'https://via.placeholder.com/150' },
+  { id: '7', title: 'Physics 1 สรุปสูตรลับ', author: 'หมอเจ็บ', price: 69, rating: 4.8, tag: 'Physics', image: 'https://via.placeholder.com/150' },
+  { id: '8', title: 'Discrete Math สำหรับปี 1', author: 'LogicMaster', price: 45, rating: 4.2, tag: 'Discrete', image: 'https://via.placeholder.com/150' },
 ];
 
 export default function MarketplaceScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  
+  // --- ระบบ Pagination ---
+  const ITEMS_PER_PAGE = 4;
+  const [displaySheets, setDisplaySheets] = useState(MOCK_SHEETS.slice(0, ITEMS_PER_PAGE));
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // ส่วน Header (Banner + Filter)
+  const handleLoadMore = () => {
+    const nextPage = currentPage + 1;
+    const end = nextPage * ITEMS_PER_PAGE;
+    setDisplaySheets(MOCK_SHEETS.slice(0, end));
+    setCurrentPage(nextPage);
+  };
+
+  const hasMore = displaySheets.length < MOCK_SHEETS.length;
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Banner สีม่วง */}
       <View style={styles.banner}>
         <View>
             <Text style={styles.bannerTitle}>สมัครเป็นผู้ขาย</Text>
@@ -30,9 +45,8 @@ export default function MarketplaceScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filter Row */}
       <View style={styles.filterRow}>
-        <Text style={styles.itemCount}>แสดง {MOCK_SHEETS.length} รายการ</Text>
+        <Text style={styles.itemCount}>แสดง {displaySheets.length} จาก {MOCK_SHEETS.length} รายการ</Text>
         <TouchableOpacity style={styles.filterBtn}>
             <Ionicons name="options-outline" size={16} color="#666" />
             <Text style={styles.filterText}>ตัวกรอง</Text>
@@ -40,6 +54,18 @@ export default function MarketplaceScreen() {
       </View>
     </View>
   );
+
+  const renderFooter = () => {
+    if (!hasMore) return <View style={{ height: 50 }} />;
+    return (
+      <View style={styles.footerContainer}>
+        <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
+          <Text style={styles.loadMoreText}>โหลดเพิ่มเติม</Text>
+          <Ionicons name="chevron-down" size={18} color="#6C63FF" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -52,15 +78,21 @@ export default function MarketplaceScreen() {
             <Ionicons name="search" size={20} color="#BBB" />
             <TextInput placeholder="ค้นหาชื่อวิชา, ชื่อชีท..." style={styles.searchInput} />
         </View>
-        <TouchableOpacity style={styles.cartBtn}>
+        
+        {/* --- แก้ไขปุ่มตะกร้าให้กดไปหน้า Cart ได้จริง --- */}
+        <TouchableOpacity 
+          style={styles.cartBtn} 
+          onPress={() => router.push('/cart' as any)}
+        >
             <Ionicons name="cart-outline" size={20} color="#6C63FF" />
             <Text style={styles.cartText}>ตะกร้า</Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
-        data={MOCK_SHEETS}
+        data={displaySheets}
         ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
         keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={{ justifyContent: 'space-between' }}
@@ -70,7 +102,6 @@ export default function MarketplaceScreen() {
             style={styles.card} 
             onPress={() => router.push({ pathname: '/sheet/[id]', params: { id: item.id } } as any)}
           >
-            {/* Tag Score */}
             <View style={styles.ratingBadge}>
                 <Ionicons name="star" size={10} color="#FFD700" />
                 <Text style={styles.ratingText}>{item.rating}</Text>
@@ -90,9 +121,8 @@ export default function MarketplaceScreen() {
                 </View>
             </View>
             
-            {/* Author Overlay */}
             <View style={styles.authorBadge}>
-                <Text style={styles.authorText}>พี่คนนี้ดึงมาก</Text>
+                <Text style={styles.authorText}>{item.author}</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -108,19 +138,15 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, marginLeft: 8 },
   cartBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
   cartText: { color: '#6C63FF', fontWeight: 'bold', fontSize: 12, marginLeft: 4 },
-
   headerContainer: { marginBottom: 10 },
   banner: { backgroundColor: '#6C63FF', borderRadius: 12, padding: 25, marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   bannerTitle: { fontSize: 24, fontWeight: '900', color: '#FFF' },
   bannerBtn: { backgroundColor: 'transparent', paddingVertical: 5 },
   bannerBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  
   filterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   itemCount: { fontSize: 12, color: '#333' },
   filterBtn: { flexDirection: 'row', backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15, borderWidth: 1, borderColor: '#DDD', alignItems: 'center' },
   filterText: { fontSize: 12, color: '#666', marginLeft: 4 },
-
-  // Card Grid
   card: { backgroundColor: '#FFF', width: '48%', borderRadius: 12, marginBottom: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F0F0F0' },
   cardImage: { width: '100%', height: 140, backgroundColor: '#EEE' },
   ratingBadge: { position: 'absolute', top: 10, left: 10, backgroundColor: '#FFF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center', zIndex: 1 },
@@ -134,4 +160,7 @@ const styles = StyleSheet.create({
   price: { fontSize: 16, fontWeight: 'bold', color: '#6C63FF' },
   authorBadge: { position: 'absolute', top: 110, right: 10, backgroundColor: '#FFF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.1, elevation: 2 },
   authorText: { fontSize: 10, color: '#6C63FF', fontWeight: 'bold' },
+  footerContainer: { paddingVertical: 20, alignItems: 'center', marginBottom: 30 },
+  loadMoreBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25, borderWidth: 1, borderColor: '#6C63FF', shadowColor: "#6C63FF", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 2 },
+  loadMoreText: { color: '#6C63FF', fontWeight: 'bold', fontSize: 14, marginRight: 8 },
 });
