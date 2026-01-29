@@ -132,7 +132,7 @@ export default function HomeScreen() {
 // ... styles เหมือนเดิมของคุณ ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  topBar: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', paddingTop: 50, justifyContent: 'space-between' },
+  topBar: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', paddingTop: 45,paddingBottom: 20, justifyContent: 'space-between' },
   searchBar: { flex: 1, flexDirection: 'row', backgroundColor: '#F0F0F0', borderRadius: 20, padding: 8, marginHorizontal: 16, alignItems: 'center' },
   scrollContent: { padding: 20, paddingBottom: 40 },
   headerSection: { marginBottom: 20 },
