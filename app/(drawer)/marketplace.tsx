@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerActions } from '@react-navigation/native';
 import { useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -12,146 +13,194 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-// ตรวจสอบว่า Path และตัวพิมพ์เล็ก-ใหญ่ตรงกับในเครื่องคุณ
 import SheetCard from '../../components/sheetcard';
 
-// 1. กำหนด Interface ให้ตรงกับ JSON จาก Java Spring Boot
-interface Sheet {
-  id: string | number;
+const { width } = Dimensions.get('window');
+
+interface Product {
+  id: string;
   title: string;
   description: string;
   price: number;
   imageUrl: string;
   ratingAverage: number;
-  seller: {
-    name: string;
-  };
+  seller: { name: string };
   tags: string[];
 }
 
 export default function MarketplaceScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  
-  // 2. กำหนด Type <Sheet[]> เพื่อแก้ Error 'never'
-  const [sheets, setSheets] = useState<Sheet[]>([]);
+
+  const [sheets, setSheets] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [isLastPage, setIsLastPage] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // ฟังก์ชันดึงข้อมูลจาก Backend โดยใช้ EXPO_PUBLIC_API_URL จาก .env
-  const fetchSheets = async () => {
+  // 1. เพิ่ม State สำหรับเก็บคำค้นหา
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 2. ปรับปรุง fetchSheets ให้ส่งตัวแปรค้นหาไปยัง API
+  const fetchSheets = async (pageNum: number, isRefresh = false, searchTxt = searchQuery) => {
+    if ((isLastPage && !isRefresh) || (loadingMore && !isRefresh)) return;
+
     try {
+      if (pageNum > 0) setLoadingMore(true);
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
       
-      // ตรวจสอบเผื่อลืมตั้งค่า .env
-      if (!apiUrl) {
-        console.error("ไม่ได้ตั้งค่า EXPO_PUBLIC_API_URL ใน .env");
-        return;
-      }
-
-      const response = await fetch(`${apiUrl}/api/sheets`); 
+      const currentSize = pageNum === 0 ? 12 : 6;
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // ต่อ Query String สำหรับการค้นหา (Encode เพื่อรองรับภาษาไทย)
+      const searchParam = searchTxt ? `&search=${encodeURIComponent(searchTxt)}` : '';
+      const response = await fetch(`${apiUrl}/api/products?page=${pageNum}&size=${currentSize}${searchParam}`);
+      
+      if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
       const data = await response.json();
-      setSheets(data);
-    } catch (error) {
-      console.error("Fetch Error:", error);
+      
+      if (data && data.content) {
+        setSheets(prev => isRefresh ? data.content : [...prev, ...data.content]);
+        setIsLastPage(data.last); 
+        setPage(pageNum);
+        setError(null);
+      }
+    } catch (err) {
+      console.error("Marketplace Fetch Error:", err);
+      setError("ไม่สามารถดึงข้อมูลได้");
+      setIsLastPage(true); 
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchSheets();
+    fetchSheets(0, true);
   }, []);
 
-  const onRefresh = () => {
+  // 3. ฟังก์ชันจัดการเมื่อกดค้นหาหรือล้างค่า
+  const handleSearch = () => {
+    setLoading(true);
+    setIsLastPage(false);
+    fetchSheets(0, true, searchQuery);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setLoading(true);
+    setIsLastPage(false);
+    fetchSheets(0, true, '');
+  };
+
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchSheets();
+    setIsLastPage(false);
+    fetchSheets(0, true, searchQuery);
+  }, [searchQuery]);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && !isLastPage && !loading) {
+      fetchSheets(page + 1);
+    }
   };
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Banner ส่วนลด/ประชาสัมพันธ์ */}
       <View style={styles.banner}>
-        <View style={styles.bannerTextContent}>
-            <Text style={styles.bannerTitle}>สมัครเป็นผู้ขาย</Text>
-            <Text style={styles.bannerSubtitle}>แบ่งปันความรู้และสร้างรายได้</Text>
+        <View>
+          <Text style={styles.bannerTitle}>Marketplace</Text>
+          <Text style={styles.bannerSubtitle}>GrowthSheet ชีทสรุปจากรุ่นพี่</Text>
         </View>
-        <TouchableOpacity style={styles.bannerBtn}>
-            <Text style={styles.bannerBtnText}>คลิกเลย</Text>
+        <Ionicons name="flash" size={32} color="rgba(255,255,255,0.4)" />
+      </View>
+
+      <View style={styles.topActionRow}>
+        <Text style={styles.resultsCount}>
+          {searchQuery ? `ค้นหา: "${searchQuery}"` : `แสดง ${sheets.length} รายการ`}
+        </Text>
+        <TouchableOpacity style={styles.filterBtn}>
+          <Ionicons name="options-outline" size={18} color="#6C63FF" />
+          <Text style={styles.filterText}>ตัวกรอง</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.filterRow}>
-        <Text style={styles.itemCount}>รายการทั้งหมด {sheets.length} รายการ</Text>
-        <TouchableOpacity style={styles.filterBtn}>
-            <Ionicons name="options-outline" size={16} color="#64748B" />
-            <Text style={styles.filterText}>ตัวกรอง</Text>
-        </TouchableOpacity>
-      </View>
+      {error && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.retryBtn}>
+            <Text style={styles.retryText}>ลองใหม่อีกครั้ง</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
+  const renderFooter = () => {
+    if (loadingMore) return <ActivityIndicator style={{ margin: 20 }} color="#6C63FF" />;
+    if (isLastPage && sheets.length > 0) {
+      return (
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>โหลดชีทครบแล้ว</Text>
+        </View>
+      );
+    }
+    return <View style={{ height: 80 }} />;
+  };
+
   return (
     <View style={styles.container}>
-      {/* Top Bar (Header) */}
       <View style={styles.topBar}>
-        <TouchableOpacity 
-          onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="menu" size={28} color="#1E293B" />
+        <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
+          <Ionicons name="menu" size={26} color="#333" />
         </TouchableOpacity>
-        
+
+        {/* Search Bar Logic */}
         <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="#94A3B8" />
-            <TextInput 
-              placeholder="ค้นหาชื่อวิชา, ชื่อชีท..." 
-              style={styles.searchInput}
-              placeholderTextColor="#94A3B8"
-            />
+          <Ionicons name="search" size={16} color="#999" />
+          <TextInput 
+            placeholder="ค้นหาชีทสรุป..." 
+            style={styles.searchInput} 
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearch} // ค้นหาเมื่อกด Enter
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={clearSearch}>
+              <Ionicons name="close-circle" size={18} color="#CCC" />
+            </TouchableOpacity>
+          )}
         </View>
-        
-        <TouchableOpacity 
-          style={styles.cartBtn} 
-          onPress={() => router.push('/cart' as any)}
-        >
-            <Ionicons name="cart-outline" size={22} color="#4F46E5" />
-            <View style={styles.cartBadge} />
+
+        <TouchableOpacity onPress={() => router.push('/cart' as any)}>
+          <Ionicons name="cart-outline" size={24} color="#6C63FF" />
         </TouchableOpacity>
       </View>
 
-      {/* Main Content */}
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={styles.loadingText}>กำลังโหลดข้อมูล...</Text>
+          <ActivityIndicator size="large" color="#6C63FF" />
+          <Text style={styles.loadingInfo}>กำลังค้นหา...</Text>
         </View>
       ) : (
         <FlatList
           data={sheets}
-          ListHeaderComponent={renderHeader}
-          keyExtractor={(item) => item.id.toString()}
-          numColumns={2}
+          renderItem={({ item }) => <SheetCard item={item} isThreeColumns={true} />}
+          keyExtractor={(item) => item.id}
+          numColumns={3}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => <SheetCard item={item} />}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.1}
           refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh} 
-              tintColor="#4F46E5" 
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>ไม่พบรายการชีทสรุปในขณะนี้</Text>
-            </View>
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C63FF" />
           }
         />
       )}
@@ -161,90 +210,69 @@ export default function MarketplaceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   topBar: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingHorizontal: 16, 
-    backgroundColor: '#FFF', 
-    paddingTop: 60, 
-    paddingBottom: 16,
-    justifyContent: 'space-between', 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#F1F5F9' 
+    paddingTop: 45, 
+    paddingBottom: 20, 
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9'
   },
   searchBar: { 
     flex: 1, 
     flexDirection: 'row', 
-    backgroundColor: '#F1F5F9', 
+    backgroundColor: '#F3F4F6', 
     borderRadius: 12, 
+    marginHorizontal: 10, 
     paddingHorizontal: 12, 
-    paddingVertical: 10, 
-    marginHorizontal: 12, 
+    height: 38, 
     alignItems: 'center' 
   },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1E293B' },
-  cartBtn: { 
-    padding: 8, 
-    backgroundColor: '#EEF2FF', 
-    borderRadius: 12, 
-    position: 'relative' 
-  },
-  cartBadge: { 
-    position: 'absolute', 
-    top: 6, 
-    right: 6, 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4, 
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FFF'
-  },
-  headerContainer: { marginBottom: 10 },
+  searchInput: { flex: 1, marginLeft: 6, fontSize: 13, color: '#1F2937' },
+  headerContainer: { paddingHorizontal: 16, paddingTop: 15 },
   banner: { 
-    backgroundColor: '#4F46E5', 
+    backgroundColor: '#6C63FF', 
+    padding: 18, 
     borderRadius: 16, 
-    padding: 20, 
-    marginVertical: 10, 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center',
-    shadowColor: "#4F46E5",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 5
+    marginBottom: 20 
   },
-  bannerTextContent: { flex: 1 },
-  bannerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
-  bannerSubtitle: { fontSize: 12, color: '#E0E7FF', marginTop: 2 },
-  bannerBtn: { 
-    backgroundColor: '#FFF', 
-    paddingVertical: 8, 
-    paddingHorizontal: 16, 
-    borderRadius: 10 
-  },
-  bannerBtnText: { color: '#4F46E5', fontWeight: 'bold', fontSize: 14 },
-  filterRow: { 
+  bannerTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+  bannerSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 11 },
+  topActionRow: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    paddingVertical: 10 
+    marginBottom: 15 
   },
-  itemCount: { fontSize: 13, color: '#64748B', fontWeight: '500' },
+  resultsCount: { fontSize: 13, fontWeight: '600', color: '#64748B' },
   filterBtn: { 
     flexDirection: 'row', 
+    alignItems: 'center', 
     backgroundColor: '#FFF', 
     paddingHorizontal: 12, 
     paddingVertical: 6, 
-    borderRadius: 10, 
-    borderWidth: 1, 
-    borderColor: '#E2E8F0', 
-    alignItems: 'center' 
+    borderRadius: 20,
+    borderWidth: 1.5, 
+    borderColor: '#E2E8F0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
-  filterText: { fontSize: 12, color: '#64748B', marginLeft: 4, fontWeight: '600' },
-  listContent: { padding: 16 },
-  columnWrapper: { justifyContent: 'space-between' },
-  loadingText: { marginTop: 10, color: '#64748B', fontSize: 14 },
-  emptyText: { color: '#94A3B8', fontSize: 16 },
+  filterText: { fontSize: 12, fontWeight: 'bold', color: '#6C63FF', marginLeft: 4 },
+  errorBox: { marginTop: 10, padding: 15, backgroundColor: '#FEE2E2', borderRadius: 10, alignItems: 'center' },
+  errorText: { color: '#B91C1C', fontSize: 13, marginBottom: 10 },
+  retryBtn: { paddingVertical: 6, paddingHorizontal: 15, backgroundColor: '#B91C1C', borderRadius: 5 },
+  retryText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
+  listContent: { paddingHorizontal: 8, paddingBottom: 20 },
+  columnWrapper: { justifyContent: 'flex-start' },
+  footer: { padding: 40, alignItems: 'center' },
+  footerText: { color: '#94A3B8', fontSize: 12, fontWeight: '500' },
+  loadingInfo: { marginTop: 12, color: '#64748B', fontSize: 12 },
 });
