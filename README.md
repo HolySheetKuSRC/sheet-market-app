@@ -1,8 +1,17 @@
-# Welcome to your Expo app 👋
+# Sheet Market App
+
+This repository contains both the mobile application and backend services for the Sheet Market App.
+
+## Project Structure
+
+- **Mobile App** (Expo/React Native) - The mobile application for iOS and Android
+- **Backend** (FastAPI/Python) - PDF OCR processing microservice
+
+## Mobile App
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-## Get started
+### Get started
 
 1. Install dependencies
 
@@ -25,15 +34,27 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
-## Get a fresh project
+## Backend - PDF OCR Microservice
 
-When you're ready, run:
+A FastAPI-based microservice for processing PDF files using the Typhoon OCR API.
+
+### Features
+
+- **FastAPI REST API** - Modern, fast web framework
+- **Asynchronous Processing** - Celery for background jobs
+- **Rate Limiting** - 2 RPS limit for Typhoon OCR API
+- **Webhook Callbacks** - Optional notifications on completion
+- **Docker Support** - Easy deployment with Docker Compose
+
+### Quick Start
 
 ```bash
-npm run reset-project
+cd backend
+export TYPHOON_API_KEY=your_api_key_here
+docker-compose up -d
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+For detailed instructions, see [backend/README.md](backend/README.md) or [backend/QUICKSTART.md](backend/QUICKSTART.md).
 
 ## Learn more
 
