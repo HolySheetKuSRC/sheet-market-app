@@ -52,9 +52,10 @@ class Settings(BaseSettings):
     webhook_timeout: int = Field(default=30, alias="WEBHOOK_TIMEOUT")
     webhook_retry_count: int = Field(default=3, alias="WEBHOOK_RETRY_COUNT")
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False
+    }
 
 
 # Global settings instance
