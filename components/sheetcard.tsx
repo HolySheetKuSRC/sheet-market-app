@@ -1,9 +1,16 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import {
+  Dimensions,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 interface SheetCardProps {
   item: {
@@ -19,58 +26,72 @@ interface SheetCardProps {
   isThreeColumns?: boolean;
 }
 
-const SheetCard: React.FC<SheetCardProps> = ({ item, isThreeColumns = false }) => {
+const SheetCard: React.FC<SheetCardProps> = ({
+  item,
+  isThreeColumns = false,
+}) => {
   const router = useRouter();
   if (!item) return null;
 
-  const cardWidth = isThreeColumns ? (width - 48) / 3 : '48%';
+  const cardWidth = isThreeColumns ? (width - 48) / 3 : "48%";
 
   return (
-    <TouchableOpacity 
-      style={[styles.card, { width: cardWidth }]} 
-      onPress={() => router.push({ pathname: '/sheet/[id]', params: { id: item.id.toString() } } as any)}
+    <TouchableOpacity
+      style={[styles.card, { width: cardWidth }]}
+      activeOpacity={0.85}
+      onPress={() =>
+        router.push({
+          pathname: "/sheet/[id]",
+          params: { id: item.id.toString() },
+        } as any)
+      }
     >
+      {/* ⭐ Rating */}
       <View style={styles.ratingBadge}>
-        <Ionicons name="star" size={10} color="#FBBF24" />
+        <Ionicons name="star" size={11} color="#FBBF24" />
         <Text style={styles.ratingText}>
           {item.ratingAverage?.toFixed(1) || "0.0"}
         </Text>
       </View>
 
-      <Image 
-        source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }} 
-        style={styles.cardImage} 
+      {/* 🖼 Image */}
+      <Image
+        source={{ uri: item.imageUrl || "https://via.placeholder.com/150" }}
+        style={styles.cardImage}
         resizeMode="cover"
       />
-      
-      <View style={styles.authorBadge}>
-        <Text style={styles.authorText} numberOfLines={1}>
-           พี่{item.seller?.name || 'คนนี้'}ตึงมาก
+
+      {/* 👤 Seller */}
+      <View style={styles.sellerBadge}>
+        <Text style={styles.sellerText} numberOfLines={1}>
+          โดย {item.seller?.name || "ไม่ระบุผู้ขาย"}
         </Text>
       </View>
 
+      {/* 📦 Content */}
       <View style={styles.cardContent}>
-        <View>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
 
-          <Text style={styles.descriptionText} numberOfLines={1}>
-            {item.description}
-          </Text>
-        </View>
-        
+        <Text style={styles.descriptionText} numberOfLines={1}>
+          {item.description}
+        </Text>
+
+        {/* 🏷 Tags */}
         <View style={styles.tagWrapper}>
-          {item.tags && item.tags.map((tag, index) => (
+          {item.tags?.slice(0, 3).map((tag, index) => (
             <View key={index} style={styles.tagPill}>
-              <Text style={styles.tagText} numberOfLines={1}>#{tag}</Text>
+              <Text style={styles.tagText} numberOfLines={1}>
+                #{tag}
+              </Text>
             </View>
           ))}
         </View>
 
-        {/* ส่วนราคามีการปรับ margin ให้ขยับขึ้น */}
+        {/* 💰 Price */}
         <View style={styles.bottomSection}>
-           <Text style={styles.price}>฿{item.price}</Text>
+          <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -78,100 +99,117 @@ const SheetCard: React.FC<SheetCardProps> = ({ item, isThreeColumns = false }) =
 };
 
 const styles = StyleSheet.create({
-  card: { 
-    backgroundColor: '#FFF', 
-    borderRadius: 12, 
-    marginBottom: 14, 
-    marginRight: 8, 
-    overflow: 'hidden', 
-    borderWidth: 1.5, 
-    borderColor: '#EEF2FF', 
-    height: 220, 
-    elevation: 3,
-    shadowColor: '#000',
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    marginBottom: 12,
+    marginRight: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#EEF2FF",
+    height: 215, // 🔹 ลดความสูงรวม
+    elevation: 2,
+    shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowRadius: 4,
   },
-  cardImage: { 
-    width: '100%', 
-    height: 105, 
-    backgroundColor: '#F8FAFC' 
+
+  cardImage: {
+    width: "100%",
+    height: 95, // 🔹 ภาพเตี้ยลง
+    backgroundColor: "#F8FAFC",
   },
-  ratingBadge: { 
-    position: 'absolute', 
-    top: 6, 
-    left: 6, 
-    backgroundColor: 'rgba(255,255,255,0.95)', 
-    paddingHorizontal: 5, 
-    paddingVertical: 2, 
-    borderRadius: 10, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+
+  ratingBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
     zIndex: 10,
     borderWidth: 0.5,
-    borderColor: '#E2E8F0'
+    borderColor: "#E2E8F0",
   },
-  ratingText: { fontSize: 13, fontWeight: 'bold', marginLeft: 2, color: '#1E293B' },
-  authorBadge: { 
-    position: 'absolute', 
-    top: 80, 
-    right: 2, 
-    backgroundColor: '#FFF', 
-    paddingHorizontal: 6, 
-    paddingVertical: 2, 
-    borderRadius: 6, 
-    elevation: 4, 
-    zIndex: 15,
+  ratingText: {
+    fontSize: 11,
+    fontWeight: "bold",
+    marginLeft: 2,
+    color: "#1E293B",
+  },
+
+  sellerBadge: {
+    position: "absolute",
+    top: 78,
+    right: 6,
+    backgroundColor: "#FFF",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    zIndex: 10,
     borderWidth: 1,
-    borderColor: '#F1F5F9'
+    borderColor: "#F1F5F9",
   },
-  authorText: { fontSize: 12, color: '#6366F1', fontWeight: 'bold' },
-  cardContent: { 
-    padding: 8, 
-    flex: 1, 
-    justifyContent: 'flex-start' // เปลี่ยนจาก space-between เพื่อคุมระยะห่างเอง
+  sellerText: {
+    fontSize: 10,
+    color: "#6366F1",
+    fontWeight: "700",
   },
-  cardTitle: { 
-    paddingTop: 6,
-    marginTop: 5,
-    fontSize: 14, 
-    fontWeight: '800', 
-    color: '#1E293B', 
-    lineHeight: 14,
-    paddingBottom: 4 // ลดจาก 12 เพื่อให้ราคาขยับขึ้น
+
+  cardContent: {
+    padding: 8,
+    flex: 1,
   },
-  descriptionText: {
+
+  cardTitle: {
     fontSize: 12,
-    color: '#64748B',
+    fontWeight: "800",
+    color: "#1E293B",
+    lineHeight: 14,
+    marginBottom: 2,
+  },
+
+  descriptionText: {
+    fontSize: 11,
+    color: "#64748B",
     lineHeight: 12,
-    marginTop: 2,
-    paddingBottom: 4 // ลดจาก 12 เพื่อให้ราคาขยับขึ้น
+    marginBottom: 4,
   },
+
   tagWrapper: {
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 3,
-    marginVertical: 2,
-    maxHeight: 40, 
-    overflow: 'hidden'
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginBottom: 4,
+    maxHeight: 28,
+    overflow: "hidden",
   },
-  tagPill: { 
-    backgroundColor: '#DBEAFE', 
-    paddingHorizontal: 6, 
-    paddingVertical: 1, 
+
+  tagPill: {
+    backgroundColor: "#DBEAFE",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
     borderRadius: 4,
   },
-  tagText: { color: '#2563EB', fontSize: 12, fontWeight: 'bold' },
-  bottomSection: { 
-    alignItems: 'flex-end',
-    marginTop: 'auto', // ใช้ดันขึ้นไปด้านบนตามพื้นที่ที่เหลือ
-    paddingBottom: 4   // เว้นระยะจากขอบล่างสุดเล็กน้อย
+
+  tagText: {
+    color: "#2563EB",
+    fontSize: 10,
+    fontWeight: "700",
   },
-  price: { 
-    fontSize: 22, 
-    fontWeight: '900', 
-    color: '#4F46E5',
-    marginBottom: 2 // ขยับราคาขึ้นจากเส้นล่าง
+
+  bottomSection: {
+    marginTop: "auto",
+    alignItems: "flex-end",
+  },
+
+  price: {
+    fontSize: 16, // 🔹 ลดจาก 22 ให้ balance
+    fontWeight: "900",
+    color: "#4F46E5",
   },
 });
 
