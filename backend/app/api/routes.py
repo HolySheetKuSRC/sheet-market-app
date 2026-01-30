@@ -5,7 +5,8 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from app.core.database import get_db
 from app.models.job import Job, JobStatus
@@ -16,6 +17,53 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def validate_webhook_url(url: str) -> bool:
+    """
+    Validate webhook URL to prevent SSRF attacks.
+    
+    Args:
+        url: The URL to validate
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    if not url:
+        return True  # Empty URL is acceptable
+    
+    try:
+        parsed = urlparse(url)
+        
+        # Only allow http and https schemes
+        if parsed.scheme not in ['http', 'https']:
+            return False
+        
+        # Block localhost and private IPs
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+            
+        # Block common local/private addresses
+        blocked_hosts = [
+            'localhost',
+            '127.0.0.1',
+            '0.0.0.0',
+            '169.254.169.254',  # AWS metadata
+            '::1',
+        ]
+        
+        if hostname.lower() in blocked_hosts:
+            return False
+        
+        # Block private IP ranges (basic check)
+        if hostname.startswith('10.') or hostname.startswith('192.168.') or hostname.startswith('172.'):
+            return False
+            
+        return True
+        
+    except Exception:
+        return False
 
 
 @router.post("/process", response_model=dict)
@@ -35,6 +83,13 @@ async def process_pdf(
         Job information with job_id for status tracking
     """
     try:
+        # Validate webhook URL to prevent SSRF
+        if webhook_url and not validate_webhook_url(webhook_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid webhook URL. Only external HTTP/HTTPS URLs are allowed."
+            )
+        
         # Save the uploaded file
         job_id, file_path = await pdf_handler.save_upload(file)
         
@@ -45,8 +100,8 @@ async def process_pdf(
             file_path=file_path,
             status=JobStatus.PENDING,
             webhook_url=webhook_url,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
         
         db.add(job)
@@ -145,5 +200,5 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "pdf-ocr-service",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }

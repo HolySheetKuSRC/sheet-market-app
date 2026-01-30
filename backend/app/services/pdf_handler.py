@@ -3,6 +3,7 @@ PDF file handling service.
 """
 import os
 import uuid
+import re
 from pathlib import Path
 from typing import BinaryIO
 from fastapi import UploadFile, HTTPException
@@ -21,6 +22,28 @@ class PDFHandler:
         
         # Create upload directory if it doesn't exist
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    def sanitize_filename(self, filename: str) -> str:
+        """
+        Sanitize filename to prevent directory traversal and other attacks.
+        
+        Args:
+            filename: The original filename
+            
+        Returns:
+            Sanitized filename
+        """
+        # Remove any path components
+        filename = os.path.basename(filename)
+        
+        # Remove any non-alphanumeric characters except dots, dashes, and underscores
+        filename = re.sub(r'[^\w\-\.]', '_', filename)
+        
+        # Ensure it ends with .pdf
+        if not filename.lower().endswith('.pdf'):
+            filename = filename + '.pdf'
+        
+        return filename
     
     def validate_pdf(self, file: UploadFile) -> None:
         """
@@ -62,10 +85,11 @@ class PDFHandler:
         # Validate the file
         self.validate_pdf(file)
         
-        # Generate unique job ID and filename
+        # Generate unique job ID and sanitize filename
         job_id = str(uuid.uuid4())
-        safe_filename = f"{job_id}_{file.filename}"
-        file_path = self.upload_dir / safe_filename
+        safe_filename = self.sanitize_filename(file.filename)
+        final_filename = f"{job_id}_{safe_filename}"
+        file_path = self.upload_dir / final_filename
         
         try:
             # Read and save file in chunks to handle large files

@@ -3,6 +3,7 @@ Typhoon OCR API wrapper with rate limiting.
 """
 import asyncio
 import aiohttp
+import aiofiles
 from typing import Optional, Dict, Any
 from aiolimiter import AsyncLimiter
 from app.config import settings
@@ -32,8 +33,7 @@ class TyphoonOCRService:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession(
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
+                    "Authorization": f"Bearer {self.api_key}"
                 }
             )
         return self.session
@@ -67,9 +67,9 @@ class TyphoonOCRService:
             session = await self._get_session()
             
             try:
-                # Read PDF file
-                with open(pdf_path, 'rb') as f:
-                    pdf_data = f.read()
+                # Read PDF file asynchronously
+                async with aiofiles.open(pdf_path, 'rb') as f:
+                    pdf_data = await f.read()
                 
                 # Prepare form data for multipart/form-data request
                 data = aiohttp.FormData()

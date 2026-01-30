@@ -2,7 +2,7 @@
 Celery tasks for OCR processing.
 """
 from celery import Task
-from datetime import datetime
+from datetime import datetime, timezone
 from app.tasks.celery_app import celery_app
 from app.services.typhoon_ocr import typhoon_ocr
 from app.services.webhook import webhook_service
@@ -79,7 +79,7 @@ async def _process_pdf_async(
             # Update job with result
             job.status = JobStatus.COMPLETED
             job.result = ocr_result
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             await session.commit()
             
             logger.info(f"Successfully completed OCR for job {job_id}")
@@ -111,7 +111,7 @@ async def _process_pdf_async(
                 job.status = JobStatus.FAILED
                 job.error_message = str(e)
                 job.retry_count += 1
-                job.completed_at = datetime.utcnow()
+                job.completed_at = datetime.now(timezone.utc)
                 await session.commit()
             
             # Send webhook if provided
