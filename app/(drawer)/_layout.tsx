@@ -2,16 +2,51 @@ import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentComponentProps, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native'; // เพิ่ม Platform
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { clearTokens } from '../utils/token';
 
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const router = useRouter();
-
-  // หาชื่อหน้าปัจจุบันจาก props.state
   const focusedRouteName = props.state.routeNames[props.state.index];
-
   const THEME_COLOR = '#6C63FF';
+
+  // --- ฟังก์ชัน Logout ที่รองรับ Web ---
+  const handleLogout = async () => {
+    console.log("Logout button clicked");
+
+    const performLogout = async () => {
+      try {
+        console.log("Starting clearTokens...");
+        await clearTokens(); 
+        console.log("Tokens cleared successfully");
+        
+        // ใช้ setTimeout เล็กน้อยเพื่อให้แน่ใจว่า storage ทำงานเสร็จ
+        setTimeout(() => {
+          router.replace('/' as any);
+        }, 50);
+      } catch (error) {
+        console.error("Logout Error:", error);
+      }
+    };
+
+    // เช็คว่าถ้าเป็น Web ให้ใช้ confirm ของ browser แทน Alert.alert เพื่อเลี่ยง bug ARIA
+    if (Platform.OS === 'web') {
+      if (window.confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
+        await performLogout();
+      }
+    } else {
+      // สำหรับ Mobile (iOS/Android) ใช้ Alert.alert ปกติ
+      Alert.alert(
+        "ออกจากระบบ",
+        "คุณต้องการออกจากระบบใช่หรือไม่?",
+        [
+          { text: "ยกเลิก", style: "cancel" },
+          { text: "ยืนยัน", style: "destructive", onPress: performLogout }
+        ]
+      );
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFF' }}>
@@ -20,20 +55,18 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       </View>
 
       <DrawerContentScrollView {...props}>
-        {/* เมนูหน้าหลัก */}
         <DrawerItem
           label="หน้าหลัก"
-          focused={focusedRouteName === 'home'} // เช็คว่าตรงกับชื่อไฟล์ home.tsx ไหม
+          focused={focusedRouteName === 'home'}
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
           icon={({ color }) => <Ionicons name="home-outline" size={24} color={color} />}
           onPress={() => router.push('/(drawer)/home' as any)}
         />
 
-        {/* เมนู Marketplace */}
         <DrawerItem
           label="ซื้อขายชีทสรุป"
-          focused={focusedRouteName === 'marketplace'} // เช็คว่าตรงกับชื่อไฟล์ marketplace.tsx ไหม
+          focused={focusedRouteName === 'marketplace'}
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
           icon={({ color }) => <Ionicons name="bag-handle-outline" size={24} color={color} />}
@@ -56,18 +89,16 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           label="ออกจากระบบ"
           icon={() => <Ionicons name="log-out-outline" size={24} color="red" />}
           labelStyle={{ color: 'red' }}
-          onPress={() => router.replace('/' as any)}
+          onPress={handleLogout} 
         />
       </DrawerContentScrollView>
 
       <DrawerItem
         label="ตะกร้าสินค้า"
-        // เช็ค focused โดยดูว่า path ปัจจุบันคือ /cart หรือไม่
         focused={focusedRouteName === 'cart'}
         activeTintColor={THEME_COLOR}
         activeBackgroundColor="#EEF2FF"
         icon={({ color }) => <Ionicons name="cart-outline" size={24} color={color} />}
-        // ✅ แก้ไขตรงนี้: ตัด (drawer) ออก เพราะไฟล์อยู่นอกโฟลเดอร์ drawer แล้ว
         onPress={() => router.push('/cart' as any)}
       />
 
@@ -82,6 +113,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   );
 };
 
+// ... DrawerLayout และ Styles เหมือนเดิม ...
 export default function DrawerLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
