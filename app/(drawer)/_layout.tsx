@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentComponentProps, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
-import { useRouter } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -9,23 +8,18 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { clearTokens } from '../utils/token';
 
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
-  const router = useRouter();
-
-  // หาชื่อหน้าปัจจุบันจาก props.state
-  const focusedRouteName = props.state.routeNames[props.state.index];
-
+  const { navigation, state } = props;
+  const focusedRouteName = state.routeNames[state.index];
   const THEME_COLOR = '#6C63FF';
 
-  // --- ฟังก์ชัน Logout ที่เพิ่มเข้าไป ---
   const handleLogout = () => {
     const performLogout = async () => {
       try {
-        await clearTokens(); // ลบ token จาก storage
+        await clearTokens();
         if (Platform.OS === 'web') {
-          // ท่าไม้ตายสำหรับ Web เพื่อล้าง State และดีดไปหน้า Login
           window.location.href = '/login';
         } else {
-          router.replace('/login' as any);
+          navigation.navigate('login' as any);
         }
       } catch (error) {
         console.error("Logout Error:", error);
@@ -33,18 +27,12 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
     };
 
     if (Platform.OS === 'web') {
-      if (confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
-        performLogout();
-      }
+      if (confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) performLogout();
     } else {
-      Alert.alert(
-        "ออกจากระบบ",
-        "คุณต้องการออกจากระบบใช่หรือไม่?",
-        [
-          { text: "ยกเลิก", style: "cancel" },
-          { text: "ยืนยัน", style: "destructive", onPress: performLogout }
-        ]
-      );
+      Alert.alert("ออกจากระบบ", "คุณต้องการออกจากระบบใช่หรือไม่?", [
+        { text: "ยกเลิก", style: "cancel" },
+        { text: "ยืนยัน", style: "destructive", onPress: performLogout }
+      ]);
     }
   };
 
@@ -55,28 +43,35 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       </View>
 
       <DrawerContentScrollView {...props}>
-        {/* เมนูหน้าหลัก */}
         <DrawerItem
           label="หน้าหลัก"
           focused={focusedRouteName === 'home'}
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
           icon={({ color }) => <Ionicons name="home-outline" size={24} color={color} />}
-          onPress={() => router.push('/(drawer)/home' as any)}
+          onPress={() => navigation.navigate('home')}
         />
 
-        {/* เมนู Marketplace */}
         <DrawerItem
           label="ซื้อขายชีทสรุป"
           focused={focusedRouteName === 'marketplace'}
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
           icon={({ color }) => <Ionicons name="bag-handle-outline" size={24} color={color} />}
-          onPress={() => router.push('/(drawer)/marketplace' as any)}
+          onPress={() => navigation.navigate('marketplace')}
         />
 
         <View style={styles.divider} />
         <Text style={styles.menuGroupTitle}>ตัวช่วยพิเศษ</Text>
+
+        <DrawerItem
+          label="สมัครเป็นผู้ขาย"
+          focused={focusedRouteName === 'become-seller'}
+          activeTintColor={THEME_COLOR}
+          activeBackgroundColor="#EEF2FF"
+          icon={({ color }) => <Ionicons name="storefront-outline" size={24} color={color} />}
+          onPress={() => navigation.navigate('become-seller')}
+        />
 
         <DrawerItem
           label="รายการโปรด"
@@ -84,10 +79,10 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
           icon={({ color }) => <Ionicons name="heart-outline" size={24} color={color} />}
-          onPress={() => router.push('/(drawer)/favorite' as any)}
+          onPress={() => navigation.navigate('favorite')}
         />
 
-        {/* ปุ่มออกจากระบบที่ใช้งานได้จริง */}
+        <View style={styles.divider} />
         <DrawerItem
           label="ออกจากระบบ"
           icon={() => <Ionicons name="log-out-outline" size={24} color="red" />}
@@ -102,7 +97,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         activeTintColor={THEME_COLOR}
         activeBackgroundColor="#EEF2FF"
         icon={({ color }) => <Ionicons name="cart-outline" size={24} color={color} />}
-        onPress={() => router.push('/cart' as any)}
+        onPress={() => navigation.navigate('cart')}
       />
 
       <View style={styles.userFooter}>
@@ -120,12 +115,19 @@ export default function DrawerLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
+        // ✅ แก้ไข: ย้าย backBehavior ออกมาไว้นอก screenOptions
+        backBehavior="history"
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{
           headerShown: false,
           drawerType: 'front',
         }}
-      />
+      >
+        <Drawer.Screen name="home" />
+        <Drawer.Screen name="marketplace" />
+        <Drawer.Screen name="become-seller" />
+        <Drawer.Screen name="favorite" />
+      </Drawer>
     </GestureHandlerRootView>
   );
 }
