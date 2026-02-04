@@ -2,41 +2,41 @@ import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentComponentProps, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native'; // เพิ่ม Platform
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// ✅ นำเข้า clearTokens จาก app/utils/token.ts
 import { clearTokens } from '../utils/token';
 
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const router = useRouter();
+
+  // หาชื่อหน้าปัจจุบันจาก props.state
   const focusedRouteName = props.state.routeNames[props.state.index];
+
   const THEME_COLOR = '#6C63FF';
 
-  // --- ฟังก์ชัน Logout ที่รองรับ Web ---
-  const handleLogout = async () => {
-    console.log("Logout button clicked");
-
+  // --- ฟังก์ชัน Logout ที่เพิ่มเข้าไป ---
+  const handleLogout = () => {
     const performLogout = async () => {
       try {
-        console.log("Starting clearTokens...");
-        await clearTokens(); 
-        console.log("Tokens cleared successfully");
-        
-        // ใช้ setTimeout เล็กน้อยเพื่อให้แน่ใจว่า storage ทำงานเสร็จ
-        setTimeout(() => {
-          router.replace('/' as any);
-        }, 50);
+        await clearTokens(); // ลบ token จาก storage
+        if (Platform.OS === 'web') {
+          // ท่าไม้ตายสำหรับ Web เพื่อล้าง State และดีดไปหน้า Login
+          window.location.href = '/login';
+        } else {
+          router.replace('/login' as any);
+        }
       } catch (error) {
         console.error("Logout Error:", error);
       }
     };
 
-    // เช็คว่าถ้าเป็น Web ให้ใช้ confirm ของ browser แทน Alert.alert เพื่อเลี่ยง bug ARIA
     if (Platform.OS === 'web') {
-      if (window.confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
-        await performLogout();
+      if (confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
+        performLogout();
       }
     } else {
-      // สำหรับ Mobile (iOS/Android) ใช้ Alert.alert ปกติ
       Alert.alert(
         "ออกจากระบบ",
         "คุณต้องการออกจากระบบใช่หรือไม่?",
@@ -55,6 +55,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       </View>
 
       <DrawerContentScrollView {...props}>
+        {/* เมนูหน้าหลัก */}
         <DrawerItem
           label="หน้าหลัก"
           focused={focusedRouteName === 'home'}
@@ -64,6 +65,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           onPress={() => router.push('/(drawer)/home' as any)}
         />
 
+        {/* เมนู Marketplace */}
         <DrawerItem
           label="ซื้อขายชีทสรุป"
           focused={focusedRouteName === 'marketplace'}
@@ -85,11 +87,12 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           onPress={() => router.push('/(drawer)/favorite' as any)}
         />
 
+        {/* ปุ่มออกจากระบบที่ใช้งานได้จริง */}
         <DrawerItem
           label="ออกจากระบบ"
           icon={() => <Ionicons name="log-out-outline" size={24} color="red" />}
           labelStyle={{ color: 'red' }}
-          onPress={handleLogout} 
+          onPress={handleLogout}
         />
       </DrawerContentScrollView>
 
@@ -113,7 +116,6 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   );
 };
 
-// ... DrawerLayout และ Styles เหมือนเดิม ...
 export default function DrawerLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
