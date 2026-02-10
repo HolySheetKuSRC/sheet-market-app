@@ -3,25 +3,24 @@ import * as Haptics from 'expo-haptics';
 import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// 1. Import ฟังก์ชันจัดการ Token (ตรวจสอบ path ไฟล์ token.ts ของคุณด้วย)
 import { saveTokens } from './utils/token';
 
 /* ===============================
    ENV (สำคัญมากสำหรับ Expo Web)
 ================================ */
-const AUTH_API_URL = process.env.EXPO_PUBLIC_AUTH_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const THEME = {
   primary: '#4F46E5',
@@ -56,12 +55,12 @@ export default function AuthScreen() {
 
   const handleAuthAction = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields.');
+      Alert.alert('ข้อผิดพลาด', 'กรุณากรอกข้อมูลให้ครบถ้วน');
       return;
     }
 
-    if (!AUTH_API_URL) {
-      Alert.alert('Config Error', 'AUTH_API_URL is not defined');
+    if (!API_URL) {
+      Alert.alert('Config Error', 'ไม่พบค่า EXPO_PUBLIC_API_URL');
       return;
     }
 
@@ -71,43 +70,41 @@ export default function AuthScreen() {
       if (isLogin) {
         // ---------- LOGIN ----------
         const response = await axios.post(
-          `${AUTH_API_URL}/api/auth/login`,
-          {
-            email,
-            password,
-          }
+          `${API_URL}/auth/login`,
+          { email, password }
         );
 
         console.log('Login Success:', response.data);
 
-        // 2. ดึง token จาก response data (ใช้ชื่อ 'token' ตาม Log ที่คุณได้)
-        const { token } = response.data;
+        // ดึง Token จาก Response (ต้องใช้ access_token ที่เป็น UUID)
+        const accessToken = response.data.access_token;
+        const refreshToken = response.data.refresh_token;
 
-        if (token) {
-          // 3. เรียกใช้ saveTokens เพื่อเก็บลงเครื่อง (Log ในไฟล์ token.ts จะทำงานตรงนี้)
-          await saveTokens(token);
+        if (accessToken) {
+          // บันทึกทั้ง Access Token และ Refresh Token ลงเครื่อง
+          await saveTokens(accessToken, refreshToken);
+          
+          if (Platform.OS !== 'web') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+
+          // ไปหน้า Home
+          router.replace('/(drawer)/home' as any);
         } else {
-          console.warn('Login success but no token found in response');
+          console.warn('Login success but no access_token found');
+          Alert.alert('เข้าสู่ระบบไม่สำเร็จ', 'ไม่พบ Token ในข้อมูลที่ตอบกลับจากเซิร์ฟเวอร์');
         }
-
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(
-            Haptics.NotificationFeedbackType.Success
-          );
-        }
-
-        router.replace('/(drawer)/home' as any);
 
       } else {
         // ---------- REGISTER ----------
         if (password !== confirmPassword) {
-          Alert.alert('Error', 'Passwords do not match!');
+          Alert.alert('ข้อผิดพลาด', 'รหัสผ่านไม่ตรงกัน');
           setLoading(false);
           return;
         }
 
         const response = await axios.post(
-          `${AUTH_API_URL}/api/auth/register`,
+          `${API_URL}/auth/register`,
           {
             username,
             email,
@@ -117,20 +114,19 @@ export default function AuthScreen() {
         );
 
         console.log('Register Success:', response.data);
-        Alert.alert('Success', 'Account created successfully! Please Log In.');
+        Alert.alert('สำเร็จ', 'สร้างบัญชีเรียบร้อยแล้ว กรุณาเข้าสู่ระบบ');
         setIsLogin(true);
       }
     } catch (error: any) {
+      console.error('Auth Error:', error);
       const errorMessage =
         error.response?.data?.message ||
-        'Connection error. Please try again.';
+        'การเชื่อมต่อขัดข้อง กรุณาลองใหม่อีกครั้ง';
 
-      Alert.alert('Authentication Failed', errorMessage);
+      Alert.alert('การยืนยันตัวตนล้มเหลว', errorMessage);
 
       if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Error
-        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } finally {
       setLoading(false);
@@ -314,7 +310,6 @@ export default function AuthScreen() {
   );
 }
 
-// ... styles เหมือนเดิม ...
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
   container: { flex: 1, backgroundColor: THEME.bg },

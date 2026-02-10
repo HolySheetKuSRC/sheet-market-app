@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter } from 'expo-router';
-import { jwtDecode } from "jwt-decode";
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,16 +10,12 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { getAccessToken } from './utils/token';
 
-const CART_API_URL = process.env.EXPO_PUBLIC_CART_API_URL;
-
-interface JwtPayload {
-  sub: string;
-}
+// ✅ เรียกใช้ตัวกลาง apiRequest เพื่อจัดการ Token และ Header อัตโนมัติ
+import { apiRequest } from './utils/api';
 
 interface CartItem {
-  id: string;           // ✅ frontend-safe id
+  id: string;           
   sheetName: string;
   price: string;
   sellerName: string;
@@ -35,39 +30,29 @@ export default function CartScreen() {
   const [loading, setLoading] = useState(true);
 
   // ===============================
-  // Fetch cart (SAFE FOR MOCK)
+  // Fetch cart (เรียกใช้ apiRequest)
   // ===============================
   const fetchCartData = async () => {
     try {
       setLoading(true);
-      const token = await getAccessToken();
-      const decoded: JwtPayload = jwtDecode(token!);
-
-      const response = await fetch(`${CART_API_URL}/api/cart/user`, {
+      
+      // ✅ ใช้ apiRequest แทน fetch ปกติ (จัดการ Error 401 และ Refresh Token ในตัว)
+      const response = await apiRequest('/cart/user', {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-USER-ID': decoded.sub,
-          'Content-Type': 'application/json'
-        }
       });
 
       if (response.ok) {
         const data = await response.json();
 
-        // ✅ normalize data ไม่กรองทิ้ง
+        // ตรวจสอบโครงสร้างข้อมูล (กรณี data.items เป็น null หรือไม่มีข้อมูล)
         const items: CartItem[] = (data.items || []).map(
           (item: any, index: number) => {
-            const id =
-              item.id ??
-              item.cartItemId ??
-              item._id ??
-              `mock-${index}`; // ✅ fallback key
+            const id = item.id ?? item.cartItemId ?? `item-${index}`;
 
             return {
               id: String(id),
               sheetName: item.sheetName ?? 'ไม่ระบุชื่อสินค้า',
-              price: item.price ?? '0',
+              price: String(item.price ?? '0'),
               sellerName: item.sellerName ?? '-'
             };
           }
@@ -75,6 +60,13 @@ export default function CartScreen() {
 
         setCartItems(items);
         setSelectedIds(items.map(i => i.id));
+      } else {
+        console.error('Cart Fetch Error Status:', response.status);
+        if (response.status === 401) {
+            Alert.alert("แจ้งเตือน", "กรุณาเข้าสู่ระบบใหม่");
+            router.replace('/login' as any);
+        }
+        setCartItems([]);
       }
     } catch (err) {
       console.error('Fetch cart error:', err);
@@ -88,7 +80,7 @@ export default function CartScreen() {
   }, []);
 
   // ===============================
-  // Select
+  // Select Logic
   // ===============================
   const toggleSelect = (id: string) => {
     setSelectedIds(prev =>
@@ -120,27 +112,14 @@ export default function CartScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const token = await getAccessToken();
-              const decoded: JwtPayload = jwtDecode(token!);
-
-              const response = await fetch(
-                `${CART_API_URL}/api/cart/${cartItemId}`,
-                {
-                  method: 'DELETE',
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'X-USER-ID': decoded.sub
-                  }
-                }
-              );
+              // ✅ ใช้ apiRequest สำหรับการลบสินค้า
+              const response = await apiRequest(`/cart/${cartItemId}`, {
+                method: 'DELETE',
+              });
 
               if (response.ok) {
-                setCartItems(prev =>
-                  prev.filter(item => item.id !== cartItemId)
-                );
-                setSelectedIds(prev =>
-                  prev.filter(id => id !== cartItemId)
-                );
+                setCartItems(prev => prev.filter(item => item.id !== cartItemId));
+                setSelectedIds(prev => prev.filter(id => id !== cartItemId));
               } else {
                 Alert.alert("ผิดพลาด", "ลบสินค้าไม่สำเร็จ");
               }
@@ -153,16 +132,10 @@ export default function CartScreen() {
     );
   };
 
-  // ===============================
-  // Total price
-  // ===============================
   const totalPrice = cartItems
     .filter(item => selectedIds.includes(item.id))
     .reduce((sum, item) => sum + Number(item.price || 0), 0);
 
-  // ===============================
-  // UI
-  // ===============================
   if (loading) {
     return (
       <View style={styles.center}>
@@ -187,16 +160,9 @@ export default function CartScreen() {
       {/* Select all */}
       {cartItems.length > 0 && (
         <View style={styles.selectAllRow}>
-          <TouchableOpacity
-            style={styles.checkboxRow}
-            onPress={toggleSelectAll}
-          >
+          <TouchableOpacity style={styles.checkboxRow} onPress={toggleSelectAll}>
             <Ionicons
-              name={
-                selectedIds.length === cartItems.length
-                  ? "checkbox"
-                  : "square-outline"
-              }
+              name={selectedIds.length === cartItems.length ? "checkbox" : "square-outline"}
               size={24}
               color="#6C63FF"
             />
@@ -211,7 +177,6 @@ export default function CartScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
           const isSelected = selectedIds.includes(item.id);
-
           return (
             <View style={[styles.cartItem, isSelected && styles.selected]}>
               <TouchableOpacity onPress={() => toggleSelect(item.id)}>
@@ -221,30 +186,20 @@ export default function CartScreen() {
                   color="#6C63FF"
                 />
               </TouchableOpacity>
-
               <View style={styles.itemInfo}>
                 <Text style={styles.itemTitle}>{item.sheetName}</Text>
                 <Text style={styles.itemPrice}>฿{item.price}</Text>
-                <Text style={styles.sellerName}>
-                  ผู้ขาย: {item.sellerName}
-                </Text>
+                <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName}</Text>
               </View>
-
               <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
-                <Ionicons
-                  name="trash-outline"
-                  size={22}
-                  color="#EF4444"
-                />
+                <Ionicons name="trash-outline" size={22} color="#EF4444" />
               </TouchableOpacity>
             </View>
           );
         }}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: '#94A3B8', marginTop: 20 }}>
-              ไม่มีสินค้าในตะกร้า
-            </Text>
+            <Text style={{ color: '#94A3B8', marginTop: 20 }}>ไม่มีสินค้าในตะกร้า</Text>
           </View>
         }
       />
@@ -252,20 +207,13 @@ export default function CartScreen() {
       {/* Footer */}
       {cartItems.length > 0 && (
         <View style={styles.footer}>
-          <Text style={styles.totalAmount}>
-            ยอดสุทธิ: ฿{totalPrice.toLocaleString()}
-          </Text>
+          <Text style={styles.totalAmount}>ยอดสุทธิ: ฿{totalPrice.toLocaleString()}</Text>
           <TouchableOpacity
-            style={[
-              styles.checkoutBtn,
-              selectedIds.length === 0 && { backgroundColor: '#CBD5E1' }
-            ]}
+            style={[styles.checkoutBtn, selectedIds.length === 0 && { backgroundColor: '#CBD5E1' }]}
             disabled={selectedIds.length === 0}
-            onPress={() => router.replace('/(drawer)/home' as any)}
+            onPress={() => Alert.alert("ชำระเงิน", "กำลังพาส่งหน้าสรุปรายการสั่งซื้อ")}
           >
-            <Text style={styles.checkoutText}>
-              ชำระเงิน ({selectedIds.length})
-            </Text>
+            <Text style={styles.checkoutText}>ชำระเงิน ({selectedIds.length})</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -273,75 +221,22 @@ export default function CartScreen() {
   );
 }
 
-// ===============================
-// Styles
-// ===============================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-    paddingTop: 50,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9'
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, paddingTop: 50, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   headerTitle: { fontSize: 18, fontWeight: 'bold' },
-
-  selectAllRow: {
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE'
-  },
+  selectAllRow: { padding: 16, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#EEE' },
   checkboxRow: { flexDirection: 'row', alignItems: 'center' },
   selectAllText: { marginLeft: 10, fontWeight: '600' },
-
-  cartItem: {
-    flexDirection: 'row',
-    padding: 15,
-    backgroundColor: '#FFF',
-    margin: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-    elevation: 2
-  },
-  selected: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#6C63FF',
-    borderWidth: 1
-  },
-
+  cartItem: { flexDirection: 'row', padding: 15, backgroundColor: '#FFF', margin: 10, borderRadius: 12, alignItems: 'center', elevation: 2 },
+  selected: { backgroundColor: '#F5F3FF', borderColor: '#6C63FF', borderWidth: 1 },
   itemInfo: { marginLeft: 15, flex: 1 },
   itemTitle: { fontWeight: 'bold', fontSize: 15 },
-  itemPrice: {
-    color: '#6C63FF',
-    fontWeight: '900',
-    marginTop: 5,
-    fontSize: 17
-  },
+  itemPrice: { color: '#6C63FF', fontWeight: '900', marginTop: 5, fontSize: 17 },
   sellerName: { fontSize: 12, color: '#64748B', marginTop: 2 },
-
-  footer: {
-    padding: 20,
-    backgroundColor: '#FFF',
-    borderTopWidth: 1,
-    borderTopColor: '#EEE'
-  },
-  totalAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'right'
-  },
-  checkoutBtn: {
-    backgroundColor: '#6C63FF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center'
-  },
+  footer: { padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#EEE' },
+  totalAmount: { fontSize: 24, fontWeight: 'bold', marginBottom: 10, textAlign: 'right' },
+  checkoutBtn: { backgroundColor: '#6C63FF', padding: 16, borderRadius: 12, alignItems: 'center' },
   checkoutText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
 });
