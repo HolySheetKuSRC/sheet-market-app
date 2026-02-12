@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { saveTokens } from './utils/token';
+import { saveTokens } from '../utils/token';
 
 /* ===============================
    ENV (สำคัญมากสำหรับ Expo Web)

@@ -1,7 +1,7 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { getAccessToken } from './utils/token';
+import { getAccessToken } from '../utils/token';
 
 export default function Index() {
   const [target, setTarget] = useState<null | string>(null);

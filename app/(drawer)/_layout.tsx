@@ -5,7 +5,7 @@ import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // ✅ นำเข้า clearTokens จาก app/utils/token.ts
-import { clearTokens } from '../utils/token';
+import { clearTokens } from '../../utils/token';
 
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const { navigation, state } = props;

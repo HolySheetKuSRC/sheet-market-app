@@ -15,7 +15,7 @@ import {
 import SheetCard from '../../components/sheetcard';
 
 // ✅ เรียกใช้ตัวกลาง apiRequest เพื่อจัดการ token และการ refresh อัตโนมัติ
-import { apiRequest } from '../utils/api';
+import { apiRequest } from '../../utils/api';
 
 const { width } = Dimensions.get('window');
 
@@ -44,72 +44,45 @@ export default function SheetDetail() {
   const [sheet, setSheet] = useState<SheetDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [isInCart, setIsInCart] = useState(false); // ✅ สถานะเช็คว่าอยู่ในตะกร้าไหม
+  const [cartItemId, setCartItemId] = useState<string | null>(null); // ✅ เก็บ ID ของรายการในตะกร้าสำหรับลบ
   const [relatedSheets, setRelatedSheets] = useState<any[]>([]);
 
-  // ===============================
-  // ✅ แก้ไขฟังก์ชัน Add to Cart: ส่งแค่ sheetId 
-  // ===============================
-  const handleAddToCart = async () => {
-    if (!sheet?.id) {
-      Alert.alert("ข้อผิดพลาด", "ไม่พบรหัสสินค้า");
-      return;
-    }
+  // ✅ ฟังก์ชันเช็คสถานะตะกร้าจาก /cart/user พร้อม Console Log ละเอียด
+  const checkCartStatus = async () => {
+    console.log("-----------------------------------------");
+    console.log(`🔍 Checking Cart Status for Sheet ID: ${id}`);
 
     try {
-      setAddingToCart(true);
-
-      // ส่ง Body เฉพาะ sheetId
-      const response = await apiRequest('/cart/add', {
-        method: 'POST',
-        body: JSON.stringify({
-          sheetId: String(sheet.id)
-        })
-      });
-
+      const response = await apiRequest('/cart/user', { method: 'GET' });
+      
       if (response.ok) {
-        Alert.alert("สำเร็จ", "เพิ่มชีทสรุปลงในตะกร้าแล้ว", [
-          { text: "เลือกซื้อต่อ", style: "cancel" },
-          { text: "ไปที่ตะกร้า", onPress: () => router.push('/cart' as any) }
-        ]);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.log("Add Cart Error Detail:", errorData);
+        const data = await response.json();
+        const items = data.items || [];
         
-        if (response.status === 401) {
-             Alert.alert("แจ้งเตือน", "กรุณาเข้าสู่ระบบก่อน", [
-                { text: "ยกเลิก", style: "cancel" },
-                { text: "เข้าสู่ระบบ", onPress: () => router.push('/login' as any) }
-              ]);
+        console.log(`📦 Cart Items Count: ${items.length}`);
+
+        // เทียบ sheetId ที่เปิดอยู่กับรายการใน cart
+        const foundItem = items.find((item: any) => {
+             const itemIdInCart = item.product?.id || item.sheetId || item.id; 
+             return String(itemIdInCart) === String(id);
+        });
+        
+        if (foundItem) {
+          console.log(`✅ FOUND! This sheet is in cart. CartItemID: ${foundItem.id}`);
+          setIsInCart(true);
+          setCartItemId(String(foundItem.id));
         } else {
-            // ถ้ายังเป็น 400 ให้ดู log ใน console ว่า Backend แจ้งอะไรเพิ่ม
-            Alert.alert("ไม่สำเร็จ", errorData.message || "เกิดข้อผิดพลาด (400/500)");
+          console.log("❌ NOT FOUND in cart.");
+          setIsInCart(false);
+          setCartItemId(null);
         }
+      } else {
+          console.log(`⚠️ Fetch cart failed. Status: ${response.status}`);
       }
-
     } catch (error) {
-      console.error("Cart Network Error:", error);
-      Alert.alert("Error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-    } finally {
-      setAddingToCart(false);
+      console.error("Check Cart Error:", error);
     }
-  };
-
-  const handleBuyNow = () => {
-    Alert.alert(
-      "ยืนยันการสั่งซื้อ",
-      `คุณต้องการซื้อ "${sheet?.title}" หรือไม่?`,
-      [
-        { text: "ยกเลิก", style: "cancel" },
-        { 
-          text: "ยืนยัน", 
-          onPress: () => {
-             handleAddToCart().then(() => {
-                router.push('/cart' as any);
-             });
-          }
-        }
-      ]
-    );
   };
 
   const fetchSheetDetail = async () => {
@@ -133,7 +106,92 @@ export default function SheetDetail() {
     }
   };
 
-  useEffect(() => { if (id) fetchSheetDetail(); }, [id]);
+  // ✅ เช็คทุกครั้งที่เปิดหน้า หรือ id เปลี่ยน
+  useEffect(() => { 
+    if (id) {
+      console.log("🚀 Page Loaded/ID Changed. Initializing...");
+      fetchSheetDetail();
+      checkCartStatus(); 
+    } 
+  }, [id]);
+
+  // ✅ ฟังก์ชัน Toggle: ADD/REMOVE และเรียกเช็คสถานะใหม่ทุกครั้ง
+  const handleToggleCart = async () => {
+    if (!sheet?.id) return;
+    
+    console.log(`🖱️ Button Clicked. Current State: isInCart = ${isInCart}`);
+
+    try {
+      setAddingToCart(true);
+
+      if (isInCart && cartItemId) {
+        // --- กรณีลบออก ---
+        console.log(`🗑️ Removing CartItem ID: ${cartItemId}`);
+        
+        const response = await apiRequest(`/cart`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cartItemIds: [cartItemId],
+          }),
+        });
+
+        if (response.ok) {
+          Alert.alert("สำเร็จ", "นำออกจากตะกร้าแล้ว");
+          await checkCartStatus(); 
+        } else {
+           const errorText = await response.text();
+           console.log("Delete Failed:", errorText);
+        }
+
+      } else {
+        // --- กรณีเพิ่มเข้า ---
+        console.log(`➕ Adding Sheet ID: ${sheet.id}`);
+
+        const response = await apiRequest('/cart/add', {
+          method: 'POST',
+          body: JSON.stringify({ sheetId: String(sheet.id) })
+        });
+
+        if (response.ok) {
+          Alert.alert("สำเร็จ", "เพิ่มลงในตะกร้าแล้ว", [
+            { text: "เลือกซื้อต่อ", style: "cancel" },
+            { text: "ไปที่ตะกร้า", onPress: () => router.push('/cart' as any) }
+          ]);
+          await checkCartStatus(); 
+        } else if (response.status === 401) {
+          router.push('/login' as any);
+        } else {
+            const errorText = await response.text();
+            console.log("Add Failed:", errorText);
+        }
+      }
+    } catch (error) {
+      console.error("Cart Toggle Error:", error);
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = () => {
+    Alert.alert(
+      "ยืนยันการสั่งซื้อ",
+      `คุณต้องการซื้อ "${sheet?.title}" หรือไม่?`,
+      [
+        { text: "ยกเลิก", style: "cancel" },
+        { 
+          text: "ยืนยัน", 
+          onPress: () => {
+            if (!isInCart) {
+                handleToggleCart().then(() => router.push('/cart' as any));
+            } else {
+                router.push('/cart' as any);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   if (loading || !sheet) return (
     <View style={styles.center}><ActivityIndicator size="large" color="#6C63FF" /></View>
@@ -220,11 +278,24 @@ export default function SheetDetail() {
         </View>
         <View style={styles.actionButtons}>
             <TouchableOpacity 
-              style={[styles.cartBtn, addingToCart && { opacity: 0.6 }]} 
-              onPress={handleAddToCart}
+              style={[
+                styles.cartBtn, 
+                addingToCart && { opacity: 0.6 },
+                isInCart && { backgroundColor: '#6C63FF' } // ✅ เปลี่ยนสีพื้นหลังเป็นม่วงเข้ม (Hover Style)
+              ]} 
+              onPress={handleToggleCart}
               disabled={addingToCart}
             >
-                {addingToCart ? <ActivityIndicator color="#6C63FF" size="small" /> : <Ionicons name="cart-outline" size={24} color="#6C63FF" />}
+                {addingToCart ? (
+                    <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
+                ) : (
+                    <Ionicons 
+                        // ✅ แก้ตรงนี้: ถ้าอยู่ในตะกร้าใช้ "cart" (ทึบ), ถ้าไม่อยู่ใช้ "cart-outline" (โปร่ง)
+                        name={isInCart ? "cart" : "cart-outline"} 
+                        size={24} 
+                        color={isInCart ? "#FFF" : "#6C63FF"} 
+                    />
+                )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
                 <Text style={styles.buyText}>ซื้อชีทนี้</Text>
@@ -236,7 +307,6 @@ export default function SheetDetail() {
   );
 }
 
-// ... styles คงเดิมตามที่คุณส่งมา ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },

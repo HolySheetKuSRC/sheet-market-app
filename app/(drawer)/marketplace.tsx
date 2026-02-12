@@ -15,7 +15,7 @@ import {
 } from "react-native";
 
 // ✅ 1. Import apiRequest ที่สร้างใหม่
-import { apiRequest } from "./../utils/api";
+import { apiRequest } from "../../utils/api";
 
 import FilterPopup, {
   FilterPopupHandle,
