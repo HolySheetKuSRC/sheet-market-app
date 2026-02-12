@@ -50,14 +50,16 @@ export default StyleSheet.create({
   },
 
   uploadBox: {
-    height: 110,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#E3E4FF",
-    backgroundColor: "#FFF",
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#DADAF7",
+    borderRadius: 12,
+    paddingHorizontal: 12,
     justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    backgroundColor: "#F8F8FF",
+    marginBottom: 16,
   },
 
   submitButton: {
