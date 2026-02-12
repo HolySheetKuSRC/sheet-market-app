@@ -23,8 +23,6 @@ export const saveTokens = async (
       }
       console.log('🔐 [Storage: Mobile] Tokens encrypted and saved via SecureStore');
     }
-    // Log ดูบางส่วนของ Token เพื่อความมั่นใจ (ไม่ควร Log ตัวเต็มใน Production)
-    console.log(`🎫 Access Token (prefix): ${accessToken.substring(0, 10)}...`);
   } catch (error) {
     console.error('❌ [Storage Error] Failed to save tokens:', error);
   }
@@ -42,13 +40,6 @@ export const getAccessToken = async (): Promise<string | null> => {
     } else {
       token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
     }
-
-    if (token) {
-      console.log('📖 [Storage] Access Token retrieved successfully');
-    } else {
-      console.log('⚠️ [Storage] No Access Token found');
-    }
-    
     return token;
   } catch (error) {
     console.error('❌ [Storage Error] Failed to get access token:', error);
@@ -57,22 +48,38 @@ export const getAccessToken = async (): Promise<string | null> => {
 };
 
 /**
- * CLEAR TOKEN (LOGOUT)
+ * ✅ [เพิ่มใหม่] GET REFRESH TOKEN
+ */
+export const getRefreshToken = async (): Promise<string | null> => {
+  try {
+    let token: string | null = null;
+    
+    if (Platform.OS === 'web') {
+      token = localStorage.getItem(REFRESH_TOKEN_KEY);
+    } else {
+      token = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    }
+    return token;
+  } catch (error) {
+    console.error('❌ [Storage Error] Failed to get refresh token:', error);
+    return null;
+  }
+};
+
+/**
+ * ✅ [เพิ่มใหม่] CLEAR TOKENS (LOGOUT)
  */
 export const clearTokens = async (): Promise<void> => {
   try {
     if (Platform.OS === 'web') {
       localStorage.removeItem(ACCESS_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
-      console.log('🗑️ [Storage: Web] Tokens cleared from localStorage');
     } else {
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-      console.log('🗑️ [Storage: Mobile] Tokens deleted from SecureStore');
     }
+    console.log('🗑️ Tokens cleared successfully');
   } catch (error) {
     console.error('❌ [Storage Error] Failed to clear tokens:', error);
   }
 };
-
-export const removeToken = clearTokens;

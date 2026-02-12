@@ -14,6 +14,9 @@ import {
   View,
 } from "react-native";
 
+// ✅ 1. Import apiRequest ที่สร้างใหม่
+import { apiRequest } from "../../utils/api";
+
 import FilterPopup, {
   FilterPopupHandle,
   SortType,
@@ -50,7 +53,6 @@ export default function MarketplaceScreen() {
   const [isLastPage, setIsLastPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. เพิ่ม State สำหรับเก็บคำค้นหา
   const [searchQuery, setSearchQuery] = useState("");
 
   const sortByUpdatedAt = (list: Product[], type: SortType) => {
@@ -61,7 +63,6 @@ export default function MarketplaceScreen() {
     });
   };
 
-  // 2. ปรับปรุง fetchSheets ให้ส่งตัวแปรค้นหาไปยัง API
   const fetchSheets = async (
     pageNum: number,
     isRefresh = false,
@@ -71,16 +72,18 @@ export default function MarketplaceScreen() {
 
     try {
       if (pageNum > 0) setLoadingMore(true);
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-
+      
       const currentSize = pageNum === 0 ? 12 : 6;
-
-      // ต่อ Query String สำหรับการค้นหา (Encode เพื่อรองรับภาษาไทย)
       const searchParam = searchTxt
         ? `&search=${encodeURIComponent(searchTxt)}`
         : "";
-      const response = await fetch(
-        `${apiUrl}/api/products?page=${pageNum}&size=${currentSize}${searchParam}`,
+
+      // ✅ 2. ใช้ apiRequest แทน fetch
+      // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
+      // ไม่ต้องทำ Header เอง apiRequest จัดการให้
+      const response = await apiRequest(
+        `/products?page=${pageNum}&size=${currentSize}${searchParam}`,
+        { method: 'GET' }
       );
 
       if (!response.ok) throw new Error(`Server Error: ${response.status}`);
@@ -98,7 +101,7 @@ export default function MarketplaceScreen() {
     } catch (err) {
       console.error("Marketplace Fetch Error:", err);
       setError("ไม่สามารถดึงข้อมูลได้");
-      setIsLastPage(true);
+      setLoading(false); 
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -110,7 +113,6 @@ export default function MarketplaceScreen() {
     fetchSheets(0, true);
   }, []);
 
-  // 3. ฟังก์ชันจัดการเมื่อกดค้นหาหรือล้างค่า
   const handleSearch = () => {
     setLoading(true);
     setIsLastPage(false);
@@ -196,7 +198,6 @@ export default function MarketplaceScreen() {
           <Ionicons name="menu" size={26} color="#333" />
         </TouchableOpacity>
 
-        {/* Search Bar Logic */}
         <View style={styles.searchBar}>
           <Ionicons name="search" size={16} color="#999" />
           <TextInput
@@ -205,7 +206,7 @@ export default function MarketplaceScreen() {
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
             onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch} // ค้นหาเมื่อกด Enter
+            onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (

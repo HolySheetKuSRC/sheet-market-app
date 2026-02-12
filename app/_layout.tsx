@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import Notification, { NotificationHandle } from '../components/notification';
-import { getAccessToken } from './utils/token';
+import { getAccessToken } from '../utils/token';
 
 type NotiFunc = (msg?: string) => void;
 const NotificationContext = createContext<NotiFunc>(() => {});

@@ -13,10 +13,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-// 1. Import ฟังก์ชันจัดการ Token (ตรวจสอบ path ไฟล์ token.ts ของคุณด้วย)
-import { saveTokens } from "./utils/token";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { saveTokens } from '../utils/token';
 
 /* ===============================
    ENV (สำคัญมากสำหรับ Expo Web)
@@ -291,7 +290,6 @@ export default function AuthScreen() {
   );
 }
 
-// ... styles เหมือนเดิม ...
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
   container: { flex: 1, backgroundColor: THEME.bg },

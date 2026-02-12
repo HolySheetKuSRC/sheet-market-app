@@ -1,6 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { jwtDecode } from "jwt-decode";
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,17 +13,11 @@ import {
   View
 } from 'react-native';
 import SheetCard from '../../components/sheetcard';
-import { getAccessToken } from '../utils/token'; // ตรวจสอบ path ให้ถูกต้อง
+
+// ✅ เรียกใช้ตัวกลาง apiRequest เพื่อจัดการ token และการ refresh อัตโนมัติ
+import { apiRequest } from '../../utils/api';
 
 const { width } = Dimensions.get('window');
-
-// --- แยก URL ตาม Service ---
-const PRODUCT_API_URL = process.env.EXPO_PUBLIC_API_URL;
-const CART_API_URL = process.env.EXPO_PUBLIC_CART_API_URL;
-
-interface JwtPayload {
-  sub: string;
-}
 
 interface SheetDetailData {
   id: string;
@@ -44,14 +37,6 @@ interface SheetDetailData {
   updatedAt: string;
 }
 
-interface Review {
-  id: string;
-  user: string;
-  rating: number;
-  comment: string;
-  date: string;
-}
-
 export default function SheetDetail() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -59,140 +44,57 @@ export default function SheetDetail() {
   const [sheet, setSheet] = useState<SheetDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [isInCart, setIsInCart] = useState(false); // ✅ สถานะเช็คว่าอยู่ในตะกร้าไหม
+  const [cartItemId, setCartItemId] = useState<string | null>(null); // ✅ เก็บ ID ของรายการในตะกร้าสำหรับลบ
   const [relatedSheets, setRelatedSheets] = useState<any[]>([]);
 
-  const MOCK_REVIEWS: Review[] = [
-    { id: '1', user: 'Somchai', rating: 5, comment: 'เนื้อหาสรุปดีมากครับ อ่านเข้าใจง่าย ภาพประกอบชัดเจน', date: '2 วันที่แล้ว' },
-    { id: '2', user: 'Manee', rating: 4, comment: 'ช่วยให้สอบผ่านมิดเทอมได้จริงค่ะ ขอบคุณมาก', date: '1 สัปดาห์ที่แล้ว' }
-  ];
+  // ✅ ฟังก์ชันเช็คสถานะตะกร้าจาก /cart/user พร้อม Console Log ละเอียด
+  const checkCartStatus = async () => {
+    console.log("-----------------------------------------");
+    console.log(`🔍 Checking Cart Status for Sheet ID: ${id}`);
 
-  // --- ฟังก์ชัน Add to Cart ที่แก้ไขแล้ว ---
-  const handleAddToCart = async () => {
     try {
-      setAddingToCart(true);
-
-      // 1. เช็ค Token
-      const token = await getAccessToken();
-      if (!token) {
-        Alert.alert("แจ้งเตือน", "กรุณาเข้าสู่ระบบก่อนเพิ่มสินค้า", [
-          { text: "ยกเลิก", style: "cancel" },
-          { text: "เข้าสู่ระบบ", onPress: () => router.push('/login' as any) }
-        ]);
-        return;
-      }
-
-      // 2. ถอดรหัส Token หา User ID
-      const decoded: JwtPayload = jwtDecode(token);
-      const userId = decoded.sub;
-
-      if (!userId) {
-        Alert.alert("Error", "ไม่พบข้อมูลผู้ใช้ใน Token");
-        return;
-      }
-
-      if (!CART_API_URL) {
-        Alert.alert("Config Error", "CART_API_URL not defined");
-        return;
-      }
-
-      console.log(`Sending to: ${CART_API_URL}/api/cart/add`);
-
-      // 3. ยิง Request (ปรับ Body ให้ตรงกับ Java AddToCartRequest)
-      const response = await fetch(`${CART_API_URL}/api/cart/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-USER-ID': userId 
-        },
-        body: JSON.stringify({
-          sheetId: sheet?.id,       // Java: private UUID sheetId;
-          sheetName: sheet?.title,  // Java: private String sheetName;
-          sellerName: sheet?.seller?.name, // Java: private String sellerName;
-          price: sheet?.price       // Java: private BigDecimal price;
-        })
-      });
-
+      const response = await apiRequest('/cart/user', { method: 'GET' });
+      
       if (response.ok) {
-        Alert.alert("สำเร็จ", "เพิ่มชีทสรุปลงในตะกร้าแล้ว");
-      } else {
-        const errorText = await response.text();
-        console.log("Add Cart Error:", errorText);
-        Alert.alert("ไม่สำเร็จ", "เกิดข้อผิดพลาดในการเพิ่มสินค้า (เช็ค Log)");
-      }
+        const data = await response.json();
+        const items = data.items || [];
+        
+        console.log(`📦 Cart Items Count: ${items.length}`);
 
-    } catch (error) {
-      console.error("Cart Error:", error);
-      Alert.alert("Error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
-  const handleBuyNow = () => {
-    Alert.alert(
-      "ยืนยันการสั่งซื้อ",
-      `คุณต้องการซื้อ "${sheet?.title}" ในราคา ฿${sheet?.price?.toFixed(0)} ใช่หรือไม่?`,
-      [
-        { text: "ยกเลิก", style: "cancel" },
-        { 
-          text: "ยืนยัน", 
-          onPress: () => {
-             handleAddToCart().then(() => {
-                router.push('/cart' as any);
-             });
-          }
+        // เทียบ sheetId ที่เปิดอยู่กับรายการใน cart
+        const foundItem = items.find((item: any) => {
+             const itemIdInCart = item.product?.id || item.sheetId || item.id; 
+             return String(itemIdInCart) === String(id);
+        });
+        
+        if (foundItem) {
+          console.log(`✅ FOUND! This sheet is in cart. CartItemID: ${foundItem.id}`);
+          setIsInCart(true);
+          setCartItemId(String(foundItem.id));
+        } else {
+          console.log("❌ NOT FOUND in cart.");
+          setIsInCart(false);
+          setCartItemId(null);
         }
-      ]
-    );
-  };
-
-  const formatDateThai = (dateString: string) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+      } else {
+          console.log(`⚠️ Fetch cart failed. Status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Check Cart Error:", error);
+    }
   };
 
   const fetchSheetDetail = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${PRODUCT_API_URL}/api/products/${id}`);
-      
-      let data: SheetDetailData;
-
+      const response = await apiRequest(`/products/${id}`, { method: 'GET' });
       if (response.ok) {
-        data = await response.json();
-      } else {
-        // Fallback Mock Data (คงเดิม)
-        data = {
-          id: id as string,
-          title: "Anatomy: ระบบกระดูกและกล้ามเนื้อ (Mock)",
-          description: "ภาพวาดประกอบสวยงาม จำง่าย เหมาะสำหรับสายสุขภาพ",
-          price: 199.00,
-          imageUrl: "https://img.freepik.com/free-vector/human-internal-organ-with-liver-structure_1308-102213.jpg", 
-          previewUrl: null,
-          university: { name: "Mahidol University (MU)" },
-          tags: ["สรุป", "anatomy", "mahidol", "แพทย์"],
-          ratingCount: 12,
-          ratingAverage: 4.5,
-          seller: { name: "aomsin" },
-          pageCount: 30,
-          createdAt: "2026-01-28T22:44:30.488005",
-          updatedAt: "2026-01-28T22:44:30.488005"
-        };
+        const data = await response.json();
+        setSheet(data);
       }
       
-      if(!data.imageUrl) {
-         data.imageUrl = "https://img.freepik.com/free-vector/human-internal-organ-with-liver-structure_1308-102213.jpg";
-      }
-      
-      setSheet(data);
-
-      const relatedRes = await fetch(`${PRODUCT_API_URL}/api/products?page=0&size=6`);
+      const relatedRes = await apiRequest(`/products?page=0&size=6`, { method: 'GET' });
       if (relatedRes.ok) {
         const relatedData = await relatedRes.json();
         setRelatedSheets(relatedData.content.filter((item: any) => item.id !== id));
@@ -204,14 +106,95 @@ export default function SheetDetail() {
     }
   };
 
-  useEffect(() => {
-    if (id) fetchSheetDetail();
+  // ✅ เช็คทุกครั้งที่เปิดหน้า หรือ id เปลี่ยน
+  useEffect(() => { 
+    if (id) {
+      console.log("🚀 Page Loaded/ID Changed. Initializing...");
+      fetchSheetDetail();
+      checkCartStatus(); 
+    } 
   }, [id]);
 
+  // ✅ ฟังก์ชัน Toggle: ADD/REMOVE และเรียกเช็คสถานะใหม่ทุกครั้ง
+  const handleToggleCart = async () => {
+    if (!sheet?.id) return;
+    
+    console.log(`🖱️ Button Clicked. Current State: isInCart = ${isInCart}`);
+
+    try {
+      setAddingToCart(true);
+
+      if (isInCart && cartItemId) {
+        // --- กรณีลบออก ---
+        console.log(`🗑️ Removing CartItem ID: ${cartItemId}`);
+        
+        const response = await apiRequest(`/cart`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cartItemIds: [cartItemId],
+          }),
+        });
+
+        if (response.ok) {
+          Alert.alert("สำเร็จ", "นำออกจากตะกร้าแล้ว");
+          await checkCartStatus(); 
+        } else {
+           const errorText = await response.text();
+           console.log("Delete Failed:", errorText);
+        }
+
+      } else {
+        // --- กรณีเพิ่มเข้า ---
+        console.log(`➕ Adding Sheet ID: ${sheet.id}`);
+
+        const response = await apiRequest('/cart/add', {
+          method: 'POST',
+          body: JSON.stringify({ sheetId: String(sheet.id) })
+        });
+
+        if (response.ok) {
+          Alert.alert("สำเร็จ", "เพิ่มลงในตะกร้าแล้ว", [
+            { text: "เลือกซื้อต่อ", style: "cancel" },
+            { text: "ไปที่ตะกร้า", onPress: () => router.push('/cart' as any) }
+          ]);
+          await checkCartStatus(); 
+        } else if (response.status === 401) {
+          router.push('/login' as any);
+        } else {
+            const errorText = await response.text();
+            console.log("Add Failed:", errorText);
+        }
+      }
+    } catch (error) {
+      console.error("Cart Toggle Error:", error);
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = () => {
+    Alert.alert(
+      "ยืนยันการสั่งซื้อ",
+      `คุณต้องการซื้อ "${sheet?.title}" หรือไม่?`,
+      [
+        { text: "ยกเลิก", style: "cancel" },
+        { 
+          text: "ยืนยัน", 
+          onPress: () => {
+            if (!isInCart) {
+                handleToggleCart().then(() => router.push('/cart' as any));
+            } else {
+                router.push('/cart' as any);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading || !sheet) return (
-    <View style={styles.center}>
-      <ActivityIndicator size="large" color="#6C63FF" />
-    </View>
+    <View style={styles.center}><ActivityIndicator size="large" color="#6C63FF" /></View>
   );
 
   return (
@@ -240,7 +223,7 @@ export default function SheetDetail() {
         <View style={styles.contentContainer}>
           <Text style={styles.title}>{sheet.title}</Text>
           <View style={styles.tagRow}>
-            {sheet.tags && sheet.tags.map((tag, i) => (
+            {sheet.tags?.map((tag, i) => (
               <View key={i} style={styles.tagPill}><Text style={styles.tagText}>#{tag}</Text></View>
             ))}
           </View>
@@ -265,38 +248,15 @@ export default function SheetDetail() {
 
           <Text style={styles.sectionHeader}>รายละเอียด</Text>
           <Text style={styles.description}>{sheet.description}</Text>
-          <Text style={styles.updateDateText}>อัปเดตล่าสุด {formatDateThai(sheet.updatedAt)}</Text>
-          
+
           <View style={styles.aiCard}>
             <View style={styles.aiHeader}>
               <MaterialCommunityIcons name="robot" size={20} color="#A855F7" />
-              <Text style={styles.aiTitle}> AI Summary (วิเคราะห์เนื้อหา)</Text>
+              <Text style={styles.aiTitle}> AI Summary</Text>
             </View>
-            <Text style={styles.bulletText}>• สรุปประเด็นสำคัญของ {sheet.title}</Text>
-            <Text style={styles.bulletText}>• เหมาะสำหรับอ่านทบทวนก่อนสอบมิดเทอม</Text>
+            <Text style={styles.bulletText}>• วิเคราะห์เนื้อหาสำคัญให้อัตโนมัติ</Text>
+            <Text style={styles.bulletText}>• เหมาะสำหรับอ่านทบทวน</Text>
           </View>
-
-          <View style={styles.divider} />
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>รีวิวจากเพื่อนๆ</Text>
-            <TouchableOpacity><Text style={styles.seeAllText}>ดูทั้งหมด</Text></TouchableOpacity>
-          </View>
-          {MOCK_REVIEWS.map((review) => (
-            <View key={review.id} style={styles.reviewCard}>
-              <View style={styles.reviewHeader}>
-                <View style={styles.reviewUser}>
-                  <Text style={styles.userName}>{review.user}</Text>
-                  <View style={styles.starRow}>
-                    {[...Array(5)].map((_, i) => (
-                      <Ionicons key={i} name="star" size={12} color={i < review.rating ? "#FBBF24" : "#E2E8F0"} />
-                    ))}
-                  </View>
-                </View>
-                <Text style={styles.reviewDate}>{review.date}</Text>
-              </View>
-              <Text style={styles.reviewComment}>{review.comment}</Text>
-            </View>
-          ))}
 
           <View style={styles.divider} />
           <Text style={styles.sectionHeader}>ชีทสรุปที่ใกล้เคียงกัน</Text>
@@ -318,11 +278,24 @@ export default function SheetDetail() {
         </View>
         <View style={styles.actionButtons}>
             <TouchableOpacity 
-              style={[styles.cartBtn, addingToCart && { opacity: 0.6 }]} 
-              onPress={handleAddToCart}
+              style={[
+                styles.cartBtn, 
+                addingToCart && { opacity: 0.6 },
+                isInCart && { backgroundColor: '#6C63FF' } // ✅ เปลี่ยนสีพื้นหลังเป็นม่วงเข้ม (Hover Style)
+              ]} 
+              onPress={handleToggleCart}
               disabled={addingToCart}
             >
-                {addingToCart ? <ActivityIndicator color="#6C63FF" size="small" /> : <Ionicons name="cart-outline" size={24} color="#6C63FF" />}
+                {addingToCart ? (
+                    <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
+                ) : (
+                    <Ionicons 
+                        // ✅ แก้ตรงนี้: ถ้าอยู่ในตะกร้าใช้ "cart" (ทึบ), ถ้าไม่อยู่ใช้ "cart-outline" (โปร่ง)
+                        name={isInCart ? "cart" : "cart-outline"} 
+                        size={24} 
+                        color={isInCart ? "#FFF" : "#6C63FF"} 
+                    />
+                )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
                 <Text style={styles.buyText}>ซื้อชีทนี้</Text>
@@ -362,21 +335,11 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: '#E2E8F0', height: '80%' },
   sectionHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#1E293B' },
   description: { fontSize: 14, color: '#475569', lineHeight: 22, marginBottom: 10 },
-  updateDateText: { fontSize: 12, color: '#94A3B8', marginBottom: 20 },
   aiCard: { backgroundColor: '#F5F3FF', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#DDD6FE', marginBottom: 20 },
   aiHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   aiTitle: { fontWeight: 'bold', color: '#7C3AED', fontSize: 15 },
   bulletText: { fontSize: 13, color: '#4B5563', marginBottom: 5 },
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 25 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  seeAllText: { fontSize: 13, color: '#6C63FF', fontWeight: 'bold' },
-  reviewCard: { backgroundColor: '#F8FAFC', padding: 16, borderRadius: 12, marginBottom: 12 },
-  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  reviewUser: { flexDirection: 'row', alignItems: 'center' },
-  userName: { fontSize: 14, fontWeight: 'bold', color: '#333', marginRight: 8 },
-  starRow: { flexDirection: 'row' },
-  reviewDate: { fontSize: 11, color: '#94A3B8' },
-  reviewComment: { fontSize: 13, color: '#4B5563', lineHeight: 20 },
   relatedScrollContent: { paddingRight: 20, flexDirection: 'row' },
   relatedCardWrapper: { width: (width - 48) / 3, marginRight: 10 },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F5F9', elevation: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
