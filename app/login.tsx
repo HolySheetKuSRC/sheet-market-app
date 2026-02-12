@@ -1,37 +1,37 @@
-import axios from 'axios';
-import * as Haptics from 'expo-haptics';
-import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import axios from "axios";
+import * as Haptics from "expo-haptics";
+import { Stack, useRouter } from "expo-router";
+import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 // 1. Import ฟังก์ชันจัดการ Token (ตรวจสอบ path ไฟล์ token.ts ของคุณด้วย)
-import { saveTokens } from './utils/token';
+import { saveTokens } from "./utils/token";
 
 /* ===============================
    ENV (สำคัญมากสำหรับ Expo Web)
 ================================ */
-const AUTH_API_URL = process.env.EXPO_PUBLIC_AUTH_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const THEME = {
-  primary: '#4F46E5',
-  primaryDark: '#3730A3',
-  bg: '#F8FAFC',
-  surface: '#FFFFFF',
-  textMain: '#0F172A',
-  textSub: '#64748B',
-  border: '#E2E8F0',
-  inputBg: '#FFFFFF',
+  primary: "#4F46E5",
+  primaryDark: "#3730A3",
+  bg: "#F8FAFC",
+  surface: "#FFFFFF",
+  textMain: "#0F172A",
+  textSub: "#64748B",
+  border: "#E2E8F0",
+  inputBg: "#FFFFFF",
 };
 
 export default function AuthScreen() {
@@ -40,14 +40,14 @@ export default function AuthScreen() {
   const router = useRouter();
 
   // --- States สำหรับ Form Data ---
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleTabChange = (mode: boolean) => {
     if (mode !== isLogin) {
-      if (Platform.OS !== 'web') {
+      if (Platform.OS !== "web") {
         Haptics.selectionAsync();
       }
       setIsLogin(mode);
@@ -56,12 +56,12 @@ export default function AuthScreen() {
 
   const handleAuthAction = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields.');
+      Alert.alert("Error", "Please fill in all required fields.");
       return;
     }
 
-    if (!AUTH_API_URL) {
-      Alert.alert('Config Error', 'AUTH_API_URL is not defined');
+    if (!API_URL) {
+      Alert.alert("Config Error", "EXPO_PUBLIC_API_URL is not defined");
       return;
     }
 
@@ -70,67 +70,63 @@ export default function AuthScreen() {
     try {
       if (isLogin) {
         // ---------- LOGIN ----------
-        const response = await axios.post(
-          `${AUTH_API_URL}/api/auth/login`,
-          {
-            email,
-            password,
+        // ยิงไปที่ /auth/login (Gateway จะจัดการ Path ให้)
+        const response = await axios.post(`${API_URL}/auth/login`, {
+          email,
+          password,
+        });
+
+        console.log("Login Success:", response.data);
+
+        // ✅ แก้ไขจุดสำคัญ: Backend ส่งกลับมาเป็น access_token (UUID) ไม่ใช่ token เฉยๆ
+        const accessToken = response.data.access_token;
+        const refreshToken = response.data.refresh_token;
+
+        if (accessToken) {
+          // 3. เรียกใช้ saveTokens เพื่อเก็บลงเครื่อง
+          // (ถ้า saveTokens ของคุณรับ 2 ค่า ให้ใส่ refreshToken ไปด้วย)
+          await saveTokens(accessToken, refreshToken);
+
+          if (Platform.OS !== "web") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
-        );
 
-        console.log('Login Success:', response.data);
-
-        // 2. ดึง token จาก response data (ใช้ชื่อ 'token' ตาม Log ที่คุณได้)
-        const { token } = response.data;
-
-        if (token) {
-          // 3. เรียกใช้ saveTokens เพื่อเก็บลงเครื่อง (Log ในไฟล์ token.ts จะทำงานตรงนี้)
-          await saveTokens(token);
+          router.replace("/(drawer)/home" as any);
         } else {
-          console.warn('Login success but no token found in response');
-        }
-
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(
-            Haptics.NotificationFeedbackType.Success
+          console.warn("Login success but no access_token found in response");
+          Alert.alert(
+            "Login Error",
+            "ได้รับข้อมูลตอบกลับไม่ถูกต้องจากเซิร์ฟเวอร์",
           );
         }
-
-        router.replace('/(drawer)/home' as any);
-
       } else {
         // ---------- REGISTER ----------
         if (password !== confirmPassword) {
-          Alert.alert('Error', 'Passwords do not match!');
+          Alert.alert("Error", "Passwords do not match!");
           setLoading(false);
           return;
         }
 
-        const response = await axios.post(
-          `${AUTH_API_URL}/api/auth/register`,
-          {
-            username,
-            email,
-            password,
-            secPassword: confirmPassword,
-          }
-        );
+        const response = await axios.post(`${API_URL}/auth/register`, {
+          username,
+          email,
+          password,
+          secPassword: confirmPassword,
+        });
 
-        console.log('Register Success:', response.data);
-        Alert.alert('Success', 'Account created successfully! Please Log In.');
+        console.log("Register Success:", response.data);
+        Alert.alert("Success", "Account created successfully! Please Log In.");
         setIsLogin(true);
       }
     } catch (error: any) {
+      console.error("Auth Error:", error);
       const errorMessage =
-        error.response?.data?.message ||
-        'Connection error. Please try again.';
+        error.response?.data?.message || "Connection error. Please try again.";
 
-      Alert.alert('Authentication Failed', errorMessage);
+      Alert.alert("Authentication Failed", errorMessage);
 
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Error
-        );
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } finally {
       setLoading(false);
@@ -142,9 +138,9 @@ export default function AuthScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex1}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView
           style={styles.flex1}
@@ -159,7 +155,7 @@ export default function AuthScreen() {
               <View style={{ flex: 1 }} />
               <TouchableOpacity
                 onPress={() =>
-                  Platform.OS !== 'web' &&
+                  Platform.OS !== "web" &&
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
                 }
               >
@@ -177,7 +173,7 @@ export default function AuthScreen() {
               <View style={styles.formConstraint}>
                 <View style={styles.welcomeContainer}>
                   <Text style={styles.title}>
-                    {isLogin ? 'Welcome Back!' : 'Join Us!'}
+                    {isLogin ? "Welcome Back!" : "Join Us!"}
                   </Text>
                   <Text style={styles.subtitle}>
                     Access verified Thai university study guides & AI tools
@@ -187,34 +183,22 @@ export default function AuthScreen() {
                 {/* Tabs */}
                 <View style={styles.tabContainer}>
                   <TouchableOpacity
-                    style={[
-                      styles.tabButton,
-                      isLogin && styles.activeTab,
-                    ]}
+                    style={[styles.tabButton, isLogin && styles.activeTab]}
                     onPress={() => handleTabChange(true)}
                   >
                     <Text
-                      style={[
-                        styles.tabText,
-                        isLogin && styles.activeTabText,
-                      ]}
+                      style={[styles.tabText, isLogin && styles.activeTabText]}
                     >
                       Log In
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.tabButton,
-                      !isLogin && styles.activeTab,
-                    ]}
+                    style={[styles.tabButton, !isLogin && styles.activeTab]}
                     onPress={() => handleTabChange(false)}
                   >
                     <Text
-                      style={[
-                        styles.tabText,
-                        !isLogin && styles.activeTabText,
-                      ]}
+                      style={[styles.tabText, !isLogin && styles.activeTabText]}
                     >
                       Register
                     </Text>
@@ -264,9 +248,7 @@ export default function AuthScreen() {
 
                   {!isLogin && (
                     <>
-                      <Text style={styles.inputLabel}>
-                        Confirm Password
-                      </Text>
+                      <Text style={styles.inputLabel}>Confirm Password</Text>
                       <TextInput
                         style={styles.input}
                         secureTextEntry
@@ -280,17 +262,12 @@ export default function AuthScreen() {
 
                   {isLogin && (
                     <TouchableOpacity>
-                      <Text style={styles.forgotText}>
-                        Forgot Password?
-                      </Text>
+                      <Text style={styles.forgotText}>Forgot Password?</Text>
                     </TouchableOpacity>
                   )}
 
                   <TouchableOpacity
-                    style={[
-                      styles.mainButton,
-                      loading && { opacity: 0.8 },
-                    ]}
+                    style={[styles.mainButton, loading && { opacity: 0.8 }]}
                     onPress={handleAuthAction}
                     disabled={loading}
                   >
@@ -298,7 +275,7 @@ export default function AuthScreen() {
                       <ActivityIndicator color="#FFF" />
                     ) : (
                       <Text style={styles.mainButtonText}>
-                        {isLogin ? 'Sign In' : 'Create Account'}
+                        {isLogin ? "Sign In" : "Create Account"}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -318,34 +295,34 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
   container: { flex: 1, backgroundColor: THEME.bg },
-  scrollContent: { flexGrow: 1, justifyContent: 'center' },
+  scrollContent: { flexGrow: 1, justifyContent: "center" },
   mainWrapper: {
     flex: 1,
     paddingHorizontal: 32,
-    paddingTop: Platform.OS === 'android' ? 20 : 0,
+    paddingTop: Platform.OS === "android" ? 20 : 0,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     height: 60,
   },
   helpText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME.textSub,
   },
-  centeredContent: { alignItems: 'center', paddingVertical: 20 },
+  centeredContent: { alignItems: "center", paddingVertical: 20 },
   registerMargin: { paddingTop: 10 },
-  formConstraint: { width: '100%', maxWidth: 400 },
-  welcomeContainer: { alignItems: 'center', marginBottom: 24 },
+  formConstraint: { width: "100%", maxWidth: 400 },
+  welcomeContainer: { alignItems: "center", marginBottom: 24 },
   title: {
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: "800",
     color: THEME.textMain,
     letterSpacing: -0.5,
   },
   subtitle: {
-    textAlign: 'center',
+    textAlign: "center",
     color: THEME.textSub,
     marginTop: 8,
     fontSize: 15,
@@ -353,11 +330,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
+    flexDirection: "row",
+    backgroundColor: "#E2E8F0",
     borderRadius: 16,
     padding: 4,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 24,
   },
   tabButton: {
@@ -369,11 +346,11 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.surface,
     ...Platform.select({
       web: {
-        boxShadow: '0px 4px 6px -1px rgba(0,0,0,0.1)',
+        boxShadow: "0px 4px 6px -1px rgba(0,0,0,0.1)",
       },
       default: {
         elevation: 3,
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOpacity: 0.1,
         shadowRadius: 4,
         shadowOffset: { width: 0, height: 2 },
@@ -381,14 +358,14 @@ const styles = StyleSheet.create({
     }),
   },
   tabText: {
-    fontWeight: '700',
+    fontWeight: "700",
     color: THEME.textSub,
     fontSize: 14,
   },
   activeTabText: { color: THEME.primary },
-  form: { width: '100%' },
+  form: { width: "100%" },
   inputLabel: {
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 6,
     fontSize: 14,
     color: THEME.textMain,
@@ -405,8 +382,8 @@ const styles = StyleSheet.create({
     color: THEME.textMain,
   },
   forgotText: {
-    textAlign: 'right',
-    fontWeight: '700',
+    textAlign: "right",
+    fontWeight: "700",
     marginBottom: 20,
     fontSize: 14,
     color: THEME.primary,
@@ -415,12 +392,11 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.primary,
     padding: 16,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 10,
     ...Platform.select({
       web: {
-        boxShadow:
-          '0px 10px 15px -3px rgba(79, 70, 229, 0.3)',
+        boxShadow: "0px 10px 15px -3px rgba(79, 70, 229, 0.3)",
       },
       default: {
         elevation: 4,
@@ -432,13 +408,13 @@ const styles = StyleSheet.create({
     }),
   },
   mainButtonText: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 16,
-    color: '#FFF',
+    color: "#FFF",
   },
   dotContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginBottom: 20,
   },
   dot: {
