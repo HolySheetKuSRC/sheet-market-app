@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,64 +12,117 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import base64 from 'react-native-base64';
+import { apiRequest } from '../utils/api';
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  // ✅ รับค่ารองรับทั้งจากหน้า [id] และหน้า Cart
-  const { itemsData, price, type, sheetId, title, sellerName } = params;
+  // orderId จะถูกส่งมาจากหน้า order.tsx ในกรณี "ชำระเงินต่อ"
+  const { itemsData, price, type, sheetId, title, sellerName, orderId: paramOrderId } = params;
   const [loading, setLoading] = useState(false);
+  
+  // State สำหรับเก็บ QR Code ที่ได้จาก Backend
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
-  const PKEY = process.env.EXPO_PUBLIC_OMISE_PKEY;
-
-  // ✅ จัดการข้อมูลรายการสินค้าที่จะแสดงผล (รองรับทั้งซื้อชิ้นเดียวและจากตะกร้า)
+  // ✅ จัดการข้อมูลรายการสินค้าที่จะแสดงผล (รองรับทั้ง Re-payment, Cart และ Quick Buy)
   const displayItems = useMemo(() => {
-    if (type === 'cart' && itemsData) {
-      // ถ้ามาจากตะกร้า ให้แกะ JSON String ออกมาเป็น Array
-      return JSON.parse(itemsData as string);
-    } else {
-      // ถ้ามาจากหน้า [id] (Quick Buy) ให้จำลองเป็น Array 1 ชิ้น
-      return [{
-        id: sheetId,
-        sheetName: title,
-        sellerName: sellerName,
-        price: price
-      }];
-    }
-  }, [itemsData, type]);
+    // กรณีมาจากหน้า order.tsx หรือจากตะกร้า จะส่ง itemsData เป็น JSON String มาให้
+    if ((type === 're-payment' || type === 'cart') && itemsData) {
+      try {
+        return JSON.parse(itemsData as string);
+      } catch (e) {
+        console.error("Parse itemsData error:", e);
+        return [];
+      }
+    } 
+    
+    // กรณีมาจากหน้า [id] (Quick Buy)
+    return [{
+      id: sheetId,
+      sheetName: title,
+      sellerName: sellerName,
+      price: price
+    }];
+  }, [itemsData, type, sheetId, title, sellerName, price]);
 
   const handleCreatePayment = async () => {
-    if (!PKEY) {
-      Alert.alert("Error", "PKEY is missing");
-      return;
-    }
-
     try {
       setLoading(true);
-      // STEP 1: ขอ Source ID จาก Omise API (PromptPay)
-      const omiseResponse = await fetch('https://api.omise.co/sources', {
+      let finalOrderId = paramOrderId as string;
+
+      // --- ส่วนที่ 1: ตรวจสอบ/สร้าง Order ---
+      if (!finalOrderId) {
+        let targetCartItemIds: string[] = [];
+
+        if (type === 'cart') {
+          targetCartItemIds = displayItems.map((item: any) => item.id);
+        } else {
+          // กรณี Quick Buy: ต้องเพิ่มลงตะกร้าก่อน
+          await apiRequest('/cart', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sheetId: sheetId }) 
+          });
+
+          const cartResponse = await apiRequest('/cart/user', { method: 'GET' });
+          const cartData = await cartResponse.json();
+          
+          const addedItem = cartData.items?.find((item: any) => 
+              (item.sheet && item.sheet.id === sheetId) || item.sheetId === sheetId
+          );
+          
+          if (!addedItem) throw new Error("ไม่พบสินค้าในระบบตะกร้า");
+          targetCartItemIds = [addedItem.id];
+        }
+
+        // ยิง API สร้าง Order
+        const orderResponse = await apiRequest('/order/checkout', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cartItemIds: targetCartItemIds 
+            })
+        });
+        
+        if (!orderResponse.ok) {
+          const errorData = await orderResponse.json();
+          throw new Error(errorData.message || "สร้างรายการสั่งซื้อไม่สำเร็จ");
+        }
+
+        const orderData = await orderResponse.json();
+        finalOrderId = orderData.id;
+        console.log("✅ Order Created ID:", finalOrderId);
+      } else {
+        console.log("🔄 Re-paying for Order ID:", finalOrderId);
+      }
+
+      // --- ส่วนที่ 2: สร้าง Payment Charge (ขอ QR Code) ---
+      const paymentResponse = await apiRequest('/payments/create-charge', {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${base64.encode(PKEY + ':')}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          amount: Math.round(Number(price) * 100), // แปลงเป็นหน่วยสตางค์
-          currency: 'thb',
-          type: 'promptpay',
-        }),
+        body: JSON.stringify(finalOrderId), 
       });
 
-      const sourceData = await omiseResponse.json();
-      if (!omiseResponse.ok) throw new Error(sourceData.message);
+      const paymentData = await paymentResponse.json();
 
-      console.log("✅ Got Source ID:", sourceData.id);
-      Alert.alert("Omise Success", `Source ID: ${sourceData.id}\nยอดชำระ: ฿${price}`);
+      if (!paymentResponse.ok) {
+        throw new Error(paymentData.message || "สร้างการชำระเงินไม่สำเร็จ");
+      }
+
+      // --- ส่วนที่ 3: แสดงผล QR Code ---
+      if (paymentData.success && paymentData.qr_url) {
+        setQrCodeUrl(paymentData.qr_url);
+        Alert.alert("สำเร็จ", "กรุณาสแกน QR Code เพื่อชำระเงิน");
+      } else {
+        throw new Error("ไม่ได้รับ QR Code จากระบบ");
+      }
 
     } catch (error: any) {
-      Alert.alert("การชำระเงินล้มเหลว", error.message);
+      console.error("Payment Error:", error);
+      Alert.alert("ผิดพลาด", error.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
     } finally {
       setLoading(false);
     }
@@ -76,7 +130,6 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -88,51 +141,73 @@ export default function CheckoutScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionTitle}>สรุปรายการสั่งซื้อ</Text>
         
-        {/* ✅ วนลูปแยก Card สินค้าออกมาแต่ละชิ้น */}
+        {/* ✅ แสดงรายการสินค้าจากการแมปข้อมูล (รองรับทุกกรณีรวมถึง re-payment) */}
         {displayItems.map((item: any, index: number) => (
           <View key={index} style={styles.orderCard}>
             <View style={styles.sheetInfo}>
               <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
               <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}</Text>
             </View>
-            
-            {/* ✅ แก้ไข: ลบเงื่อนไข type !== 'cart' ออก เพื่อให้แสดงราคาเสมอ */}
             <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>
-            
           </View>
         ))}
 
-        {/* ส่วนยอดรวม (Summary) */}
         <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>ยอดชำระสุทธิ</Text>
           <Text style={styles.totalValue}>฿{Number(price).toLocaleString()}</Text>
         </View>
 
-        <View style={styles.paymentMethodSection}>
-          <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
-          <View style={styles.paymentOption}>
-            <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
-            <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
-            <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
+        {qrCodeUrl ? (
+          <View style={styles.qrContainer}>
+            <Text style={styles.sectionTitle}>สแกนเพื่อชำระเงิน</Text>
+            <View style={styles.qrWrapper}>
+              <Image 
+                source={{ uri: qrCodeUrl }} 
+                style={styles.qrImage} 
+              />
+            </View>
+            <Text style={styles.qrInstruction}>
+              กรุณาสแกน QR Code ผ่านแอปธนาคาร{"\n"}ยอดชำระ: ฿{Number(price).toLocaleString()}
+            </Text>
           </View>
-        </View>
+        ) : (
+          <View style={styles.paymentMethodSection}>
+            <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
+            <View style={styles.paymentOption}>
+              <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
+              <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
+              <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
+            </View>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Footer Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.payButton, loading && { opacity: 0.7 }]}
-          onPress={handleCreatePayment}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.payButtonText}>
-              ยืนยันการชำระเงิน ฿{Number(price).toLocaleString()}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {!qrCodeUrl ? (
+          <TouchableOpacity 
+            style={[styles.payButton, loading && { opacity: 0.7 }]}
+            onPress={handleCreatePayment}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.payButtonText}>
+                {type === 're-payment' ? 'ขอ QR Code ชำระเงิน' : `ยืนยันการชำระเงิน ฿${Number(price).toLocaleString()}`}
+              </Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.payButton, { backgroundColor: '#10B981' }]}
+            onPress={() => {
+                Alert.alert("แจ้งเตือน", "ระบบกำลังตรวจสอบยอดเงิน สินค้าจะถูกเพิ่มเข้าคลังอัตโนมัติเมื่อชำระเสร็จสิ้น");
+                router.replace('/order'); 
+            }}
+          >
+            <Text style={styles.payButtonText}>ตรวจสอบสถานะ / ไปที่คลัง</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -195,4 +270,31 @@ const styles = StyleSheet.create({
   footer: { padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingBottom: 40 },
   payButton: { backgroundColor: '#6C63FF', padding: 18, borderRadius: 15, alignItems: 'center' },
   payButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  qrContainer: {
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: 16,
+    marginTop: 10,
+    elevation: 2,
+  },
+  qrWrapper: {
+    padding: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginVertical: 15,
+  },
+  qrImage: {
+    width: 250,
+    height: 250,
+    resizeMode: 'contain',
+  },
+  qrInstruction: {
+    textAlign: 'center',
+    color: '#64748B',
+    lineHeight: 22,
+    fontSize: 14,
+  }
 });
