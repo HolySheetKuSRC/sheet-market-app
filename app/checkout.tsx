@@ -95,8 +95,10 @@ export default function CheckoutScreen() {
               <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
               <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}</Text>
             </View>
-            {/* แสดงราคาแยกในแต่ละชีท (ถ้าซื้อชิ้นเดียว) หรือจะโชว์รายตัวก็ได้ถ้ามีข้อมูล */}
-            {type !== 'cart' && <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>}
+            
+            {/* ✅ แก้ไข: ลบเงื่อนไข type !== 'cart' ออก เพื่อให้แสดงราคาเสมอ */}
+            <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>
+            
           </View>
         ))}
 
@@ -158,7 +160,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10, // ✅ ทำให้แต่ละใบแยกออกจากกัน
+    marginBottom: 10,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
