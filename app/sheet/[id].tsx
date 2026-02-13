@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -106,14 +106,23 @@ export default function SheetDetail() {
     }
   };
 
-  // ✅ เช็คทุกครั้งที่เปิดหน้า หรือ id เปลี่ยน
+  // ✅ 1. ใช้ useEffect เพื่อโหลดข้อมูลสินค้า (ทำแค่ครั้งแรก หรือเมื่อ id เปลี่ยน)
   useEffect(() => { 
     if (id) {
-      console.log("🚀 Page Loaded/ID Changed. Initializing...");
+      console.log("🚀 Page Loaded/ID Changed. Fetching Detail...");
       fetchSheetDetail();
-      checkCartStatus(); 
     } 
   }, [id]);
+
+  // ✅ 2. ใช้ useFocusEffect เพื่อเช็คสถานะตะกร้าทุกครั้งที่หน้าจอแสดงผล (กลับมาจากหน้า Cart ก็จะเช็คใหม่)
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        console.log("👀 Screen Focused. Updating Cart Status...");
+        checkCartStatus();
+      }
+    }, [id])
+  );
 
   // ✅ ฟังก์ชัน Toggle: ADD/REMOVE และเรียกเช็คสถานะใหม่ทุกครั้ง
   const handleToggleCart = async () => {
@@ -173,24 +182,23 @@ export default function SheetDetail() {
     }
   };
 
+  // ✅ แก้ไข handleBuyNow: นำทางไปยังหน้า Checkout พร้อมส่ง Params
   const handleBuyNow = () => {
-    Alert.alert(
-      "ยืนยันการสั่งซื้อ",
-      `คุณต้องการซื้อ "${sheet?.title}" หรือไม่?`,
-      [
-        { text: "ยกเลิก", style: "cancel" },
-        { 
-          text: "ยืนยัน", 
-          onPress: () => {
-            if (!isInCart) {
-                handleToggleCart().then(() => router.push('/cart' as any));
-            } else {
-                router.push('/cart' as any);
-            }
-          }
-        }
-      ]
-    );
+    if (!sheet) return;
+
+    console.log("🛒 Navigating to Checkout with Sheet:", sheet.id);
+
+    // ส่งข้อมูลผ่าน router params ไปยังหน้า app/checkout.tsx
+    router.push({
+      pathname: '/checkout',
+      params: {
+        sheetId: String(sheet.id),
+        title: sheet.title,
+        price: String(sheet.price),
+        sellerName: sheet.seller?.name || 'ไม่ระบุชื่อผู้ขาย',
+        type: 'direct' // ระบุว่าเป็นการซื้อตรง (Direct Buy)
+      }
+    } as any);
   };
 
   if (loading || !sheet) return (

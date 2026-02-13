@@ -92,6 +92,15 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       </DrawerContentScrollView>
 
       <DrawerItem
+        label="รายการสั่งซื้อ"
+        focused={focusedRouteName === 'order'}
+        activeTintColor={THEME_COLOR}
+        activeBackgroundColor="#EEF2FF"
+        icon={({ color }) => <Ionicons name="receipt-outline" size={24} color={color} />}
+        onPress={() => navigation.navigate('order')}
+      />
+
+      <DrawerItem
         label="ตะกร้าสินค้า"
         focused={focusedRouteName === 'cart'}
         activeTintColor={THEME_COLOR}
