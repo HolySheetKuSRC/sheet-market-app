@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -106,14 +106,23 @@ export default function SheetDetail() {
     }
   };
 
-  // ✅ เช็คทุกครั้งที่เปิดหน้า หรือ id เปลี่ยน
+  // ✅ 1. ใช้ useEffect เพื่อโหลดข้อมูลสินค้า (ทำแค่ครั้งแรก หรือเมื่อ id เปลี่ยน)
   useEffect(() => { 
     if (id) {
-      console.log("🚀 Page Loaded/ID Changed. Initializing...");
+      console.log("🚀 Page Loaded/ID Changed. Fetching Detail...");
       fetchSheetDetail();
-      checkCartStatus(); 
     } 
   }, [id]);
+
+  // ✅ 2. ใช้ useFocusEffect เพื่อเช็คสถานะตะกร้าทุกครั้งที่หน้าจอแสดงผล (กลับมาจากหน้า Cart ก็จะเช็คใหม่)
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        console.log("👀 Screen Focused. Updating Cart Status...");
+        checkCartStatus();
+      }
+    }, [id])
+  );
 
   // ✅ ฟังก์ชัน Toggle: ADD/REMOVE และเรียกเช็คสถานะใหม่ทุกครั้ง
   const handleToggleCart = async () => {

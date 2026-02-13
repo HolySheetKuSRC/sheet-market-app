@@ -59,13 +59,10 @@ export default function CartScreen() {
     fetchCartData();
   }, []);
 
-  // ฟังก์ชันลบสินค้าแบบลบได้ทันที (Immediate Delete)
   const handleRemoveItem = async (cartItemId: string) => {
-    console.log("---------------------------------------");
-    console.log("STEP 1: Starting immediate delete for ID:", cartItemId);
+    console.log("Delete button pressed. cartItemId:", cartItemId);
 
     try {
-      console.log("STEP 2: Sending DELETE request to /cart");
       const response = await apiRequest(`/cart`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -74,20 +71,17 @@ export default function CartScreen() {
         }),
       });
 
-      console.log("STEP 3: Server Response:", response.status);
-
       if (response.ok) {
-        console.log("STEP 4: Delete Success! Updating UI");
+        console.log("Delete success:", cartItemId);
+
         setCartItems(prev => prev.filter(item => item.id !== cartItemId));
         setSelectedIds(prev => prev.filter(id => id !== cartItemId));
       } else {
-        const errorMsg = await response.text();
-        console.error("Delete failed:", errorMsg);
-        // แสดง Alert เฉพาะกรณีที่ลบไม่สำเร็จจริงๆ
+        console.log("Delete failed. status:", response.status);
         Alert.alert("ผิดพลาด", "ลบสินค้าไม่สำเร็จ");
       }
     } catch (error) {
-      console.error("Network error:", error);
+      console.log("Delete error:", error);
       Alert.alert("Error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     }
   };
@@ -99,6 +93,21 @@ export default function CartScreen() {
   const totalPrice = cartItems
     .filter(item => selectedIds.includes(item.id))
     .reduce((sum, item) => sum + Number(item.price || 0), 0);
+
+  const handleCheckout = () => {
+    if (selectedIds.length === 0) return;
+
+    const selectedItems = cartItems.filter(item => selectedIds.includes(item.id));
+
+    router.push({
+      pathname: '/checkout',
+      params: {
+        itemsData: JSON.stringify(selectedItems),
+        price: totalPrice.toString(),
+        type: 'cart'
+      }
+    } as any);
+  };
 
   if (loading) {
     return (
@@ -125,24 +134,23 @@ export default function CartScreen() {
           const isSelected = selectedIds.includes(item.id);
           return (
             <View style={[styles.cartItem, isSelected && styles.selected]}>
-              <TouchableOpacity onPress={() => toggleSelect(item.id)} hitSlop={{right: 15}}>
-                <Ionicons 
-                  name={isSelected ? "checkbox" : "square-outline"} 
-                  size={24} 
-                  color="#6C63FF" 
+              <TouchableOpacity onPress={() => toggleSelect(item.id)} hitSlop={{ right: 15 }}>
+                <Ionicons
+                  name={isSelected ? "checkbox" : "square-outline"}
+                  size={24}
+                  color="#6C63FF"
                 />
               </TouchableOpacity>
-              
+
               <View style={styles.itemInfo}>
                 <Text style={styles.itemTitle}>{item.sheetName}</Text>
                 <Text style={styles.itemPrice}>฿{item.price}</Text>
                 <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName}</Text>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => handleRemoveItem(item.id)}
                 style={styles.deleteBtn}
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               >
                 <Ionicons name="trash-outline" size={22} color="#EF4444" />
               </TouchableOpacity>
@@ -159,10 +167,10 @@ export default function CartScreen() {
       {cartItems.length > 0 && (
         <View style={styles.footer}>
           <Text style={styles.totalAmount}>ยอดสุทธิ: ฿{totalPrice.toLocaleString()}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.checkoutBtn, selectedIds.length === 0 && { backgroundColor: '#CBD5E1' }]}
             disabled={selectedIds.length === 0}
-            onPress={() => Alert.alert("ชำระเงิน", "กำลังดำเนินการ...")}
+            onPress={handleCheckout}
           >
             <Text style={styles.checkoutText}>ชำระเงิน ({selectedIds.length})</Text>
           </TouchableOpacity>
@@ -175,25 +183,25 @@ export default function CartScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    padding: 16, 
-    paddingTop: 50, 
-    backgroundColor: '#FFF', 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#F1F5F9' 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 50,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9'
   },
   headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  cartItem: { 
-    flexDirection: 'row', 
-    padding: 15, 
-    backgroundColor: '#FFF', 
-    marginHorizontal: 10, 
-    marginVertical: 5, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    elevation: 2 
+  cartItem: {
+    flexDirection: 'row',
+    padding: 15,
+    backgroundColor: '#FFF',
+    marginHorizontal: 10,
+    marginVertical: 5,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 2
   },
   selected: { backgroundColor: '#F5F3FF', borderColor: '#6C63FF', borderWidth: 1 },
   itemInfo: { marginLeft: 15, flex: 1 },

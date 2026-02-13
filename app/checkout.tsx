@@ -1,39 +1,52 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import base64 from 'react-native-base64';
-import { apiRequest } from '../utils/api'; // ตรวจสอบ path ของ api.ts อีกครั้ง
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const { sheetId, title, price, sellerName } = useLocalSearchParams();
+  const params = useLocalSearchParams();
   
+  // ✅ รับค่ารองรับทั้งจากหน้า [id] และหน้า Cart
+  const { itemsData, price, type, sheetId, title, sellerName } = params;
   const [loading, setLoading] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
-  // ดึงค่าจาก ENV (EXPO_PUBLIC_OMISE_PKEY)
   const PKEY = process.env.EXPO_PUBLIC_OMISE_PKEY;
+
+  // ✅ จัดการข้อมูลรายการสินค้าที่จะแสดงผล (รองรับทั้งซื้อชิ้นเดียวและจากตะกร้า)
+  const displayItems = useMemo(() => {
+    if (type === 'cart' && itemsData) {
+      // ถ้ามาจากตะกร้า ให้แกะ JSON String ออกมาเป็น Array
+      return JSON.parse(itemsData as string);
+    } else {
+      // ถ้ามาจากหน้า [id] (Quick Buy) ให้จำลองเป็น Array 1 ชิ้น
+      return [{
+        id: sheetId,
+        sheetName: title,
+        sellerName: sellerName,
+        price: price
+      }];
+    }
+  }, [itemsData, type]);
 
   const handleCreatePayment = async () => {
     if (!PKEY) {
-      Alert.alert("Error", "ไม่พบข้อมูล PKEY ในระบบ");
+      Alert.alert("Error", "PKEY is missing");
       return;
     }
 
     try {
       setLoading(true);
-
       // STEP 1: ขอ Source ID จาก Omise API (PromptPay)
       const omiseResponse = await fetch('https://api.omise.co/sources', {
         method: 'POST',
@@ -49,28 +62,10 @@ export default function CheckoutScreen() {
       });
 
       const sourceData = await omiseResponse.json();
-      
-      if (!omiseResponse.ok) throw new Error(sourceData.message || "Omise Error");
+      if (!omiseResponse.ok) throw new Error(sourceData.message);
 
       console.log("✅ Got Source ID:", sourceData.id);
-
-      // STEP 2: ส่ง Source ID ไปที่ Backend (Spring Boot)
-      const backendResponse = await apiRequest('/api/order/checkout', {
-        method: 'POST',
-        body: JSON.stringify({
-          sheetId: sheetId,
-          sourceId: sourceData.id,
-          amount: price
-        }),
-      });
-
-      if (backendResponse.ok) {
-        const orderData = await backendResponse.json();
-        // Backend ควรส่ง paymentUrl (QR Code) กลับมาให้
-        setQrCodeUrl(orderData.paymentUrl); 
-      } else {
-        Alert.alert("Error", "ไม่สามารถสร้างรายการคำสั่งซื้อได้ (CORS?)");
-      }
+      Alert.alert("Omise Success", `Source ID: ${sourceData.id}\nยอดชำระ: ฿${price}`);
 
     } catch (error: any) {
       Alert.alert("การชำระเงินล้มเหลว", error.message);
@@ -93,60 +88,50 @@ export default function CheckoutScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionTitle}>สรุปรายการสั่งซื้อ</Text>
         
-        <View style={styles.orderCard}>
-          <View style={styles.sheetInfo}>
-            <Text style={styles.sheetTitle}>{title}</Text>
-            <Text style={styles.sellerName}>ผู้ขาย: {sellerName}</Text>
+        {/* ✅ วนลูปแยก Card สินค้าออกมาแต่ละชิ้น */}
+        {displayItems.map((item: any, index: number) => (
+          <View key={index} style={styles.orderCard}>
+            <View style={styles.sheetInfo}>
+              <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
+              <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}</Text>
+            </View>
+            {/* แสดงราคาแยกในแต่ละชีท (ถ้าซื้อชิ้นเดียว) หรือจะโชว์รายตัวก็ได้ถ้ามีข้อมูล */}
+            {type !== 'cart' && <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>}
           </View>
-          <Text style={styles.sheetPrice}>฿{Number(price).toLocaleString()}</Text>
-        </View>
+        ))}
 
+        {/* ส่วนยอดรวม (Summary) */}
         <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>ยอดชำระสุทธิ</Text>
           <Text style={styles.totalValue}>฿{Number(price).toLocaleString()}</Text>
         </View>
 
-        {/* ส่วนแสดง QR Code เมื่อสร้างสำเร็จ */}
-        {qrCodeUrl ? (
-          <View style={styles.qrSection}>
-            <Text style={[styles.sectionTitle, { textAlign: 'center' }]}>Thai QR Payment</Text>
-            <View style={styles.qrCard}>
-              <Image source={{ uri: qrCodeUrl }} style={styles.qrImage} />
-              <Text style={styles.qrHint}>สแกน QR Code เพื่อชำระเงิน</Text>
-              <ActivityIndicator size="small" color="#6C63FF" style={{ marginTop: 10 }} />
-              <Text style={styles.waitingText}>กำลังรอการยืนยันยอดเงิน...</Text>
-            </View>
+        <View style={styles.paymentMethodSection}>
+          <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
+          <View style={styles.paymentOption}>
+            <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
+            <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
+            <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
           </View>
-        ) : (
-          <View style={styles.paymentMethodSection}>
-            <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
-            <View style={styles.paymentOption}>
-              <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
-              <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
-              <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
-            </View>
-          </View>
-        )}
+        </View>
       </ScrollView>
 
-      {/* Footer Button (ซ่อนเมื่อมี QR Code แล้ว) */}
-      {!qrCodeUrl && (
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[styles.payButton, loading && { opacity: 0.7 }]}
-            onPress={handleCreatePayment}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.payButtonText}>
-                ยืนยันการชำระเงิน ฿{Number(price).toLocaleString()}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Footer Button */}
+      <View style={styles.footer}>
+        <TouchableOpacity 
+          style={[styles.payButton, loading && { opacity: 0.7 }]}
+          onPress={handleCreatePayment}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.payButtonText}>
+              ยืนยันการชำระเงิน ฿{Number(price).toLocaleString()}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -173,8 +158,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 10, // ✅ ทำให้แต่ละใบแยกออกจากกัน
     elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   sheetInfo: { flex: 1 },
   sheetTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
@@ -187,6 +175,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
+    marginTop: 10,
   },
   totalLabel: { fontSize: 16, color: '#475569' },
   totalValue: { fontSize: 24, fontWeight: '900', color: '#6C63FF' },
@@ -201,21 +190,6 @@ const styles = StyleSheet.create({
     borderColor: '#6C63FF',
   },
   paymentOptionText: { flex: 1, marginLeft: 12, fontWeight: '600', color: '#1E293B' },
-  qrSection: { marginTop: 10, alignItems: 'center' },
-  qrCard: {
-    backgroundColor: '#FFF',
-    padding: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    width: '100%',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  qrImage: { width: 250, height: 250 },
-  qrHint: { marginTop: 15, color: '#64748B', fontSize: 14 },
-  waitingText: { color: '#6C63FF', marginTop: 5, fontWeight: '600', fontSize: 12 },
   footer: { padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingBottom: 40 },
   payButton: { backgroundColor: '#6C63FF', padding: 18, borderRadius: 15, alignItems: 'center' },
   payButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
