@@ -18,14 +18,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { apiMultipartRequest } from "../../utils/api";
 
 interface SellerForm {
-  penname: string;
+  nickname: string;
   fullname: string;
   university: string;
   studentId: string;
   phone: string;
-  email: string;
   bank: string;
   bankAccount: string;
   bankName: string;
@@ -39,6 +39,7 @@ interface SectionProps {
 interface UploadedImage {
   uri: string;
   name: string;
+  type: string; // เพิ่ม type เพื่อความชัดเจนในการส่ง API
 }
 
 interface UploadBoxProps {
@@ -59,12 +60,11 @@ const SellerVerificationScreen = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const [form, setForm] = useState<SellerForm>({
-    penname: "",
+    nickname: "",
     fullname: "",
     university: "",
     studentId: "",
     phone: "",
-    email: "",
     bank: "",
     bankAccount: "",
     bankName: "",
@@ -80,34 +80,93 @@ const SellerVerificationScreen = () => {
       : router.replace("/(drawer)/home" as any);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // 1. ตรวจสอบข้อมูล
     if (
-      Object.values(form).some((v) => !v) ||
+      !form.nickname ||
+      !form.fullname ||
+      !form.university ||
+      !form.studentId ||
+      !form.phone ||
+      !form.bank ||
+      !form.bankAccount ||
+      !form.bankName ||
       !studentCardImage ||
       !selfieImage
     ) {
-      Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกข้อมูลและอัปโหลดรูปให้ครบ");
+      Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกข้อมูลและอัปโหลดรูปให้ครบถ้วน");
       return;
     }
 
-    Alert.alert("ส่งข้อมูลสำเร็จ", "ระบบจะตรวจสอบข้อมูลภายใน 1–3 วันทำการ", [
-      {
-        text: "ตกลง",
-        onPress: () => router.replace("/(drawer)/home" as any),
-      },
-    ]);
+    try {
+      const fd = new FormData();
+
+      // จัดเตรียม JSON Data
+      const payload = {
+        nickname: form.nickname,
+        fullName: form.fullname,
+        university: form.university,
+        studentId: form.studentId,
+        phone: form.phone,
+        bankName: form.bank,
+        bankAccountNumber: form.bankAccount,
+        bankAccountName: form.bankName,
+      };
+
+      fd.append("data", {
+        string: JSON.stringify(payload),
+        type: "application/json", // พยายามบังคับ type
+      } as any);
+
+      // ฟังก์ชันเตรียมไฟล์รูปภาพ
+      const appendFile = (key: string, img: UploadedImage) => {
+        const uri =
+          Platform.OS === "ios" ? img.uri.replace("file://", "") : img.uri;
+        fd.append(key, {
+          uri: uri,
+          name: img.name,
+          type: img.type,
+        } as any);
+      };
+
+      if (studentCardImage) appendFile("studentCardImage", studentCardImage);
+      if (selfieImage) appendFile("selfieWithCardImage", selfieImage);
+
+      const res = await apiMultipartRequest("/users/registorSeller", fd, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        Alert.alert(
+          "ส่งข้อมูลสำเร็จ",
+          "ระบบจะตรวจสอบข้อมูลภายใน 1–3 วันทำการ",
+          [
+            {
+              text: "ตกลง",
+              onPress: () => router.replace("/(drawer)/home" as any),
+            },
+          ],
+        );
+      } else {
+        const text = await res.text();
+        Alert.alert("เกิดข้อผิดพลาด", text || "ไม่สามารถส่งข้อมูลได้");
+      }
+    } catch (error) {
+      console.error("Submit error:", error);
+      Alert.alert("เกิดข้อผิดพลาด", "กรุณาลองใหม่อีกครั้ง");
+    }
   };
 
   const pickImage = async (type: "studentCard" | "selfie") => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     if (!permission.granted) {
       Alert.alert("ต้องอนุญาตเข้าถึงรูปภาพก่อน");
       return;
     }
 
+    // แก้ไข: ใช้ค่า 'images' โดยตรงตามข้อกำหนดใหม่ของ SDK 15+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       quality: 0.8,
     });
@@ -115,12 +174,16 @@ const SellerVerificationScreen = () => {
     if (!result.canceled) {
       const asset = result.assets[0];
 
+      // ดึงนามสกุลไฟล์ที่ถูกต้อง
+      const fileName =
+        asset.fileName ?? asset.uri.split("/").pop() ?? "image.jpg";
+      const ext = fileName.split(".").pop()?.toLowerCase();
+      const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+
       const imageData: UploadedImage = {
         uri: asset.uri,
-        name:
-          asset.fileName ??
-          asset.uri.split("/").pop() ??
-          `image_${Date.now()}.jpg`,
+        name: fileName,
+        type: mimeType,
       };
 
       if (type === "studentCard") {
@@ -131,9 +194,9 @@ const SellerVerificationScreen = () => {
     }
   };
 
+  // UI Components ส่วนที่เหลือ...
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack}>
           <Ionicons name="arrow-back" size={26} color="#333" />
@@ -153,9 +216,9 @@ const SellerVerificationScreen = () => {
           <Section title="ข้อมูลผู้ขาย">
             <Label text="นามปากกา" />
             <Input
-              value={form.penname}
+              value={form.nickname}
               placeholder="ณัฐ สมเหนือ"
-              onChangeText={(v) => onChange("penname", v)}
+              onChangeText={(v) => onChange("nickname", v)}
             />
 
             <Label text="ชื่อ-นามสกุล (ตามบัตรประชาชน)" />
@@ -205,14 +268,6 @@ const SellerVerificationScreen = () => {
               keyboardType="phone-pad"
               onChangeText={(v) => onChange("phone", v)}
             />
-
-            <Label text="อีเมล" />
-            <Input
-              value={form.email}
-              placeholder="user@example.com"
-              keyboardType="email-address"
-              onChangeText={(v) => onChange("email", v)}
-            />
           </Section>
 
           <Section title="ข้อมูลการรับเงิน">
@@ -245,7 +300,6 @@ const SellerVerificationScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Preview Modal */}
       <Modal visible={!!previewImage} transparent animationType="fade">
         <View
           style={{
@@ -256,24 +310,15 @@ const SellerVerificationScreen = () => {
           }}
         >
           <TouchableOpacity
-            style={{
-              position: "absolute",
-              top: 50,
-              right: 20,
-            }}
+            style={{ position: "absolute", top: 50, right: 20 }}
             onPress={() => setPreviewImage(null)}
           >
             <Ionicons name="close" size={32} color="#fff" />
           </TouchableOpacity>
-
           {previewImage && (
             <Image
               source={{ uri: previewImage }}
-              style={{
-                width: "90%",
-                height: "70%",
-                borderRadius: 12,
-              }}
+              style={{ width: "90%", height: "70%", borderRadius: 12 }}
               resizeMode="contain"
             />
           )}
@@ -283,12 +328,9 @@ const SellerVerificationScreen = () => {
   );
 };
 
-export default SellerVerificationScreen;
-
-/* ===== Small Components ===== */
-
+/* ===== Small Components (ใช้ของเดิมที่มีการปรับปรุงเล็กน้อย) ===== */
 const Section = ({ title, children }: SectionProps) => (
-  <View>
+  <View style={{ marginBottom: 20 }}>
     <Text style={styles.sectionTitle}>{title}</Text>
     {children}
   </View>
@@ -297,7 +339,6 @@ const Section = ({ title, children }: SectionProps) => (
 const Label = ({ text }: { text: string }) => (
   <Text style={styles.label}>{text}</Text>
 );
-
 const Input = (props: TextInputProps) => (
   <TextInput {...props} style={styles.input} placeholderTextColor="#B7B7D2" />
 );
@@ -310,30 +351,18 @@ const UploadBox = ({
   onPreview,
 }: UploadBoxProps) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  const handlePressIn = () => {
+  const handlePressIn = () =>
     Animated.spring(scaleAnim, {
       toValue: 0.96,
       useNativeDriver: true,
     }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
+  const handlePressOut = () =>
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
 
   return (
     <>
       <Text style={styles.label}>{label}</Text>
-
-      <Animated.View
-        style={{
-          transform: [{ scale: scaleAnim }],
-        }}
-      >
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         <TouchableOpacity
           style={styles.uploadBox}
           onPress={!image ? onUpload : onPreview}
@@ -342,31 +371,23 @@ const UploadBox = ({
           activeOpacity={0.9}
         >
           {!image ? (
-            <>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="cloud-upload-outline" size={22} color="#9AA1FF" />
-              <Text
-                style={{
-                  marginLeft: 8,
-                  color: "#9AA1FF",
-                }}
-              >
+              <Text style={{ marginLeft: 8, color: "#9AA1FF" }}>
                 อัปโหลดรูปภาพ
               </Text>
-            </>
+            </View>
           ) : (
-            <>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+            >
               <Ionicons name="document-outline" size={20} color="#555" />
               <Text
                 numberOfLines={1}
-                style={{
-                  flex: 1,
-                  marginLeft: 8,
-                  color: "#333",
-                }}
+                style={{ flex: 1, marginLeft: 8, color: "#333" }}
               >
                 {image.name}
               </Text>
-
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation();
@@ -375,10 +396,12 @@ const UploadBox = ({
               >
                 <Ionicons name="close-circle" size={22} color="red" />
               </TouchableOpacity>
-            </>
+            </View>
           )}
         </TouchableOpacity>
       </Animated.View>
     </>
   );
 };
+
+export default SellerVerificationScreen;
