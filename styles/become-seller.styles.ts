@@ -75,4 +75,41 @@ export default StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+
+  dropdown: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+
+  dropdownContainer: {
+    borderRadius: 12,
+    marginTop: 8,
+    overflow: "hidden",
+  },
+
+  dropdownPlaceholder: {
+    color: "#B7B7D2",
+    fontSize: 14,
+  },
+
+  dropdownSelectedText: {
+    color: "#333",
+    fontSize: 14,
+  },
+
+  dropdownSearchInput: {
+    height: 40,
+    fontSize: 14,
+    borderRadius: 8,
+    borderColor: "#E0E0E0",
+  },
+
+  dropdownIcon: {
+    width: 20,
+    height: 20,
+  },
+
+  dropdownLeftIcon: {
+    marginRight: 8,
+  },
 });

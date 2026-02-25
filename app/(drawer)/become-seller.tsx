@@ -17,7 +17,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Dropdown } from "react-native-element-dropdown";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { bankData } from "../../constants/banks";
+import { universityData } from "../../constants/universities";
+
 import { apiMultipartRequest } from "../../utils/api";
 
 interface SellerForm {
@@ -53,6 +58,9 @@ interface UploadBoxProps {
 const SellerVerificationScreen = () => {
   const router = useRouter();
   const navigation = useNavigation();
+
+  const [isUniversityFocus, setIsUniversityFocus] = useState(false);
+  const [isBankFocus, setIsBankFocus] = useState(false);
 
   const [studentCardImage, setStudentCardImage] =
     useState<UploadedImage | null>(null);
@@ -229,16 +237,48 @@ const SellerVerificationScreen = () => {
             />
 
             <Label text="มหาวิทยาลัย" />
-            <Input
+            <Dropdown
+              style={[styles.input, styles.dropdown]}
+              containerStyle={styles.dropdownContainer}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              inputSearchStyle={styles.dropdownSearchInput}
+              iconStyle={styles.dropdownIcon}
+              placeholder="เลือกมหาวิทยาลัย"
+              data={universityData}
+              search
+              searchPlaceholder="พิมพ์ชื่อมหาวิทยาลัย..."
+              maxHeight={400}
+              labelField="label"
+              valueField="value"
               value={form.university}
-              placeholder="มหาวิทยาลัยเกษตรศาสตร์"
-              onChangeText={(v) => onChange("university", v)}
+              onFocus={() => setIsUniversityFocus(true)}
+              onBlur={() => setIsUniversityFocus(false)}
+              onChange={(item) => {
+                onChange("university", item.value);
+                setIsUniversityFocus(false);
+              }}
+              renderLeftIcon={() => (
+                <Ionicons
+                  name="school-outline"
+                  size={20}
+                  color={form.university ? "#333" : "#B7B7D2"}
+                  style={styles.dropdownLeftIcon}
+                />
+              )}
+              renderRightIcon={() => (
+                <Ionicons
+                  name={isUniversityFocus ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#B7B7D2"
+                />
+              )}
             />
 
             <Label text="รหัสนักศึกษา" />
             <Input
               value={form.studentId}
-              placeholder="6612345678"
+              placeholder="66xxxxxxxx"
               keyboardType="numeric"
               onChangeText={(v) => onChange("studentId", v)}
             />
@@ -271,11 +311,39 @@ const SellerVerificationScreen = () => {
           </Section>
 
           <Section title="ข้อมูลการรับเงิน">
-            <Label text="ชื่อธนาคาร" />
-            <Input
+            <Dropdown
+              style={[styles.input, styles.dropdown]}
+              containerStyle={styles.dropdownContainer}
+              placeholderStyle={styles.dropdownPlaceholder}
+              selectedTextStyle={styles.dropdownSelectedText}
+              inputSearchStyle={styles.dropdownSearchInput}
+              iconStyle={styles.dropdownIcon}
+              placeholder="เลือกธนาคาร"
+              data={bankData}
+              search
+              searchPlaceholder="พิมพ์ชื่อธนาคาร..."
+              maxHeight={290}
+              labelField="label"
+              valueField="value"
               value={form.bank}
-              placeholder="ธนาคารกสิกรไทย"
-              onChangeText={(v) => onChange("bank", v)}
+              onFocus={() => setIsBankFocus(true)}
+              onBlur={() => setIsBankFocus(false)}
+              onChange={(item) => onChange("bank", item.value)}
+              renderLeftIcon={() => (
+                <Ionicons
+                  name="card-outline"
+                  size={20}
+                  color={form.bank ? "#333" : "#B7B7D2"}
+                  style={styles.dropdownLeftIcon}
+                />
+              )}
+              renderRightIcon={() => (
+                <Ionicons
+                  name={isBankFocus ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#B7B7D2"
+                />
+              )}
             />
 
             <Label text="เลขที่บัญชี" />
