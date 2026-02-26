@@ -1,10 +1,12 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { DrawerActions } from '@react-navigation/native';
 import { useNavigation, useRouter } from 'expo-router';
 import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 // 1. Import มาจากไฟล์ _layout
 import { useNotification } from '../_layout';
+// Import FloatingChat เข้ามา
+import { FloatingChat } from '../../components/FloatingChat';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -25,7 +27,6 @@ export default function HomeScreen() {
              <TextInput placeholder="ค้นหาชื่อวิชา..." style={{flex:1, marginLeft: 10}} />
         </View>
         
-        {/* 3. เพิ่ม TouchableOpacity ครอบ Ionicons และใส่ onPress */}
         <TouchableOpacity onPress={() => notify("คุณมีการแจ้งเตือนใหม่! 🔔")}>
             <Ionicons name="notifications-outline" size={24} color="#333" />
         </TouchableOpacity>
@@ -63,7 +64,6 @@ export default function HomeScreen() {
             <Text style={styles.seeAll}>ดูทั้งหมด {'>'}</Text>
         </View>
         
-        {/* Mock Card Horizontal */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalList}>
             <TouchableOpacity style={styles.hCard}>
                 <Image source={{uri: 'https://via.placeholder.com/150'}} style={styles.hCardImg}/>
@@ -88,48 +88,14 @@ export default function HomeScreen() {
                 </View>
             </TouchableOpacity>
         </ScrollView>
-
-        {/* AI Tutor Chat Section */}
-        <View style={styles.chatContainer}>
-            <View style={styles.chatHeader}>
-                <View style={{flexDirection:'row', alignItems:'center'}}>
-                    <View style={styles.aiAvatar}><MaterialCommunityIcons name="robot" size={20} color="#FFF"/></View>
-                    <View style={{marginLeft: 10}}>
-                        <Text style={{fontWeight:'bold'}}>Ai Tutor</Text>
-                        <Text style={{fontSize:10, color:'green'}}>Online</Text>
-                    </View>
-                </View>
-                <Ionicons name="refresh" size={20} color="#999" />
-            </View>
-            
-            <View style={styles.chatBody}>
-                <View style={styles.msgRowRight}>
-                    <View style={styles.msgBubbleBlue}>
-                        <Text style={styles.msgTextWhite}>ใกล้สอบมิดเทอมวิชาแคลแล้ว แนะนำชีทหน่อยครับ</Text>
-                    </View>
-                </View>
-                <View style={styles.msgRowLeft}>
-                    <View style={styles.aiAvatarSmall}><MaterialCommunityIcons name="robot" size={14} color="#FFF"/></View>
-                    <View style={styles.msgBubbleGray}>
-                        <Text style={styles.msgTextBlack}>
-                            สู้ๆ นะครับ! ✌️ สำหรับ Calculus 1 ผมคัดตัวท็อปๆ รีวิวดีมาให้ครับ:{"\n\n"}
-                            • <Text style={{color:'#6C63FF', fontWeight:'bold'}}>สรุป Calculus 1 (Midterm)</Text> เล่มนี้เน้นสรุปสูตรกระชับครับ
-                        </Text>
-                    </View>
-                </View>
-            </View>
-            <View style={styles.chatInputRow}>
-                <TextInput placeholder="Chat with AI Tutor" style={styles.chatInput} />
-                <View style={styles.sendBtn}><Ionicons name="send" size={16} color="#FFF"/></View>
-            </View>
-        </View>
-
       </ScrollView>
+
+      {/* --- 4. เพิ่ม FloatingChat ไว้ล่างสุดเพื่อให้ลอยทับหน้าจอ --- */}
+      <FloatingChat />
     </View>
   );
 }
 
-// ... styles เหมือนเดิมของคุณ ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   topBar: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', paddingTop: 45,paddingBottom: 20, justifyContent: 'space-between' },
@@ -159,18 +125,4 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: '#EEF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   tagText: { fontSize: 10, color: '#6C63FF' },
   priceText: { fontWeight: 'bold', color: '#6C63FF' },
-  chatContainer: { backgroundColor: '#FFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#EEE' },
-  chatHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  aiAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#C084FC', justifyContent: 'center', alignItems: 'center' },
-  chatBody: { minHeight: 150 },
-  msgRowRight: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
-  msgBubbleBlue: { backgroundColor: '#6C63FF', padding: 10, borderRadius: 12, borderTopRightRadius: 0, maxWidth: '80%' },
-  msgTextWhite: { color: '#FFF', fontSize: 12 },
-  msgRowLeft: { flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 10 },
-  aiAvatarSmall: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#C084FC', justifyContent: 'center', alignItems: 'center', marginRight: 5 },
-  msgBubbleGray: { backgroundColor: '#F1F5F9', padding: 10, borderRadius: 12, borderTopLeftRadius: 0, maxWidth: '80%' },
-  msgTextBlack: { color: '#333', fontSize: 12 },
-  chatInputRow: { flexDirection: 'row', marginTop: 10, alignItems: 'center' },
-  chatInput: { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 8, fontSize: 12, borderWidth: 1, borderColor: '#EEE' },
-  sendBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#6C63FF', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
 });
