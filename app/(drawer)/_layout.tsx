@@ -74,12 +74,21 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         />
 
         <DrawerItem
-          label="รายการโปรด"
-          focused={focusedRouteName === 'favorite'}
+          label="ถอดเสียงเลคเชอร์"
+          focused={focusedRouteName === 'transcribe'}
           activeTintColor={THEME_COLOR}
           activeBackgroundColor="#EEF2FF"
-          icon={({ color }) => <Ionicons name="heart-outline" size={24} color={color} />}
-          onPress={() => navigation.navigate('favorite')}
+          icon={({ color }) => <Ionicons name="mic-outline" size={24} color={color} />}
+          onPress={() => navigation.navigate('transcribe')}
+        />
+
+        <DrawerItem
+          label="คลังของฉัน"
+          focused={focusedRouteName === 'myLibrary'}
+          activeTintColor={THEME_COLOR}
+          activeBackgroundColor="#EEF2FF"
+          icon={({ color }) => <Ionicons name="library-outline" size={24} color={color} />}
+          onPress={() => navigation.navigate('myLibrary')}
         />
 
         <View style={styles.divider} />
@@ -135,6 +144,7 @@ export default function DrawerLayout() {
         <Drawer.Screen name="home" />
         <Drawer.Screen name="marketplace" />
         <Drawer.Screen name="become-seller" />
+        <Drawer.Screen name="transcribe" />
         <Drawer.Screen name="favorite" />
       </Drawer>
     </GestureHandlerRootView>

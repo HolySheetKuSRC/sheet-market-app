@@ -1,0 +1,811 @@
+import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
+import { Audio } from 'expo-av';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
+import { useNavigation, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { useNotification } from '../_layout';
+
+const USE_MOCK_API = true;
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+const THEME = {
+    primary: "#6C63FF", // Matches home.tsx
+    primaryDark: "#5A52D5",
+    secondary: "#10B981",
+    danger: "#FF69B4",    // Matches home.tsx pink
+    bg: "#F8FAFC",
+    surface: "#FFFFFF",
+    textMain: "#333333",
+    textSub: "#666666",
+    border: "#EEEEEE",
+    inputBg: "#FFFFFF",
+};
+
+export default function TranscribeScreen() {
+    const navigation = useNavigation();
+    const router = useRouter();
+    const notify = useNotification();
+
+    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const [audioUri, setAudioUri] = useState<string | null>(null);
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+    // Job & Polling States
+    const [jobId, setJobId] = useState<string | null>(null);
+    const [status, setStatus] = useState<'idle' | 'recording' | 'uploading' | 'processing' | 'completed' | 'failed'>('idle');
+    const [resultText, setResultText] = useState<string>('');
+
+    const [loadingMessage, setLoadingMessage] = useState<string>('');
+
+    // Mock History State
+    type HistoryItem = {
+        id: string;
+        title: string;
+        status: 'processing' | 'completed' | 'failed';
+        date: string;
+        text?: string;
+    };
+    const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
+
+    useEffect(() => {
+        fetchHistory();
+    }, []);
+
+    const fetchHistory = () => {
+        setHistoryList([
+            { id: '1', title: 'Lecture: Cloud Computing', status: 'processing', date: '10 mins ago' },
+            { id: '2', title: 'Lecture: Abstract Datatype', status: 'completed', date: '2 days ago', text: 'Mock transcribed text for Abstract Datatype...' },
+            { id: '3', title: 'Lecture: Coop', status: 'failed', date: '2 days ago' }
+        ]);
+    };
+
+    // Cleanup sound on unmount
+    useEffect(() => {
+        return sound
+            ? () => {
+                sound.unloadAsync();
+            }
+            : undefined;
+    }, [sound]);
+
+    // 1. Audio Recording
+    async function startRecording() {
+        try {
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+
+            const permItem = await Audio.requestPermissionsAsync();
+            if (permItem.status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant audio recording permissions.');
+                return;
+            }
+
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+            });
+
+            const { recording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+
+            setRecording(recording);
+            setAudioUri(null);
+            setStatus('recording');
+        } catch (err) {
+            console.error('Failed to start recording', err);
+            Alert.alert('Error', 'Could not start recording');
+        }
+    }
+
+    async function stopRecording() {
+        try {
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+            if (!recording) return;
+
+            setStatus('idle');
+            await recording.stopAndUnloadAsync();
+
+            const uri = recording.getURI();
+            setRecording(null);
+
+            if (uri) {
+                setAudioUri(uri);
+            }
+
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+            });
+        } catch (error) {
+            console.error('Failed to stop recording', error);
+            Alert.alert('Error', 'Could not stop recording');
+        }
+    }
+
+    // 2. Upload Audio File from Device
+    async function pickAudioFile() {
+        try {
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['audio/*'],
+                copyToCacheDirectory: true
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                setAudioUri(result.assets[0].uri);
+                setStatus('idle');
+            }
+        } catch (error) {
+            console.error("Error picking document", error);
+            Alert.alert("Error", "Could not pick an audio file");
+        }
+    }
+
+    // 2.5 Audio Preview Playback
+    async function playAudio() {
+        try {
+            if (!audioUri) return;
+            if (sound) {
+                if (isPlaying) {
+                    await sound.pauseAsync();
+                    setIsPlaying(false);
+                } else {
+                    await sound.playAsync();
+                    setIsPlaying(true);
+                }
+                return;
+            }
+
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: audioUri },
+                { shouldPlay: true }
+            );
+            setSound(newSound);
+            setIsPlaying(true);
+
+            newSound.setOnPlaybackStatusUpdate((playbackStatus) => {
+                if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
+                    setIsPlaying(false);
+                }
+            });
+        } catch (error) {
+            console.error("Playback error:", error);
+            Alert.alert("Playback Error", "Could not play the audio file.");
+        }
+    }
+
+    // 3. API Upload & Start Job
+    async function uploadAudio() {
+        if (!audioUri) {
+            Alert.alert('Error', 'No audio file to upload');
+            return;
+        }
+
+        if (!USE_MOCK_API && !API_URL) {
+            Alert.alert('Config Error', 'API URL is not defined in environment variables');
+            return;
+        }
+
+        try {
+            setStatus('uploading');
+            setLoadingMessage('Uploading audio file...');
+
+            if (USE_MOCK_API) {
+                // Simulate upload delay
+                await new Promise(res => setTimeout(res, 2000));
+                setJobId('mock-job-1234');
+                setStatus('processing');
+                setLoadingMessage('Processing transcription...');
+                return;
+            }
+
+            const formData = new FormData();
+            const filename = audioUri.split('/').pop() || 'audio-file.m4a';
+
+            // Construct file object correctly for React Native FormData
+            formData.append('file', {
+                uri: Platform.OS === 'android' ? audioUri : audioUri.replace('file://', ''),
+                name: filename,
+                type: 'audio/m4a' // Adjust if needed
+            } as any);
+
+            const response = await axios.post(`${API_URL}/api/audio/transcribe`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            if (response.data && response.data.job_id) {
+                setJobId(response.data.job_id);
+                setStatus('processing');
+                setLoadingMessage('Processing transcription...');
+            } else {
+                throw new Error("Invalid response from server");
+            }
+
+        } catch (error: any) {
+            console.error("Upload error:", error);
+            setStatus('failed');
+            Alert.alert('Upload Failed', error.response?.data?.message || error.message || 'An error occurred during upload.');
+        }
+    }
+
+    // 4. Polling Mechanism
+    useEffect(() => {
+        let pollInterval: ReturnType<typeof setInterval>;
+        let retries = 0;
+        const MAX_RETRIES = 120; // 10 minutes (5s * 120)
+
+        if (status === 'processing' && jobId) {
+            if (USE_MOCK_API) {
+                pollInterval = setInterval(async () => {
+                    clearInterval(pollInterval);
+                    setStatus('completed');
+                    setResultText("This is a mock transcription result. The audio has been fully processed and this text is editable. To use the real backend, switch USE_MOCK_API to false.");
+                    if (audioUri && Platform.OS !== "web") await FileSystem.deleteAsync(audioUri, { idempotent: true });
+                    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }, 3000);
+            } else {
+                pollInterval = setInterval(async () => {
+                    try {
+                        if (retries >= MAX_RETRIES) {
+                            clearInterval(pollInterval);
+                            setStatus('failed');
+                            Alert.alert('Timeout', 'Transcription job took too long.');
+                            return;
+                        }
+                        retries++;
+
+                        const response = await axios.get(`${API_URL}/sheets/jobs/${jobId}`);
+                        const data = response.data;
+
+                        if (data.status === 'completed') {
+                            clearInterval(pollInterval);
+                            setStatus('completed');
+                            setResultText(data.result?.summary || data.result?.raw_text_snippet || 'No text found.');
+
+                            // Clean up the local audio file after success
+                            if (audioUri && Platform.OS !== "web") {
+                                await FileSystem.deleteAsync(audioUri, { idempotent: true });
+                            }
+                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        } else if (data.status === 'failed') {
+                            clearInterval(pollInterval);
+                            setStatus('failed');
+                            Alert.alert('Transcription Failed', data.error_message || 'The backend failed to process the audio.');
+                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                        }
+                    } catch (error) {
+                        console.error("Polling error:", error);
+                    }
+                }, 5000);
+            }
+        }
+
+        return () => {
+            if (pollInterval) clearInterval(pollInterval);
+        };
+    }, [status, jobId, audioUri]);
+
+    // 5. PDF Generation & Export (Thai Support)
+    async function generateAndExportPDF() {
+        if (!resultText) return;
+
+        try {
+            if (Platform.OS !== "web") Haptics.selectionAsync();
+
+            const htmlContent = `
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+                body { 
+                  font-family: 'Sarabun', sans-serif; 
+                  font-size: 16px; 
+                  line-height: 1.6; 
+                  padding: 30px; 
+                  color: #11181C; 
+                }
+                h1 { 
+                  font-family: 'Sarabun', sans-serif; 
+                  color: #4F46E5; 
+                  margin-bottom: 20px;
+                }
+                .content {
+                  white-space: pre-wrap;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Audio Transcription Result</h1>
+            <div class="content">${resultText}</div>
+        </body>
+        </html>
+      `;
+
+            const { uri } = await Print.printToFileAsync({ html: htmlContent });
+
+            const isSharingAvailable = await Sharing.isAvailableAsync();
+            if (isSharingAvailable) {
+                await Sharing.shareAsync(uri);
+            } else {
+                Alert.alert("Success", `PDF saved to: ${uri}`);
+            }
+        } catch (error) {
+            console.error("PDF Export error:", error);
+            Alert.alert('Export Failed', 'Could not generate or share the PDF.');
+        }
+    }
+
+    // UI Rendering
+    return (
+        <View style={styles.container}>
+            {/* Top Bar matching home.tsx layout */}
+            <View style={styles.topBar}>
+                <TouchableOpacity onPress={() => router.push('/(drawer)/home')}>
+                    <Ionicons name="chevron-back" size={28} color="#333" />
+                </TouchableOpacity>
+
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333', flex: 1, textAlign: 'center' }}>
+                    ถอดเสียง AI
+                </Text>
+
+                <TouchableOpacity onPress={() => notify("ฟีเจอร์นี้ให้ AI ถอดเสียงพร้อมสรุปเนื้อหาทันที! 🎤")}>
+                    <Ionicons name="information-circle-outline" size={24} color="#333" />
+                </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.flex1}
+            >
+                <View style={styles.layoutWrapper}>
+                    {/* LEFT / CENTER COLUMN */}
+                    <ScrollView
+                        contentContainerStyle={styles.scrollContent}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        {/* Header Greeting */}
+                        <View style={styles.headerSection}>
+                            <Text style={styles.greetingTitle}>ถอดเสียงเลคเชอร์</Text>
+                            <Text style={styles.greetingSubtitle}>อัดเสียงหรืออัปโหลดไฟล์ให้ AI ช่วยสรุปให้!</Text>
+                        </View>
+
+                        {/* Dashboard Content */}
+                        <View style={styles.dashboardCard}>
+
+                            {/* STATUS INDICATORS */}
+                            {(status === 'uploading' || status === 'processing') ? (
+                                <View style={styles.loadingContainer}>
+                                    <ActivityIndicator size="large" color={THEME.primary} />
+                                    <Text style={styles.loadingText}>{loadingMessage}</Text>
+                                    <Text style={styles.subLoadingText}>This may take a few minutes. Please wait...</Text>
+                                </View>
+                            ) : status === 'completed' ? (
+                                <View style={styles.editorContainer}>
+                                    <Text style={styles.inputLabel}>Transcription Result</Text>
+                                    <TextInput
+                                        style={styles.textArea}
+                                        multiline
+                                        value={resultText}
+                                        onChangeText={setResultText}
+                                        placeholder="Transcription result will appear here..."
+                                        textAlignVertical="top"
+                                    />
+
+                                    <View style={styles.buttonRow}>
+                                        <TouchableOpacity
+                                            style={[styles.mainButton, styles.exportButton]}
+                                            onPress={generateAndExportPDF}
+                                        >
+                                            <Text style={styles.mainButtonText}>Export to PDF</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={[styles.mainButton, { flex: 1, marginLeft: 10 }]}
+                                            onPress={() => {
+                                                setStatus('idle');
+                                                setResultText('');
+                                                setAudioUri(null);
+                                                setJobId(null);
+                                            }}
+                                        >
+                                            <Text style={styles.mainButtonText}>New Transcription</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ) : (
+                                /* RECORDING / UPLOAD CONTROLS */
+                                <View style={styles.controlsContainer}>
+
+                                    {audioUri ? (
+                                        <View style={styles.audioReadyContainer}>
+                                            <View style={styles.audioIconWrapper}>
+                                                <Ionicons name="document-text" size={40} color={THEME.primary} />
+                                            </View>
+                                            <Text style={styles.audioReadyText}>ไฟล์เสียงพร้อมแล้ว</Text>
+
+                                            {/* --- PREVIEW AUDIO PLAYBACK --- */}
+                                            <TouchableOpacity
+                                                style={styles.playButtonRow}
+                                                onPress={playAudio}
+                                            >
+                                                <Ionicons name={isPlaying ? "pause-circle" : "play-circle"} size={32} color={THEME.primary} />
+                                                <Text style={styles.playText}>
+                                                    {isPlaying ? 'กำลังเล่น...' : 'ทดลองฟังเสียง'}
+                                                </Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={[styles.mainButton, { marginTop: 24, width: '100%' }]}
+                                                onPress={uploadAudio}
+                                            >
+                                                <Text style={styles.mainButtonText}>เริ่มถอดเสียงกันเลย</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={[styles.secondaryButton, { marginTop: 12 }]}
+                                                onPress={() => {
+                                                    setAudioUri(null);
+                                                    if (sound) sound.unloadAsync();
+                                                    setSound(null);
+                                                    setIsPlaying(false);
+                                                }}
+                                            >
+                                                <Text style={styles.secondaryButtonText}>ยกเลิก / เลือกไฟล์ใหม่</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <>
+                                            {/* Record Button */}
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.recordButton,
+                                                    status === 'recording' && styles.recordingActive
+                                                ]}
+                                                onPress={status === 'recording' ? stopRecording : startRecording}
+                                            >
+                                                <View style={[
+                                                    styles.recordInner,
+                                                    status === 'recording' && styles.recordInnerActive
+                                                ]} />
+                                            </TouchableOpacity>
+                                            <Text style={styles.controlLabel}>
+                                                {status === 'recording' ? 'Tap to Stop Recording' : 'Tap to Start Recording'}
+                                            </Text>
+
+                                            <View style={styles.divider}>
+                                                <View style={styles.dividerLine} />
+                                                <Text style={styles.dividerText}>OR</Text>
+                                                <View style={styles.dividerLine} />
+                                            </View>
+
+                                            {/* Upload Button */}
+                                            <TouchableOpacity
+                                                style={[styles.mainButton, { width: '100%', backgroundColor: THEME.surface, borderWidth: 1, borderColor: THEME.border }]}
+                                                onPress={pickAudioFile}
+                                            >
+                                                <Text style={[styles.mainButtonText, { color: THEME.textMain }]}>Select Audio File</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                        <View style={{ height: 40 }} />
+                    </ScrollView>
+
+                    {/* RIGHT COLUMN: RECORD HISTORY */}
+                    <View style={styles.sidebarColumn}>
+                        <Text style={styles.sidebarTitle}>ประวัติการถอดเสียง</Text>
+                        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            {historyList.map(item => (
+                                <TouchableOpacity
+                                    key={item.id}
+                                    style={styles.historyCard}
+                                    onPress={() => {
+                                        if (item.status === 'completed' && item.text) {
+                                            setStatus('completed');
+                                            setResultText(item.text);
+                                        } else {
+                                            Alert.alert('Info', 'This transcription is ' + item.status + ' and has no text.');
+                                        }
+                                    }}
+                                >
+                                    <View style={styles.historyHeader}>
+                                        <Text style={styles.historyItemTitle} numberOfLines={1}>{item.title}</Text>
+                                        <View style={[
+                                            styles.historyBadge,
+                                            item.status === 'completed' ? styles.badgeSuccess :
+                                                item.status === 'processing' ? styles.badgeProcessing : styles.badgeDanger
+                                        ]}>
+                                            <Text style={styles.historyBadgeText}>{item.status}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.historyFooter}>
+                                        <Ionicons name="time-outline" size={14} color={THEME.textSub} />
+                                        <Text style={styles.historyDateText}>{item.date}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </KeyboardAvoidingView>
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    flex1: { flex: 1 },
+    layoutWrapper: {
+        flex: 1,
+        flexDirection: Platform.OS === 'web' ? 'row' : 'column',
+    },
+    sidebarColumn: {
+        width: Platform.OS === 'web' ? 320 : '100%',
+        backgroundColor: '#FFF',
+        borderLeftWidth: Platform.OS === 'web' ? 1 : 0,
+        borderTopWidth: Platform.OS === 'web' ? 0 : 1,
+        borderColor: THEME.border,
+        padding: 20,
+    },
+    sidebarTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: THEME.textMain,
+        marginBottom: 16,
+    },
+    historyCard: {
+        backgroundColor: THEME.bg,
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: THEME.border,
+    },
+    historyHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    historyItemTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: THEME.textMain,
+        flex: 1,
+        marginRight: 8,
+    },
+    historyBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    badgeSuccess: { backgroundColor: THEME.secondary + '20' },
+    badgeProcessing: { backgroundColor: '#A78BFA20' },
+    badgeDanger: { backgroundColor: THEME.danger + '20' },
+    historyBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: THEME.textMain,
+    },
+    historyFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    historyDateText: {
+        fontSize: 12,
+        color: THEME.textSub,
+        marginLeft: 4,
+    },
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    topBar: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', paddingTop: 45, paddingBottom: 20, justifyContent: 'space-between' },
+    scrollContent: { padding: 20, paddingBottom: 40, flexGrow: 1, flex: Platform.OS === 'web' ? 1 : undefined },
+    headerSection: { marginBottom: 20 },
+    greetingTitle: { fontSize: 28, fontWeight: '900', color: '#6C63FF' },
+    greetingSubtitle: { color: '#64748B', fontSize: 14, marginTop: 4 },
+    dashboardCard: {
+        backgroundColor: THEME.surface,
+        borderRadius: 20,
+        padding: 24,
+        width: "100%",
+        minHeight: 400,
+        marginTop: 10,
+        ...Platform.select({
+            web: {
+                boxShadow: "0px 4px 12px -2px rgba(0,0,0,0.05)",
+            },
+            default: {
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+            },
+        }),
+    },
+    controlsContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 20,
+    },
+    recordButton: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 4,
+        borderColor: THEME.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    recordingActive: {
+        borderColor: THEME.danger + '40', // light red border
+    },
+    recordInner: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: THEME.primary,
+    },
+    recordInnerActive: {
+        backgroundColor: THEME.danger,
+        borderRadius: 8, // Square shape for stop
+        width: 32,
+        height: 32,
+    },
+    controlLabel: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: THEME.textSub,
+    },
+    divider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: '100%',
+        marginVertical: 30,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: THEME.border,
+    },
+    dividerText: {
+        marginHorizontal: 14,
+        color: THEME.textSub,
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    mainButton: {
+        backgroundColor: THEME.primary,
+        padding: 16,
+        borderRadius: 16,
+        alignItems: "center",
+        ...Platform.select({
+            web: { boxShadow: "0px 10px 15px -3px rgba(79, 70, 229, 0.2)" },
+            default: {
+                elevation: 4,
+                shadowColor: THEME.primary,
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+            },
+        }),
+    },
+    mainButtonText: {
+        fontWeight: "bold",
+        fontSize: 16,
+        color: "#FFF",
+    },
+    secondaryButton: {
+        padding: 16,
+        borderRadius: 16,
+        alignItems: "center",
+        width: '100%',
+    },
+    secondaryButtonText: {
+        fontWeight: "bold",
+        fontSize: 16,
+        color: THEME.textSub,
+    },
+    audioReadyContainer: {
+        flex: 1,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    audioIconWrapper: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#EEF2FF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    audioReadyText: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: THEME.textMain,
+        marginBottom: 10,
+    },
+    playButtonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 8,
+    },
+    playText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: THEME.primary,
+        marginLeft: 8,
+    },
+    loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 50,
+    },
+    loadingText: {
+        marginTop: 20,
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: THEME.textMain,
+    },
+    subLoadingText: {
+        marginTop: 8,
+        fontSize: 14,
+        color: THEME.textSub,
+    },
+    editorContainer: {
+        flex: 1,
+    },
+    inputLabel: {
+        fontWeight: "700",
+        marginBottom: 8,
+        fontSize: 14,
+        color: THEME.textMain,
+        marginLeft: 4,
+    },
+    textArea: {
+        backgroundColor: THEME.bg,
+        borderWidth: 1,
+        borderColor: THEME.border,
+        borderRadius: 14,
+        padding: 16,
+        fontSize: 16,
+        minHeight: 250,
+        color: THEME.textMain,
+        marginBottom: 20,
+    },
+    buttonRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    exportButton: {
+        flex: 1,
+        backgroundColor: THEME.secondary,
+        shadowColor: THEME.secondary,
+    }
+});
