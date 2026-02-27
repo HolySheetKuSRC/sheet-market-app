@@ -13,10 +13,8 @@ import {
   View,
 } from "react-native";
 
-// เรียกใช้ apiRequest ของคุณ
-import { apiRequest } from "../../utils/api";
-// เรียกใช้ Component การ์ดของคุณ
 import SheetCard from "../../components/sheetcard";
+import { apiRequest } from "../../utils/api";
 
 interface Product {
   id: string;
@@ -28,7 +26,7 @@ interface Product {
   seller: { name: string };
   tags: string[];
   updatedAt: string[];
-  fileUrl?: string; // อาจจะมีเพิ่มมาสำหรับกดอ่านไฟล์
+  fileUrl?: string;
 }
 
 export default function MyLibraryScreen() {
@@ -43,14 +41,18 @@ export default function MyLibraryScreen() {
   const fetchPurchasedSheets = async () => {
     try {
       setError(null);
-      // ใช้ apiRequest วิ่งไปหา Endpoint ที่เพิ่งสร้างใน Product Service
-      const response = await apiRequest("/products/purchased", { method: "GET" });
+
+      const response = await apiRequest(
+        "/products/purchased?page=0&size=9",
+        { method: "GET" }
+      );
 
       if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
       const data = await response.json();
-      setSheets(data || []);
-      
+
+      // ✅ รองรับ Page<SheetCardResponse>
+      setSheets(data.content || []);
     } catch (err) {
       console.error("MyLibrary Fetch Error:", err);
       setError("ไม่สามารถดึงข้อมูลชั้นหนังสือได้");
@@ -60,6 +62,7 @@ export default function MyLibraryScreen() {
     }
   };
 
+  // ✅ เรียกครั้งเดียวตอน mount
   useEffect(() => {
     fetchPurchasedSheets();
   }, []);
@@ -71,7 +74,7 @@ export default function MyLibraryScreen() {
 
   const renderEmptyState = () => {
     if (loading) return null;
-    
+
     if (error) {
       return (
         <View style={styles.center}>
@@ -86,8 +89,13 @@ export default function MyLibraryScreen() {
     return (
       <View style={styles.center}>
         <Ionicons name="library-outline" size={80} color="#CCC" />
-        <Text style={styles.emptyText}>คุณยังไม่มีชีทในชั้นหนังสือเลย</Text>
-        <TouchableOpacity style={styles.exploreBtn} onPress={() => router.push("/marketplace")}>
+        <Text style={styles.emptyText}>
+          คุณยังไม่มีชีทในชั้นหนังสือเลย
+        </Text>
+        <TouchableOpacity
+          style={styles.exploreBtn}
+          onPress={() => router.push("/marketplace")}
+        >
           <Text style={styles.exploreText}>ไปหาชีทอ่านกันเลย</Text>
         </TouchableOpacity>
       </View>
@@ -96,26 +104,27 @@ export default function MyLibraryScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Top Bar แบบเดิมของคุณ */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
+        <TouchableOpacity
+          onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+        >
           <Ionicons name="menu" size={28} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>ชั้นหนังสือของฉัน</Text>
         <View style={{ width: 28 }} />
       </View>
 
-      {/* Content */}
       {loading && !refreshing ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#6C63FF" />
-          <Text style={styles.loadingInfo}>กำลังโหลดหนังสือของคุณ...</Text>
+          <Text style={styles.loadingInfo}>
+            กำลังโหลดหนังสือของคุณ...
+          </Text>
         </View>
       ) : (
         <FlatList
           data={sheets}
           renderItem={({ item }) => (
-            // ใช้ SheetCard แบบ 3 คอลัมน์เหมือนหน้า Marketplace
             <SheetCard item={item} isThreeColumns={true} />
           )}
           keyExtractor={(item) => item.id}
@@ -138,25 +147,30 @@ export default function MyLibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-  topBar: { 
-    flexDirection: "row", 
-    justifyContent: "space-between", 
-    paddingHorizontal: 16, 
-    backgroundColor: "#FFF", 
-    paddingTop: 50, 
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    backgroundColor: "#FFF",
+    paddingTop: 50,
     paddingBottom: 15,
     alignItems: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
   },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", marginTop: 100 },
-  
-  // Styles สำหรับ Layout ของ FlatList
-  listContent: { paddingHorizontal: 8, paddingBottom: 20, paddingTop: 10 },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 100,
+  },
+  listContent: {
+    paddingHorizontal: 8,
+    paddingBottom: 20,
+    paddingTop: 10,
+  },
   columnWrapper: { justifyContent: "flex-start" },
-  
-  // Styles สำหรับส่วนแสดงผลเวลาไม่มีข้อมูล หรือ Error
   emptyText: { color: "#999", marginTop: 10, fontSize: 16 },
   loadingInfo: { marginTop: 12, color: "#64748B", fontSize: 14 },
   errorText: { color: "#B91C1C", fontSize: 14, marginBottom: 15 },
@@ -167,7 +181,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: "#FFF", fontWeight: "bold", fontSize: 14 },
-  
   exploreBtn: {
     marginTop: 20,
     paddingVertical: 10,
@@ -179,5 +192,5 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "bold",
     fontSize: 14,
-  }
+  },
 });
