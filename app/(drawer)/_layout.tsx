@@ -74,6 +74,15 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         />
 
         <DrawerItem
+          label="ถอดเสียงเลคเชอร์"
+          focused={focusedRouteName === 'transcribe'}
+          activeTintColor={THEME_COLOR}
+          activeBackgroundColor="#EEF2FF"
+          icon={({ color }) => <Ionicons name="mic-outline" size={24} color={color} />}
+          onPress={() => navigation.navigate('transcribe')}
+        />
+
+        <DrawerItem
           label="รายการโปรด"
           focused={focusedRouteName === 'favorite'}
           activeTintColor={THEME_COLOR}
@@ -135,6 +144,7 @@ export default function DrawerLayout() {
         <Drawer.Screen name="home" />
         <Drawer.Screen name="marketplace" />
         <Drawer.Screen name="become-seller" />
+        <Drawer.Screen name="transcribe" />
         <Drawer.Screen name="favorite" />
       </Drawer>
     </GestureHandlerRootView>
