@@ -24,6 +24,7 @@ import { getAccessToken } from '../../utils/token';
 import { useNotification } from '../_layout';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const AI_API_URL = process.env.EXPO_PUBLIC_AI_API_URL?.replace(/\/$/, '') || 'http://165.232.171.127';
 
 // ── JWT Debug Helper ──────────────────────────────────────────────────────────
 const decodeJWT = (token: string): object => {
@@ -88,7 +89,7 @@ export default function TranscribeScreen() {
     }, []);
 
     const loadHistory = async () => {
-        if (!API_URL) return;
+        if (!AI_API_URL) return;
         try {
             const rawToken = await getAccessToken(); // ดึง JWT ของจริงมาใช้
             // Sanitize: strip accidental surrounding quotes / whitespace
@@ -105,7 +106,7 @@ export default function TranscribeScreen() {
                 return;
             }
 
-            const response = await fetch(`${API_URL}/api/audio/history`, {
+            const response = await fetch(`${AI_API_URL}/api/audio/history`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
@@ -255,8 +256,8 @@ export default function TranscribeScreen() {
             return;
         }
 
-        if (!API_URL) {
-            Alert.alert('Config Error', 'API URL is not defined in environment variables');
+        if (!AI_API_URL) {
+            Alert.alert('Config Error', 'AI API URL is not defined in environment variables');
             return;
         }
 
@@ -320,7 +321,7 @@ export default function TranscribeScreen() {
                 return;
             }
 
-            const fetchResponse = await fetch(`${API_URL}/api/audio/transcribe`, {
+            const fetchResponse = await fetch(`${AI_API_URL}/api/audio/transcribe`, {
                 method: 'POST',
                 body: formData,
                 headers: {
