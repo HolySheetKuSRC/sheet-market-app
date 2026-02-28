@@ -65,6 +65,8 @@ export default function TranscribeScreen() {
     const [audioUri, setAudioUri] = useState<string | null>(null);
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
+    const [customTitle, setCustomTitle] = useState<string>('');
+    const [originalFileName, setOriginalFileName] = useState<string>('');
 
     // Job & Polling States
     const [jobId, setJobId] = useState<string | null>(null);
@@ -249,7 +251,14 @@ export default function TranscribeScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                setAudioUri(result.assets[0].uri);
+                const asset = result.assets[0];
+                const actualFileName =
+                    (asset as any).name ||
+                    ((asset as any).file && (asset as any).file.name) ||
+                    asset.uri.split('/').pop() ||
+                    'audio_upload.mp3';
+                setOriginalFileName(actualFileName);
+                setAudioUri(asset.uri);
                 setStatus('idle');
             }
         } catch (error) {
@@ -308,39 +317,34 @@ export default function TranscribeScreen() {
             setLoadingMessage('Uploading audio file...');
 
             const formData = new FormData();
-            const filename = audioUri.split('/').pop() || 'recording.m4a';
-            const ext = filename.split('.').pop()?.toLowerCase() || 'm4a';
+            const sourceFilename = audioUri.split('/').pop() || 'recording.m4a';
+            const ext = sourceFilename.split('.').pop()?.toLowerCase() || 'm4a';
             const mimeType = ext === 'mp3' ? 'audio/mpeg'
                 : ext === 'wav' ? 'audio/wav'
                 : ext === 'ogg' ? 'audio/ogg'
                 : ext === 'flac' ? 'audio/flac'
                 : 'audio/m4a';
 
+            // Determine final filename: prefer customTitle, fallback to originalFileName / sourceFilename
+            let baseName = customTitle.trim() || originalFileName || sourceFilename;
+            // Strip existing extension from baseName so we can re-attach the correct one
+            let finalFileName = baseName.replace(/\.(wav|mp3|m4a|ogg|flac)$/i, '');
+            // Re-attach a valid extension
+            const extMatch = (originalFileName || sourceFilename).match(/\.(wav|mp3|m4a|ogg|flac)$/i);
+            if (mimeType.includes('wav')) finalFileName += '.wav';
+            else if (mimeType.includes('m4a') || mimeType.includes('mp4')) finalFileName += '.m4a';
+            else if (mimeType.includes('ogg')) finalFileName += '.ogg';
+            else if (mimeType.includes('flac')) finalFileName += '.flac';
+            else finalFileName += extMatch ? extMatch[0] : '.mp3';
+
             if (Platform.OS === 'web') {
-                // Web (HTML5): FormData only accepts Blob/File objects.
-                // Appending a plain JS object coerces to "[object Object]" → 422.
                 const blobResponse = await fetch(audioUri);
                 const blob = await blobResponse.blob();
-
-                // Browsers strip the extension from Blob filenames, which causes
-                // FastAPI's "Unsupported file format" 400 error. Enforce a valid
-                // extension based on the derived mimeType / original filename.
-                let finalFilename = filename;
-                if (!finalFilename.match(/\.(wav|mp3|m4a|ogg|flac)$/i)) {
-                    if (mimeType.includes('wav')) finalFilename += '.wav';
-                    else if (mimeType.includes('m4a') || mimeType.includes('mp4')) finalFilename += '.m4a';
-                    else if (mimeType.includes('ogg')) finalFilename += '.ogg';
-                    else if (mimeType.includes('flac')) finalFilename += '.flac';
-                    else finalFilename += '.mp3'; // safe default
-                }
-
-                formData.append('file', blob, finalFilename);
+                formData.append('file', blob, finalFileName);
             } else {
-                // iOS / Android: React Native FormData accepts {uri, name, type}.
-                // Keep the 'file://' prefix intact — stripping it breaks iOS uploads.
                 formData.append('file', {
                     uri: audioUri,
-                    name: filename,
+                    name: finalFileName,
                     type: mimeType,
                 } as any);
             }
@@ -607,6 +611,15 @@ export default function TranscribeScreen() {
                                             </View>
                                             <Text style={styles.audioReadyText}>ไฟล์เสียงพร้อมแล้ว</Text>
 
+                                            {/* --- CUSTOM LECTURE TITLE INPUT --- */}
+                                            <TextInput
+                                                style={styles.titleInput}
+                                                placeholder="ตั้งชื่อเลกเชอร์ (เช่น Lecture 1: AI)..."
+                                                placeholderTextColor={THEME.textSub}
+                                                value={customTitle}
+                                                onChangeText={setCustomTitle}
+                                            />
+
                                             {/* --- PREVIEW AUDIO PLAYBACK --- */}
                                             <TouchableOpacity
                                                 style={styles.playButtonRow}
@@ -629,6 +642,8 @@ export default function TranscribeScreen() {
                                                 style={[styles.secondaryButton, { marginTop: 12 }]}
                                                 onPress={() => {
                                                     setAudioUri(null);
+                                                    setCustomTitle('');
+                                                    setOriginalFileName('');
                                                     if (sound) sound.unloadAsync();
                                                     setSound(null);
                                                     setIsPlaying(false);
@@ -908,6 +923,18 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: THEME.textMain,
         marginBottom: 10,
+    },
+    titleInput: {
+        width: '100%',
+        borderWidth: 1,
+        borderColor: THEME.border,
+        borderRadius: 12,
+        padding: 14,
+        marginTop: 16,
+        marginBottom: 4,
+        backgroundColor: THEME.inputBg,
+        fontSize: 15,
+        color: THEME.textMain,
     },
     playButtonRow: {
         flexDirection: 'row',
