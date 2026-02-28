@@ -76,6 +76,7 @@ export default function TranscribeScreen() {
     // History State (real API)
     type HistoryItem = {
         id: string;
+        job_id?: string;
         filename: string;
         status: 'pending' | 'processing' | 'completed' | 'failed';
         created_at: string;
@@ -130,6 +131,48 @@ export default function TranscribeScreen() {
             });
         } catch {
             return iso;
+        }
+    };
+
+    const handleSelectHistory = async (item: HistoryItem) => {
+        if (item.status !== 'completed') {
+            Alert.alert('Info', `This transcription is "${item.status}" and has no text yet.`);
+            return;
+        }
+        // If the list already includes the text, load it immediately
+        if (item.result_text && typeof item.result_text === 'string') {
+            setResultText(item.result_text);
+            setStatus('completed');
+            return;
+        }
+        // Fallback: fetch full job details from the AI microservice
+        try {
+            const rawToken = await getAccessToken();
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+            if (!token) {
+                Alert.alert('Auth Error', 'No valid session token. Please log in again.');
+                return;
+            }
+            const jobId = item.job_id ?? item.id;
+            const detailResponse = await fetch(`${AI_API_URL}/sheets/jobs/${jobId}`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (detailResponse.ok) {
+                const data = await detailResponse.json();
+                const text =
+                    data.result?.summary ||
+                    data.result?.transcribed_text ||
+                    data.result?.raw_text_snippet ||
+                    data.result?.text ||
+                    'No transcription text available.';
+                setResultText(text);
+                setStatus('completed');
+            } else {
+                Alert.alert('Error', `Failed to load transcription (${detailResponse.status}).`);
+            }
+        } catch (error) {
+            console.error('Failed to fetch history details:', error);
+            Alert.alert('Error', 'Could not load transcription details.');
         }
     };
 
@@ -643,16 +686,9 @@ export default function TranscribeScreen() {
                             )}
                             {historyList.map(item => (
                                 <TouchableOpacity
-                                    key={item.id ?? (item as any).job_id}
+                                    key={item.id ?? item.job_id}
                                     style={styles.historyCard}
-                                    onPress={() => {
-                                        if (item.status === 'completed' && item.result_text) {
-                                            setStatus('completed');
-                                            setResultText(item.result_text);
-                                        } else {
-                                            Alert.alert('Info', 'This transcription is ' + item.status + ' and has no text.');
-                                        }
-                                    }}
+                                    onPress={() => handleSelectHistory(item)}
                                 >
                                     <View style={styles.historyHeader}>
                                         <Text style={styles.historyItemTitle} numberOfLines={1}>{item.filename}</Text>
