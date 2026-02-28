@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -381,8 +380,15 @@ export default function TranscribeScreen() {
                     }
                     retries++;
 
-                    const response = await axios.get(`${API_URL}/sheets/jobs/${jobId}`);
-                    const data = response.data;
+                    const pollToken = await getAccessToken();
+                    const pollResponse = await fetch(`${AI_API_URL}/sheets/jobs/${jobId}`, {
+                        headers: pollToken ? { 'Authorization': `Bearer ${pollToken}` } : {},
+                    });
+                    if (!pollResponse.ok) {
+                        console.warn('Polling error:', pollResponse.status);
+                        return;
+                    }
+                    const data = await pollResponse.json();
 
                     if (data.status === 'completed') {
                         clearInterval(pollInterval);
@@ -401,6 +407,7 @@ export default function TranscribeScreen() {
                             await FileSystem.deleteAsync(audioUri, { idempotent: true });
                         }
                         if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        loadHistory(); // refresh sidebar when job completes
                     } else if (data.status === 'failed') {
                         clearInterval(pollInterval);
                         setStatus('failed');
@@ -636,7 +643,7 @@ export default function TranscribeScreen() {
                             )}
                             {historyList.map(item => (
                                 <TouchableOpacity
-                                    key={item.id}
+                                    key={item.id ?? (item as any).job_id}
                                     style={styles.historyCard}
                                     onPress={() => {
                                         if (item.status === 'completed' && item.result_text) {
