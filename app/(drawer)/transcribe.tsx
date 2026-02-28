@@ -20,8 +20,8 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { getAccessToken } from '../../utils/token';
 import { useNotification } from '../_layout';
-import { getSessionToken } from '../../utils/token';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -90,7 +90,7 @@ export default function TranscribeScreen() {
     const loadHistory = async () => {
         if (!API_URL) return;
         try {
-            const rawToken = await getSessionToken();
+            const rawToken = await getAccessToken(); // ดึง JWT ของจริงมาใช้
             // Sanitize: strip accidental surrounding quotes / whitespace
             const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
 
@@ -304,7 +304,7 @@ export default function TranscribeScreen() {
 
             // Use native fetch — do NOT set Content-Type manually.
             // The runtime adds 'multipart/form-data; boundary=...' automatically.
-            const rawToken = await getSessionToken();
+            const rawToken = await getAccessToken(); // ดึง JWT ของจริงมาใช้
             // Sanitize: strip accidental surrounding quotes / whitespace
             const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
 
