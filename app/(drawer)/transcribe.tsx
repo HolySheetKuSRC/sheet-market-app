@@ -21,8 +21,27 @@ import {
     View
 } from 'react-native';
 import { useNotification } from '../_layout';
+import { getSessionToken } from '../../utils/token';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+// ── JWT Debug Helper ──────────────────────────────────────────────────────────
+const decodeJWT = (token: string): object => {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return { error: 'Failed to decode token. Not a valid JWT.' };
+    }
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 const THEME = {
     primary: "#6C63FF", // Matches home.tsx
@@ -54,26 +73,64 @@ export default function TranscribeScreen() {
 
     const [loadingMessage, setLoadingMessage] = useState<string>('');
 
-    // Mock History State
+    // History State (real API)
     type HistoryItem = {
         id: string;
-        title: string;
-        status: 'processing' | 'completed' | 'failed';
-        date: string;
-        text?: string;
+        filename: string;
+        status: 'pending' | 'processing' | 'completed' | 'failed';
+        created_at: string;
+        result_text?: string;
     };
     const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
 
     useEffect(() => {
-        fetchHistory();
+        loadHistory();
     }, []);
 
-    const fetchHistory = () => {
-        setHistoryList([
-            { id: '1', title: 'Lecture: Cloud Computing', status: 'processing', date: '10 mins ago' },
-            { id: '2', title: 'Lecture: Abstract Datatype', status: 'completed', date: '2 days ago', text: 'Mock transcribed text for Abstract Datatype...' },
-            { id: '3', title: 'Lecture: Coop', status: 'failed', date: '2 days ago' }
-        ]);
+    const loadHistory = async () => {
+        if (!API_URL) return;
+        try {
+            const rawToken = await getSessionToken();
+            // Sanitize: strip accidental surrounding quotes / whitespace
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+
+            console.log('=== TOKEN DEBUG (loadHistory) ===');
+            console.log('Raw Token   :', rawToken);
+            console.log('Sanitized   :', token);
+            console.log('Decoded     :', token ? decodeJWT(token) : 'No token to decode');
+            console.log('=================================');
+
+            if (!token) {
+                console.error('Token is null or empty. Aborting history fetch.');
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/api/audio/history`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setHistoryList(data);
+            } else {
+                const errText = await response.text();
+                console.warn('History fetch failed:', response.status, errText);
+            }
+        } catch (error) {
+            console.error('Failed to fetch history', error);
+        }
+    };
+
+    const formatDate = (iso: string): string => {
+        try {
+            return new Date(iso).toLocaleString('th-TH', {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+            });
+        } catch {
+            return iso;
+        }
     };
 
     // Cleanup sound on unmount
@@ -247,9 +304,29 @@ export default function TranscribeScreen() {
 
             // Use native fetch — do NOT set Content-Type manually.
             // The runtime adds 'multipart/form-data; boundary=...' automatically.
+            const rawToken = await getSessionToken();
+            // Sanitize: strip accidental surrounding quotes / whitespace
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+
+            console.log('=== TOKEN DEBUG (uploadAudio) ===');
+            console.log('Raw Token   :', rawToken);
+            console.log('Sanitized   :', token);
+            console.log('Decoded     :', token ? decodeJWT(token) : 'No token to decode');
+            console.log('=================================');
+
+            if (!token) {
+                setStatus('failed');
+                Alert.alert('Auth Error', 'No valid session token found. Please log in again.');
+                return;
+            }
+
             const fetchResponse = await fetch(`${API_URL}/api/audio/transcribe`, {
                 method: 'POST',
                 body: formData,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
             });
 
             if (fetchResponse.status === 422) {
@@ -272,6 +349,7 @@ export default function TranscribeScreen() {
                 setJobId(responseData.job_id);
                 setStatus('processing');
                 setLoadingMessage('Processing transcription...');
+                loadHistory(); // refresh sidebar after successful upload
             } else {
                 throw new Error("Invalid response from server");
             }
@@ -552,32 +630,35 @@ export default function TranscribeScreen() {
                     <View style={styles.sidebarColumn}>
                         <Text style={styles.sidebarTitle}>ประวัติการถอดเสียง</Text>
                         <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            {historyList.length === 0 && (
+                                <Text style={{ color: THEME.textSub, fontSize: 13, textAlign: 'center', marginTop: 20 }}>ยังไม่มีประวัติการถอดเสียง</Text>
+                            )}
                             {historyList.map(item => (
                                 <TouchableOpacity
                                     key={item.id}
                                     style={styles.historyCard}
                                     onPress={() => {
-                                        if (item.status === 'completed' && item.text) {
+                                        if (item.status === 'completed' && item.result_text) {
                                             setStatus('completed');
-                                            setResultText(item.text);
+                                            setResultText(item.result_text);
                                         } else {
                                             Alert.alert('Info', 'This transcription is ' + item.status + ' and has no text.');
                                         }
                                     }}
                                 >
                                     <View style={styles.historyHeader}>
-                                        <Text style={styles.historyItemTitle} numberOfLines={1}>{item.title}</Text>
+                                        <Text style={styles.historyItemTitle} numberOfLines={1}>{item.filename}</Text>
                                         <View style={[
                                             styles.historyBadge,
                                             item.status === 'completed' ? styles.badgeSuccess :
-                                                item.status === 'processing' ? styles.badgeProcessing : styles.badgeDanger
+                                                (item.status === 'processing' || item.status === 'pending') ? styles.badgeProcessing : styles.badgeDanger
                                         ]}>
                                             <Text style={styles.historyBadgeText}>{item.status}</Text>
                                         </View>
                                     </View>
                                     <View style={styles.historyFooter}>
                                         <Ionicons name="time-outline" size={14} color={THEME.textSub} />
-                                        <Text style={styles.historyDateText}>{item.date}</Text>
+                                        <Text style={styles.historyDateText}>{formatDate(item.created_at)}</Text>
                                     </View>
                                 </TouchableOpacity>
                             ))}
