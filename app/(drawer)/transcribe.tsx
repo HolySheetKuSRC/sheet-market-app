@@ -22,7 +22,6 @@ import {
 } from 'react-native';
 import { useNotification } from '../_layout';
 
-const USE_MOCK_API = true;
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const THEME = {
@@ -199,7 +198,7 @@ export default function TranscribeScreen() {
             return;
         }
 
-        if (!USE_MOCK_API && !API_URL) {
+        if (!API_URL) {
             Alert.alert('Config Error', 'API URL is not defined in environment variables');
             return;
         }
@@ -208,33 +207,69 @@ export default function TranscribeScreen() {
             setStatus('uploading');
             setLoadingMessage('Uploading audio file...');
 
-            if (USE_MOCK_API) {
-                // Simulate upload delay
-                await new Promise(res => setTimeout(res, 2000));
-                setJobId('mock-job-1234');
-                setStatus('processing');
-                setLoadingMessage('Processing transcription...');
-                return;
+            const formData = new FormData();
+            const filename = audioUri.split('/').pop() || 'recording.m4a';
+            const ext = filename.split('.').pop()?.toLowerCase() || 'm4a';
+            const mimeType = ext === 'mp3' ? 'audio/mpeg'
+                : ext === 'wav' ? 'audio/wav'
+                : ext === 'ogg' ? 'audio/ogg'
+                : ext === 'flac' ? 'audio/flac'
+                : 'audio/m4a';
+
+            if (Platform.OS === 'web') {
+                // Web (HTML5): FormData only accepts Blob/File objects.
+                // Appending a plain JS object coerces to "[object Object]" → 422.
+                const blobResponse = await fetch(audioUri);
+                const blob = await blobResponse.blob();
+
+                // Browsers strip the extension from Blob filenames, which causes
+                // FastAPI's "Unsupported file format" 400 error. Enforce a valid
+                // extension based on the derived mimeType / original filename.
+                let finalFilename = filename;
+                if (!finalFilename.match(/\.(wav|mp3|m4a|ogg|flac)$/i)) {
+                    if (mimeType.includes('wav')) finalFilename += '.wav';
+                    else if (mimeType.includes('m4a') || mimeType.includes('mp4')) finalFilename += '.m4a';
+                    else if (mimeType.includes('ogg')) finalFilename += '.ogg';
+                    else if (mimeType.includes('flac')) finalFilename += '.flac';
+                    else finalFilename += '.mp3'; // safe default
+                }
+
+                formData.append('file', blob, finalFilename);
+            } else {
+                // iOS / Android: React Native FormData accepts {uri, name, type}.
+                // Keep the 'file://' prefix intact — stripping it breaks iOS uploads.
+                formData.append('file', {
+                    uri: audioUri,
+                    name: filename,
+                    type: mimeType,
+                } as any);
             }
 
-            const formData = new FormData();
-            const filename = audioUri.split('/').pop() || 'audio-file.m4a';
-
-            // Construct file object correctly for React Native FormData
-            formData.append('file', {
-                uri: Platform.OS === 'android' ? audioUri : audioUri.replace('file://', ''),
-                name: filename,
-                type: 'audio/m4a' // Adjust if needed
-            } as any);
-
-            const response = await axios.post(`${API_URL}/api/audio/transcribe`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+            // Use native fetch — do NOT set Content-Type manually.
+            // The runtime adds 'multipart/form-data; boundary=...' automatically.
+            const fetchResponse = await fetch(`${API_URL}/api/audio/transcribe`, {
+                method: 'POST',
+                body: formData,
             });
 
-            if (response.data && response.data.job_id) {
-                setJobId(response.data.job_id);
+            if (fetchResponse.status === 422) {
+                const errorData = await fetchResponse.json();
+                console.error(
+                    '422 FastAPI Validation Error:\n',
+                    JSON.stringify(errorData.detail, null, 2)
+                );
+                throw new Error('Upload format error (422). Check console for FastAPI detail.');
+            }
+
+            if (!fetchResponse.ok) {
+                const text = await fetchResponse.text();
+                throw new Error(`Server error ${fetchResponse.status}: ${text}`);
+            }
+
+            const responseData = await fetchResponse.json();
+
+            if (responseData && responseData.job_id) {
+                setJobId(responseData.job_id);
                 setStatus('processing');
                 setLoadingMessage('Processing transcription...');
             } else {
@@ -242,9 +277,11 @@ export default function TranscribeScreen() {
             }
 
         } catch (error: any) {
-            console.error("Upload error:", error);
             setStatus('failed');
-            Alert.alert('Upload Failed', error.response?.data?.message || error.message || 'An error occurred during upload.');
+            // 422 errors are already logged inside the try block above;
+            // all other failures surface here as plain Error objects.
+            console.error('Upload error:', error);
+            Alert.alert('Upload Failed', error.message || 'An error occurred during upload.');
         }
     }
 
@@ -255,49 +292,46 @@ export default function TranscribeScreen() {
         const MAX_RETRIES = 120; // 10 minutes (5s * 120)
 
         if (status === 'processing' && jobId) {
-            if (USE_MOCK_API) {
-                pollInterval = setInterval(async () => {
-                    clearInterval(pollInterval);
-                    setStatus('completed');
-                    setResultText("This is a mock transcription result. The audio has been fully processed and this text is editable. To use the real backend, switch USE_MOCK_API to false.");
-                    if (audioUri && Platform.OS !== "web") await FileSystem.deleteAsync(audioUri, { idempotent: true });
-                    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }, 3000);
-            } else {
-                pollInterval = setInterval(async () => {
-                    try {
-                        if (retries >= MAX_RETRIES) {
-                            clearInterval(pollInterval);
-                            setStatus('failed');
-                            Alert.alert('Timeout', 'Transcription job took too long.');
-                            return;
-                        }
-                        retries++;
-
-                        const response = await axios.get(`${API_URL}/sheets/jobs/${jobId}`);
-                        const data = response.data;
-
-                        if (data.status === 'completed') {
-                            clearInterval(pollInterval);
-                            setStatus('completed');
-                            setResultText(data.result?.summary || data.result?.raw_text_snippet || 'No text found.');
-
-                            // Clean up the local audio file after success
-                            if (audioUri && Platform.OS !== "web") {
-                                await FileSystem.deleteAsync(audioUri, { idempotent: true });
-                            }
-                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        } else if (data.status === 'failed') {
-                            clearInterval(pollInterval);
-                            setStatus('failed');
-                            Alert.alert('Transcription Failed', data.error_message || 'The backend failed to process the audio.');
-                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                        }
-                    } catch (error) {
-                        console.error("Polling error:", error);
+            pollInterval = setInterval(async () => {
+                try {
+                    if (retries >= MAX_RETRIES) {
+                        clearInterval(pollInterval);
+                        setStatus('failed');
+                        Alert.alert('Timeout', 'Transcription job took too long.');
+                        return;
                     }
-                }, 5000);
-            }
+                    retries++;
+
+                    const response = await axios.get(`${API_URL}/sheets/jobs/${jobId}`);
+                    const data = response.data;
+
+                    if (data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        setStatus('completed');
+                        // Extract transcription text from all known result fields
+                        const text =
+                            data.result?.summary ||
+                            data.result?.transcribed_text ||
+                            data.result?.raw_text_snippet ||
+                            data.result?.text ||
+                            'No transcription text was returned.';
+                        setResultText(text);
+
+                        // Clean up the local audio file after success
+                        if (audioUri && Platform.OS !== 'web') {
+                            await FileSystem.deleteAsync(audioUri, { idempotent: true });
+                        }
+                        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setStatus('failed');
+                        Alert.alert('Transcription Failed', data.error_message || 'The backend failed to process the audio.');
+                        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            }, 5000);
         }
 
         return () => {
