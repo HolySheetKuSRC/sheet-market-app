@@ -1,32 +1,37 @@
 const CHAT_API_URL = process.env.EXPO_PUBLIC_CHAT_AI_URL;
 
-/**
- * ส่งข้อความหา AI ผ่าน URL จาก .env
- */
-export const sendMessageToAI = async (sessionId: string, message: string, sheetId: string = "") => {
+export const sendMessageToAI = async (
+  sessionId: string,
+  message: string,
+  sheetId: string = ""
+) => {
   try {
-    // ตรวจสอบว่ามี URL ใน env หรือไม่
     if (!CHAT_API_URL) {
       console.error("❌ Missing EXPO_PUBLIC_CHAT_AI_URL in .env");
       return null;
     }
 
+    const payload = {
+      session_id: sessionId,
+      message: message,
+      sheet_id: sheetId,
+    };
+
+    console.log("🚀 Sending to AI API");
+    console.log("Payload:", payload);
+
     const response = await fetch(CHAT_API_URL, {
       method: "POST",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        session_id: sessionId,
-        message: message,
-        sheet_id: sheetId,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error("❌ Chat API Error Response:", errorData);
+      const errorText = await response.text();
+      console.error("❌ Chat API Error:", errorText);
       return null;
     }
 

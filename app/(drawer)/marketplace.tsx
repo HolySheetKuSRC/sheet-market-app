@@ -31,7 +31,7 @@ interface Product {
   title: string;
   description: string;
   price: number;
-  imageUrl: string;
+  image: string;
   ratingAverage: number;
   seller: { name: string };
   tags: string[];

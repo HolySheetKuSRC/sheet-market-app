@@ -77,14 +77,15 @@ export default function AuthScreen() {
 
         console.log("Login Success:", response.data);
 
-        // ✅ แก้ไขจุดสำคัญ: Backend ส่งกลับมาเป็น access_token (UUID) ไม่ใช่ token เฉยๆ
+        
         const accessToken = response.data.access_token;
         const refreshToken = response.data.refresh_token;
+        const sessionToken = response.data.session_token;
 
         if (accessToken) {
           // 3. เรียกใช้ saveTokens เพื่อเก็บลงเครื่อง
           // (ถ้า saveTokens ของคุณรับ 2 ค่า ให้ใส่ refreshToken ไปด้วย)
-          await saveTokens(accessToken, refreshToken);
+          await saveTokens(accessToken, refreshToken, sessionToken);
 
           if (Platform.OS !== "web") {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

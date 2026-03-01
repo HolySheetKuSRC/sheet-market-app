@@ -145,7 +145,7 @@ export default function DrawerLayout() {
         <Drawer.Screen name="marketplace" />
         <Drawer.Screen name="become-seller" />
         <Drawer.Screen name="transcribe" />
-        <Drawer.Screen name="favorite" />
+        <Drawer.Screen name="myLibrary" />
       </Drawer>
     </GestureHandlerRootView>
   );
