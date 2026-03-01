@@ -50,6 +50,13 @@ export const getAccessToken = async (): Promise<string | null> => {
 };
 
 /**
+ * GET SESSION TOKEN (JWT) - Alias for getAccessToken
+ */
+export const getSessionToken = async (): Promise<string | null> => {
+  return getAccessToken();
+};
+
+/**
  * ✅ [เพิ่มใหม่] GET REFRESH TOKEN
  */
 export const getRefreshToken = async (): Promise<string | null> => {

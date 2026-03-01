@@ -19,7 +19,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { getAccessToken } from '../../utils/token';
+import { getSessionToken } from '../../utils/token';
 import { useNotification } from '../_layout';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -93,7 +93,7 @@ export default function TranscribeScreen() {
     const loadHistory = async () => {
         if (!AI_API_URL) return;
         try {
-            const rawToken = await getAccessToken(); // ดึง JWT ของจริงมาใช้
+            const rawToken = await getSessionToken(); // ดึง JWT ของจริงมาใช้
             // Sanitize: strip accidental surrounding quotes / whitespace
             const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
 
@@ -149,7 +149,7 @@ export default function TranscribeScreen() {
         }
         // Fallback: fetch full job details from the AI microservice
         try {
-            const rawToken = await getAccessToken();
+            const rawToken = await getSessionToken();
             const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
             if (!token) {
                 Alert.alert('Auth Error', 'No valid session token. Please log in again.');
@@ -351,7 +351,7 @@ export default function TranscribeScreen() {
 
             // Use native fetch — do NOT set Content-Type manually.
             // The runtime adds 'multipart/form-data; boundary=...' automatically.
-            const rawToken = await getAccessToken(); // ดึง JWT ของจริงมาใช้
+            const rawToken = await getSessionToken(); // ดึง JWT ของจริงมาใช้
             // Sanitize: strip accidental surrounding quotes / whitespace
             const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
 
@@ -427,7 +427,7 @@ export default function TranscribeScreen() {
                     }
                     retries++;
 
-                    const pollToken = await getAccessToken();
+                    const pollToken = await getSessionToken();
                     const pollResponse = await fetch(`${AI_API_URL}/sheets/jobs/${jobId}`, {
                         headers: pollToken ? { 'Authorization': `Bearer ${pollToken}` } : {},
                     });
