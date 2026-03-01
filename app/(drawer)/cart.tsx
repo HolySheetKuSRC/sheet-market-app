@@ -11,7 +11,7 @@ import {
   View
 } from 'react-native';
 
-import { apiRequest } from '../utils/api';
+import { apiRequest } from '../../utils/api';
 
 interface CartItem {
   id: string;
