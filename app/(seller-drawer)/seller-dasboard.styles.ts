@@ -1,0 +1,206 @@
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F8F9FC",
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#111",
+    marginBottom: 16,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  pillButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#111",
+    backgroundColor: "#fff",
+    gap: 6,
+  },
+  pillButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  pillButtonPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#7A82FF",
+    backgroundColor: "#fff",
+    gap: 4,
+  },
+  pillButtonTextPrimary: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7A82FF",
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  summaryContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  card: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 20,
+    justifyContent: "center",
+  },
+  cardPurple: {
+    backgroundColor: "#E2E5FF",
+  },
+  cardWhite: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E5FF",
+  },
+  cardDark: {
+    backgroundColor: "#353744",
+  },
+  iconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  iconBoxWhite: {
+    backgroundColor: "#fff",
+  },
+  iconBoxOutline: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#7A82FF",
+  },
+  cardTitleText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 4,
+  },
+  cardValuePurple: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#7A82FF",
+  },
+  totalBalanceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  withdrawButton: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  withdrawButtonText: {
+    color: "#7A82FF",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cardTitleWhite: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#A0A3B5",
+    marginBottom: 4,
+  },
+  cardValueWhite: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  recentSection: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  recentTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111",
+    marginBottom: 16,
+  },
+  listItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  listIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  listIconBoxPurple: {
+    backgroundColor: "#F0F2FF",
+    borderWidth: 1,
+    borderColor: "#E2E5FF",
+  },
+  listIconBoxYellow: {
+    backgroundColor: "#FFF9E6",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  listTextContainer: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  listTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 2,
+  },
+  listSubtitle: {
+    fontSize: 12,
+    color: "#888",
+  },
+  listAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#4CAF50",
+    marginLeft: 10,
+  },
+});

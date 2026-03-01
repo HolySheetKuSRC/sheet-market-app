@@ -10,13 +10,19 @@ export default StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    paddingHorizontal: 25,
+
+    height: 80,
+    backgroundColor: "#FFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
   },
 
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#000",
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
   },
 
   content: {
