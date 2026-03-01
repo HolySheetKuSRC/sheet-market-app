@@ -55,18 +55,7 @@ export const getAccessToken = async (): Promise<string | null> => {
 };
 
 /**
-<<<<<<< HEAD
- * GET SESSION TOKEN (JWT) - Alias for getAccessToken
- */
-export const getSessionToken = async (): Promise<string | null> => {
-  return getAccessToken();
-};
-
-/**
- * ✅ [เพิ่มใหม่] GET REFRESH TOKEN
-=======
  * GET REFRESH TOKEN
->>>>>>> c0815f106b8aba7749acf910da82432ce39ee5f8
  */
 export const getRefreshToken = async (): Promise<string | null> => {
   try {
@@ -82,7 +71,7 @@ export const getRefreshToken = async (): Promise<string | null> => {
 };
 
 /**
- * ✅ เพิ่มใหม่: GET SESSION TOKEN (JWT)
+ * GET SESSION TOKEN (JWT)
  */
 export const getSessionToken = async (): Promise<string | null> => {
   try {
