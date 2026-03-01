@@ -1,17 +1,17 @@
 import { BlurView } from 'expo-blur';
 import React, { useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { sendMessageToAI } from '../utils/chatService';
 import { ChatInput } from './chat/ChatInput';
@@ -29,10 +29,10 @@ interface Message {
 }
 
 export const FloatingChat = () => {
-  const [visible, setVisible] = useState(false); 
+  const [visible, setVisible] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]); // ข้อมูลจะหายไปเมื่อปิดแอป
   const [loading, setLoading] = useState(false);
-  
+
   const flatListRef = useRef<FlatList>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -58,17 +58,29 @@ export const FloatingChat = () => {
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    // เพิ่มข้อความฝั่ง User
-    const userMsg: Message = { id: Date.now(), text, sender: 'user' };
+    const userMsg: Message = {
+      id: Date.now(),
+      text,
+      sender: 'user'
+    };
+
     setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      // ยิง API หา AI
-      const res = await sendMessageToAI("home_session", text);
+      const res = await sendMessageToAI(
+        "home_session",
+        text,
+        ""
+      );
+
       if (res?.message) {
-        // เพิ่มข้อความฝั่ง AI
-        const aiMsg: Message = { id: Date.now() + 1, text: res.message, sender: 'ai' };
+        const aiMsg: Message = {
+          id: Date.now() + 1,
+          text: res.message,
+          sender: 'ai'
+        };
+
         setMessages(prev => [...prev, aiMsg]);
       }
     } catch (error) {
@@ -87,9 +99,9 @@ export const FloatingChat = () => {
 
       {/* --- หน้าต่างแชท (Modal) --- */}
       <Modal visible={visible} animationType="none" transparent onRequestClose={closeChat}>
-        <BlurView intensity={30} style={styles.modalOverlay}> 
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === "ios" ? "padding" : "height"} 
+        <BlurView intensity={30} style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.keyboardView}
           >
             <Animated.View style={[styles.chatWindow, { transform: [{ translateY: slideAnim }] }]}>
@@ -126,79 +138,79 @@ export const FloatingChat = () => {
 };
 
 const styles = StyleSheet.create({
-  floatingArea: { 
-    position: 'absolute', 
-    bottom: 25, 
-    right: 20, 
-    zIndex: 999 
+  floatingArea: {
+    position: 'absolute',
+    bottom: 25,
+    right: 20,
+    zIndex: 999
   },
-  fab: { 
-    backgroundColor: 'white', 
-    width: 60, 
-    height: 60, 
-    borderRadius: 30, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    elevation: 5,
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 3,
-    borderWidth: 1, 
-    borderColor: '#f0f0f0'
+  fab: {
+    backgroundColor: "#898888",
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
-  fabIcon: { 
-    width: 42, 
-    height: 42, 
-    borderRadius: 21 
+
+  fabIcon: {
+    width: 30,
+    height: 30,
+    resizeMode: "contain",
   },
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.3)' 
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)'
   },
-  keyboardView: { 
-    flex: 1, 
-    justifyContent: 'flex-end' 
+  keyboardView: {
+    flex: 1,
+    justifyContent: 'flex-end'
   },
-  chatWindow: { 
-    backgroundColor: 'white', 
-    height: '75%', 
-    borderTopLeftRadius: 25, 
+  chatWindow: {
+    backgroundColor: 'white',
+    height: '75%',
+    borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: -3 }, 
-    shadowOpacity: 0.1, 
-    elevation: 20 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    elevation: 20
   },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    padding: 20, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#f0f0f0', 
-    alignItems: 'center' 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    alignItems: 'center'
   },
-  headerTitle: { 
-    fontWeight: 'bold', 
-    fontSize: 18, 
-    color: '#333' 
+  headerTitle: {
+    fontWeight: 'bold',
+    fontSize: 18,
+    color: '#333'
   },
-  headerStatus: { 
-    fontSize: 12, 
-    color: '#4CAF50', 
-    marginTop: 2 
+  headerStatus: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 2
   },
-  closeArea: { 
-    padding: 5 
+  closeArea: {
+    padding: 5
   },
-  closeButton: { 
-    fontSize: 22, 
-    color: '#ccc', 
-    fontWeight: '300' 
+  closeButton: {
+    fontSize: 22,
+    color: '#747474',
+    fontWeight: '300'
   },
-  listContent: { 
-    paddingHorizontal: 15, 
-    paddingVertical: 20, 
-    paddingBottom: 30 
+  listContent: {
+    paddingHorizontal: 15,
+    paddingVertical: 20,
+    paddingBottom: 30
   }
 });

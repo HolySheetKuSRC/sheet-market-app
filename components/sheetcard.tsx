@@ -18,33 +18,48 @@ interface SheetCardProps {
     title: string;
     description: string;
     price: number;
-    imageUrl: string;
+    image: string;
     ratingAverage: number;
     seller: { name: string };
     tags: string[];
   };
   isThreeColumns?: boolean;
+  onPress?: () => void;
+  isOwned?: boolean;
+  onDownloadPress?: () => void;
 }
 
 const SheetCard: React.FC<SheetCardProps> = ({
   item,
   isThreeColumns = false,
+  onPress,
+  isOwned = false,
+  onDownloadPress,
 }) => {
+  console.log("FULL ITEM:", item);
+  console.log("IMAGE URL:", item?.image);
+
   const router = useRouter();
   if (!item) return null;
 
   const cardWidth = isThreeColumns ? (width - 48) / 3 : "48%";
 
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+    } else {
+      router.push({
+        pathname: "/sheet/[id]",
+        params: { id: item.id.toString() },
+      } as any);
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardWidth }]}
-      activeOpacity={0.85}
-      onPress={() =>
-        router.push({
-          pathname: "/sheet/[id]",
-          params: { id: item.id.toString() },
-        } as any)
-      }
+      activeOpacity={0.9}
+      onPress={handlePress}
     >
       {/* ⭐ Rating */}
       <View style={styles.ratingBadge}>
@@ -54,9 +69,18 @@ const SheetCard: React.FC<SheetCardProps> = ({
         </Text>
       </View>
 
+      {/* 🏷 OWNED Badge */}
+      {isOwned && (
+        <View style={styles.ownedBadge}>
+          <Text style={styles.ownedText}>OWNED</Text>
+        </View>
+      )}
+
       {/* 🖼 Image */}
       <Image
-        source={{ uri: item.imageUrl || "https://via.placeholder.com/150" }}
+        source={{
+          uri: item.image || "https://via.placeholder.com/150",
+        }}
         style={styles.cardImage}
         resizeMode="cover"
       />
@@ -89,9 +113,23 @@ const SheetCard: React.FC<SheetCardProps> = ({
           ))}
         </View>
 
-        {/* 💰 Price */}
+        {/* 💰 Price หรือ Download */}
         <View style={styles.bottomSection}>
-          <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
+          {isOwned ? (
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onDownloadPress?.();
+              }}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="download" size={18} color="#fff" />
+              <Text style={styles.downloadText}>Download Sheet</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -107,7 +145,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#EEF2FF",
-    height: 215, // 🔹 ลดความสูงรวม
+    height: 230,
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -116,7 +154,7 @@ const styles = StyleSheet.create({
 
   cardImage: {
     width: "100%",
-    height: 95, // 🔹 ภาพเตี้ยลง
+    height: 100,
     backgroundColor: "#F8FAFC",
   },
 
@@ -134,6 +172,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: "#E2E8F0",
   },
+
   ratingText: {
     fontSize: 11,
     fontWeight: "bold",
@@ -141,9 +180,27 @@ const styles = StyleSheet.create({
     color: "#1E293B",
   },
 
+  ownedBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#22C55E",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+
+  ownedText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
   sellerBadge: {
     position: "absolute",
-    top: 78,
+    top: 82,
     right: 6,
     backgroundColor: "#FFF",
     paddingHorizontal: 6,
@@ -153,6 +210,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F1F5F9",
   },
+
   sellerText: {
     fontSize: 10,
     color: "#6366F1",
@@ -183,7 +241,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
-    marginBottom: 4,
+    marginBottom: 6,
     maxHeight: 28,
     overflow: "hidden",
   },
@@ -203,13 +261,33 @@ const styles = StyleSheet.create({
 
   bottomSection: {
     marginTop: "auto",
-    alignItems: "flex-end",
   },
 
   price: {
-    fontSize: 16, // 🔹 ลดจาก 22 ให้ balance
+    fontSize: 16,
     fontWeight: "900",
     color: "#4F46E5",
+  },
+
+  downloadButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4F46E5",
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+    width: "100%",
+    shadowColor: "#4F46E5",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+
+  downloadText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
 
