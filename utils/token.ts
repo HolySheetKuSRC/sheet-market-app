@@ -71,7 +71,7 @@ export const getRefreshToken = async (): Promise<string | null> => {
 };
 
 /**
- * ✅ เพิ่มใหม่: GET SESSION TOKEN (JWT)
+ * GET SESSION TOKEN (JWT)
  */
 export const getSessionToken = async (): Promise<string | null> => {
   try {

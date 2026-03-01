@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -20,10 +19,29 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { getSessionToken } from '../../utils/token';
 import { useNotification } from '../_layout';
 
-const USE_MOCK_API = true;
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const AI_API_URL = process.env.EXPO_PUBLIC_AI_API_URL?.replace(/\/$/, '') || 'http://165.232.171.127';
+
+// ── JWT Debug Helper ──────────────────────────────────────────────────────────
+const decodeJWT = (token: string): object => {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return { error: 'Failed to decode token. Not a valid JWT.' };
+    }
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 const THEME = {
     primary: "#6C63FF", // Matches home.tsx
@@ -47,6 +65,8 @@ export default function TranscribeScreen() {
     const [audioUri, setAudioUri] = useState<string | null>(null);
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
+    const [customTitle, setCustomTitle] = useState<string>('');
+    const [originalFileName, setOriginalFileName] = useState<string>('');
 
     // Job & Polling States
     const [jobId, setJobId] = useState<string | null>(null);
@@ -55,26 +75,107 @@ export default function TranscribeScreen() {
 
     const [loadingMessage, setLoadingMessage] = useState<string>('');
 
-    // Mock History State
+    // History State (real API)
     type HistoryItem = {
         id: string;
-        title: string;
-        status: 'processing' | 'completed' | 'failed';
-        date: string;
-        text?: string;
+        job_id?: string;
+        filename: string;
+        status: 'pending' | 'processing' | 'completed' | 'failed';
+        created_at: string;
+        result_text?: string;
     };
     const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
 
     useEffect(() => {
-        fetchHistory();
+        loadHistory();
     }, []);
 
-    const fetchHistory = () => {
-        setHistoryList([
-            { id: '1', title: 'Lecture: Cloud Computing', status: 'processing', date: '10 mins ago' },
-            { id: '2', title: 'Lecture: Abstract Datatype', status: 'completed', date: '2 days ago', text: 'Mock transcribed text for Abstract Datatype...' },
-            { id: '3', title: 'Lecture: Coop', status: 'failed', date: '2 days ago' }
-        ]);
+    const loadHistory = async () => {
+        if (!AI_API_URL) return;
+        try {
+            const rawToken = await getSessionToken(); // ดึง JWT ของจริงมาใช้
+            // Sanitize: strip accidental surrounding quotes / whitespace
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+
+            console.log('=== TOKEN DEBUG (loadHistory) ===');
+            console.log('Raw Token   :', rawToken);
+            console.log('Sanitized   :', token);
+            console.log('Decoded     :', token ? decodeJWT(token) : 'No token to decode');
+            console.log('=================================');
+
+            if (!token) {
+                console.error('Token is null or empty. Aborting history fetch.');
+                return;
+            }
+
+            const response = await fetch(`${AI_API_URL}/api/audio/history`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setHistoryList(data);
+            } else {
+                const errText = await response.text();
+                console.warn('History fetch failed:', response.status, errText);
+            }
+        } catch (error) {
+            console.error('Failed to fetch history', error);
+        }
+    };
+
+    const formatDate = (iso: string): string => {
+        try {
+            return new Date(iso).toLocaleString('th-TH', {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+            });
+        } catch {
+            return iso;
+        }
+    };
+
+    const handleSelectHistory = async (item: HistoryItem) => {
+        if (item.status !== 'completed') {
+            Alert.alert('Info', `This transcription is "${item.status}" and has no text yet.`);
+            return;
+        }
+        // If the list already includes the text, load it immediately
+        if (item.result_text && typeof item.result_text === 'string') {
+            setResultText(item.result_text);
+            setStatus('completed');
+            return;
+        }
+        // Fallback: fetch full job details from the AI microservice
+        try {
+            const rawToken = await getSessionToken();
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+            if (!token) {
+                Alert.alert('Auth Error', 'No valid session token. Please log in again.');
+                return;
+            }
+            const jobId = item.job_id ?? item.id;
+            const detailResponse = await fetch(`${AI_API_URL}/sheets/jobs/${jobId}`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (detailResponse.ok) {
+                const data = await detailResponse.json();
+                const text =
+                    data.result?.summary ||
+                    data.result?.transcribed_text ||
+                    data.result?.raw_text_snippet ||
+                    data.result?.text ||
+                    'No transcription text available.';
+                setResultText(text);
+                setStatus('completed');
+            } else {
+                Alert.alert('Error', `Failed to load transcription (${detailResponse.status}).`);
+            }
+        } catch (error) {
+            console.error('Failed to fetch history details:', error);
+            Alert.alert('Error', 'Could not load transcription details.');
+        }
     };
 
     // Cleanup sound on unmount
@@ -150,7 +251,14 @@ export default function TranscribeScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                setAudioUri(result.assets[0].uri);
+                const asset = result.assets[0];
+                const actualFileName =
+                    (asset as any).name ||
+                    ((asset as any).file && (asset as any).file.name) ||
+                    asset.uri.split('/').pop() ||
+                    'audio_upload.mp3';
+                setOriginalFileName(actualFileName);
+                setAudioUri(asset.uri);
                 setStatus('idle');
             }
         } catch (error) {
@@ -199,8 +307,8 @@ export default function TranscribeScreen() {
             return;
         }
 
-        if (!USE_MOCK_API && !API_URL) {
-            Alert.alert('Config Error', 'API URL is not defined in environment variables');
+        if (!AI_API_URL) {
+            Alert.alert('Config Error', 'AI API URL is not defined in environment variables');
             return;
         }
 
@@ -208,43 +316,97 @@ export default function TranscribeScreen() {
             setStatus('uploading');
             setLoadingMessage('Uploading audio file...');
 
-            if (USE_MOCK_API) {
-                // Simulate upload delay
-                await new Promise(res => setTimeout(res, 2000));
-                setJobId('mock-job-1234');
-                setStatus('processing');
-                setLoadingMessage('Processing transcription...');
+            const formData = new FormData();
+            const sourceFilename = audioUri.split('/').pop() || 'recording.m4a';
+            const ext = sourceFilename.split('.').pop()?.toLowerCase() || 'm4a';
+            const mimeType = ext === 'mp3' ? 'audio/mpeg'
+                : ext === 'wav' ? 'audio/wav'
+                : ext === 'ogg' ? 'audio/ogg'
+                : ext === 'flac' ? 'audio/flac'
+                : 'audio/m4a';
+
+            // Determine final filename: prefer customTitle, fallback to originalFileName / sourceFilename
+            let baseName = customTitle.trim() || originalFileName || sourceFilename;
+            // Strip existing extension from baseName so we can re-attach the correct one
+            let finalFileName = baseName.replace(/\.(wav|mp3|m4a|ogg|flac)$/i, '');
+            // Re-attach a valid extension
+            const extMatch = (originalFileName || sourceFilename).match(/\.(wav|mp3|m4a|ogg|flac)$/i);
+            if (mimeType.includes('wav')) finalFileName += '.wav';
+            else if (mimeType.includes('m4a') || mimeType.includes('mp4')) finalFileName += '.m4a';
+            else if (mimeType.includes('ogg')) finalFileName += '.ogg';
+            else if (mimeType.includes('flac')) finalFileName += '.flac';
+            else finalFileName += extMatch ? extMatch[0] : '.mp3';
+
+            if (Platform.OS === 'web') {
+                const blobResponse = await fetch(audioUri);
+                const blob = await blobResponse.blob();
+                formData.append('file', blob, finalFileName);
+            } else {
+                formData.append('file', {
+                    uri: audioUri,
+                    name: finalFileName,
+                    type: mimeType,
+                } as any);
+            }
+
+            // Use native fetch — do NOT set Content-Type manually.
+            // The runtime adds 'multipart/form-data; boundary=...' automatically.
+            const rawToken = await getSessionToken(); // ดึง JWT ของจริงมาใช้
+            // Sanitize: strip accidental surrounding quotes / whitespace
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+
+            console.log('=== TOKEN DEBUG (uploadAudio) ===');
+            console.log('Raw Token   :', rawToken);
+            console.log('Sanitized   :', token);
+            console.log('Decoded     :', token ? decodeJWT(token) : 'No token to decode');
+            console.log('=================================');
+
+            if (!token) {
+                setStatus('failed');
+                Alert.alert('Auth Error', 'No valid session token found. Please log in again.');
                 return;
             }
 
-            const formData = new FormData();
-            const filename = audioUri.split('/').pop() || 'audio-file.m4a';
-
-            // Construct file object correctly for React Native FormData
-            formData.append('file', {
-                uri: Platform.OS === 'android' ? audioUri : audioUri.replace('file://', ''),
-                name: filename,
-                type: 'audio/m4a' // Adjust if needed
-            } as any);
-
-            const response = await axios.post(`${API_URL}/api/audio/transcribe`, formData, {
+            const fetchResponse = await fetch(`${AI_API_URL}/api/audio/transcribe`, {
+                method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
                 },
             });
 
-            if (response.data && response.data.job_id) {
-                setJobId(response.data.job_id);
+            if (fetchResponse.status === 422) {
+                const errorData = await fetchResponse.json();
+                console.error(
+                    '422 FastAPI Validation Error:\n',
+                    JSON.stringify(errorData.detail, null, 2)
+                );
+                throw new Error('Upload format error (422). Check console for FastAPI detail.');
+            }
+
+            if (!fetchResponse.ok) {
+                const text = await fetchResponse.text();
+                throw new Error(`Server error ${fetchResponse.status}: ${text}`);
+            }
+
+            const responseData = await fetchResponse.json();
+
+            if (responseData && responseData.job_id) {
+                setJobId(responseData.job_id);
                 setStatus('processing');
                 setLoadingMessage('Processing transcription...');
+                loadHistory(); // refresh sidebar after successful upload
             } else {
                 throw new Error("Invalid response from server");
             }
 
         } catch (error: any) {
-            console.error("Upload error:", error);
             setStatus('failed');
-            Alert.alert('Upload Failed', error.response?.data?.message || error.message || 'An error occurred during upload.');
+            // 422 errors are already logged inside the try block above;
+            // all other failures surface here as plain Error objects.
+            console.error('Upload error:', error);
+            Alert.alert('Upload Failed', error.message || 'An error occurred during upload.');
         }
     }
 
@@ -255,49 +417,54 @@ export default function TranscribeScreen() {
         const MAX_RETRIES = 120; // 10 minutes (5s * 120)
 
         if (status === 'processing' && jobId) {
-            if (USE_MOCK_API) {
-                pollInterval = setInterval(async () => {
-                    clearInterval(pollInterval);
-                    setStatus('completed');
-                    setResultText("This is a mock transcription result. The audio has been fully processed and this text is editable. To use the real backend, switch USE_MOCK_API to false.");
-                    if (audioUri && Platform.OS !== "web") await FileSystem.deleteAsync(audioUri, { idempotent: true });
-                    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }, 3000);
-            } else {
-                pollInterval = setInterval(async () => {
-                    try {
-                        if (retries >= MAX_RETRIES) {
-                            clearInterval(pollInterval);
-                            setStatus('failed');
-                            Alert.alert('Timeout', 'Transcription job took too long.');
-                            return;
-                        }
-                        retries++;
-
-                        const response = await axios.get(`${API_URL}/sheets/jobs/${jobId}`);
-                        const data = response.data;
-
-                        if (data.status === 'completed') {
-                            clearInterval(pollInterval);
-                            setStatus('completed');
-                            setResultText(data.result?.summary || data.result?.raw_text_snippet || 'No text found.');
-
-                            // Clean up the local audio file after success
-                            if (audioUri && Platform.OS !== "web") {
-                                await FileSystem.deleteAsync(audioUri, { idempotent: true });
-                            }
-                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        } else if (data.status === 'failed') {
-                            clearInterval(pollInterval);
-                            setStatus('failed');
-                            Alert.alert('Transcription Failed', data.error_message || 'The backend failed to process the audio.');
-                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                        }
-                    } catch (error) {
-                        console.error("Polling error:", error);
+            pollInterval = setInterval(async () => {
+                try {
+                    if (retries >= MAX_RETRIES) {
+                        clearInterval(pollInterval);
+                        setStatus('failed');
+                        Alert.alert('Timeout', 'Transcription job took too long.');
+                        return;
                     }
-                }, 5000);
-            }
+                    retries++;
+
+                    const pollToken = await getSessionToken();
+                    const pollResponse = await fetch(`${AI_API_URL}/sheets/jobs/${jobId}`, {
+                        headers: pollToken ? { 'Authorization': `Bearer ${pollToken}` } : {},
+                    });
+                    if (!pollResponse.ok) {
+                        console.warn('Polling error:', pollResponse.status);
+                        return;
+                    }
+                    const data = await pollResponse.json();
+
+                    if (data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        setStatus('completed');
+                        // Extract transcription text from all known result fields
+                        const text =
+                            data.result?.summary ||
+                            data.result?.transcribed_text ||
+                            data.result?.raw_text_snippet ||
+                            data.result?.text ||
+                            'No transcription text was returned.';
+                        setResultText(text);
+
+                        // Clean up the local audio file after success
+                        if (audioUri && Platform.OS !== 'web') {
+                            await FileSystem.deleteAsync(audioUri, { idempotent: true });
+                        }
+                        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        loadHistory(); // refresh sidebar when job completes
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setStatus('failed');
+                        Alert.alert('Transcription Failed', data.error_message || 'The backend failed to process the audio.');
+                        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            }, 5000);
         }
 
         return () => {
@@ -444,6 +611,15 @@ export default function TranscribeScreen() {
                                             </View>
                                             <Text style={styles.audioReadyText}>ไฟล์เสียงพร้อมแล้ว</Text>
 
+                                            {/* --- CUSTOM LECTURE TITLE INPUT --- */}
+                                            <TextInput
+                                                style={styles.titleInput}
+                                                placeholder="ตั้งชื่อเลกเชอร์ (เช่น Lecture 1: AI)..."
+                                                placeholderTextColor={THEME.textSub}
+                                                value={customTitle}
+                                                onChangeText={setCustomTitle}
+                                            />
+
                                             {/* --- PREVIEW AUDIO PLAYBACK --- */}
                                             <TouchableOpacity
                                                 style={styles.playButtonRow}
@@ -466,6 +642,8 @@ export default function TranscribeScreen() {
                                                 style={[styles.secondaryButton, { marginTop: 12 }]}
                                                 onPress={() => {
                                                     setAudioUri(null);
+                                                    setCustomTitle('');
+                                                    setOriginalFileName('');
                                                     if (sound) sound.unloadAsync();
                                                     setSound(null);
                                                     setIsPlaying(false);
@@ -518,32 +696,28 @@ export default function TranscribeScreen() {
                     <View style={styles.sidebarColumn}>
                         <Text style={styles.sidebarTitle}>ประวัติการถอดเสียง</Text>
                         <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                            {historyList.length === 0 && (
+                                <Text style={{ color: THEME.textSub, fontSize: 13, textAlign: 'center', marginTop: 20 }}>ยังไม่มีประวัติการถอดเสียง</Text>
+                            )}
                             {historyList.map(item => (
                                 <TouchableOpacity
-                                    key={item.id}
+                                    key={item.id ?? item.job_id}
                                     style={styles.historyCard}
-                                    onPress={() => {
-                                        if (item.status === 'completed' && item.text) {
-                                            setStatus('completed');
-                                            setResultText(item.text);
-                                        } else {
-                                            Alert.alert('Info', 'This transcription is ' + item.status + ' and has no text.');
-                                        }
-                                    }}
+                                    onPress={() => handleSelectHistory(item)}
                                 >
                                     <View style={styles.historyHeader}>
-                                        <Text style={styles.historyItemTitle} numberOfLines={1}>{item.title}</Text>
+                                        <Text style={styles.historyItemTitle} numberOfLines={1}>{item.filename}</Text>
                                         <View style={[
                                             styles.historyBadge,
                                             item.status === 'completed' ? styles.badgeSuccess :
-                                                item.status === 'processing' ? styles.badgeProcessing : styles.badgeDanger
+                                                (item.status === 'processing' || item.status === 'pending') ? styles.badgeProcessing : styles.badgeDanger
                                         ]}>
                                             <Text style={styles.historyBadgeText}>{item.status}</Text>
                                         </View>
                                     </View>
                                     <View style={styles.historyFooter}>
                                         <Ionicons name="time-outline" size={14} color={THEME.textSub} />
-                                        <Text style={styles.historyDateText}>{item.date}</Text>
+                                        <Text style={styles.historyDateText}>{formatDate(item.created_at)}</Text>
                                     </View>
                                 </TouchableOpacity>
                             ))}
@@ -749,6 +923,18 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: THEME.textMain,
         marginBottom: 10,
+    },
+    titleInput: {
+        width: '100%',
+        borderWidth: 1,
+        borderColor: THEME.border,
+        borderRadius: 12,
+        padding: 14,
+        marginTop: 16,
+        marginBottom: 4,
+        backgroundColor: THEME.inputBg,
+        fontSize: 15,
+        color: THEME.textMain,
     },
     playButtonRow: {
         flexDirection: 'row',
