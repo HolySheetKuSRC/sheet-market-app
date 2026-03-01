@@ -2,11 +2,12 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Notification, { NotificationHandle } from '../components/notification';
 import { getAccessToken } from '../utils/token';
 
 type NotiFunc = (msg?: string) => void;
-const NotificationContext = createContext<NotiFunc>(() => {});
+const NotificationContext = createContext<NotiFunc>(() => { });
 export const useNotification = () => useContext(NotificationContext);
 
 export default function RootLayout() {
@@ -19,14 +20,14 @@ export default function RootLayout() {
     try {
       const token = await getAccessToken();
       const currentSegment = segments[0] as string | undefined;
-      
+
       const isAtRoot = !currentSegment;
       const inAuthGroup = isAtRoot || currentSegment === 'login';
       const inProtectedGroup = currentSegment === '(drawer)' || currentSegment === 'cart';
 
       if (!token && inProtectedGroup) {
         router.replace('/login');
-      } 
+      }
       else if (token && inAuthGroup) {
         router.replace('/(drawer)/home');
       }
@@ -50,16 +51,18 @@ export default function RootLayout() {
   }
 
   return (
-    <NotificationContext.Provider value={() => {}}>
-      <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" options={{ gestureEnabled: false }} /> 
-          <Stack.Screen name="(drawer)" /> 
-          <Stack.Screen name="sheet/[id]" options={{ presentation: 'card' }} />
-        </Stack>
-        <StatusBar style="dark" />
-        <Notification ref={notificationRef} />
-      </View>
-    </NotificationContext.Provider>
+    <SafeAreaProvider>
+      <NotificationContext.Provider value={() => { }}>
+        <View style={{ flex: 1 }}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="(drawer)" />
+            <Stack.Screen name="sheet/[id]" options={{ presentation: 'card' }} />
+          </Stack>
+          <StatusBar style="dark" />
+          <Notification ref={notificationRef} />
+        </View>
+      </NotificationContext.Provider>
+    </SafeAreaProvider>
   );
 }
