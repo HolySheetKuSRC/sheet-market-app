@@ -6,6 +6,7 @@ import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SellerVerificationScreen from "../../components/sellerform"; // Update with correct component path
 import { apiRequest } from "../../utils/api"; // สมมติว่ามีฟังก์ชัน GET ปกติ
+import { getRefreshToken, saveTokens } from "../../utils/token"; // ฟังก์ชันจัดการ Token
 
 type PageStatus =
   | "LOADING"
@@ -30,13 +31,58 @@ const SellerStatusManager = () => {
     }, []),
   );
 
-  const checkStatus = async () => {
+  const handleRefreshAndRetry = async () => {
+    try {
+      console.log("🔄 [Refresh] กำลังขอ Token ใหม่...");
+      const currentRefreshToken = await getRefreshToken();
+
+      if (!currentRefreshToken) {
+        console.warn(
+          "❌ [Refresh] ไม่มี Refresh Token ในเครื่อง (ต้องล็อกอินใหม่)",
+        );
+        setStatus("APPLY_PAGE"); // หรือถ้ามีระบบบังคับ Logout ให้เรียกตรงนี้
+        return;
+      }
+
+      // ⚠️ เปลี่ยน "/auth/refresh" เป็น Endpoint จริงของ Backend คุณ
+      const response = await apiRequest("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken: currentRefreshToken }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // บันทึก Token ใหม่ (ตรวจสอบชื่อ Field จาก Backend ให้ตรงด้วยนะครับ)
+        await saveTokens(
+          data.accessToken,
+          data.refreshToken,
+          data.sessionToken, // ถ้า Backend ไม่ได้ส่งกลับมา ให้ใส่ undefined หรือปล่อยว่าง
+        );
+
+        console.log(
+          "✅ [Refresh] ได้รับ Token ใหม่แล้ว! กำลังเช็คสถานะอีกครั้ง...",
+        );
+
+        // เรียกเช็คสถานะใหม่อีกรอบ พร้อมส่ง Flag ว่า "นี่คือการลองซ้ำนะ"
+        checkStatus(true);
+      } else {
+        console.error("❌ [Refresh] API ปฏิเสธการ Refresh Token");
+        setStatus("APPLY_PAGE");
+      }
+    } catch (error) {
+      console.error("❌ [Refresh] เกิดข้อผิดพลาดระหว่าง Refresh:", error);
+      setStatus("APPLY_PAGE");
+    }
+  };
+
+  // เพิ่ม Parameter isRetry = false เพื่อป้องกันการ Refresh วนลูปไม่รู้จบ
+  const checkStatus = async (isRetry = false) => {
     console.log("📍 Step 3: checkStatus function is starting");
     try {
       setStatus("LOADING");
-      // เรียก API ตามที่คุณระบุไว้
       const res = await apiRequest("/users/page-status", { method: "GET" });
-      const statusText = await res.text(); // เนื่องจาก API return เป็น String ตรงๆ
+      const statusText = await res.text();
 
       console.log(
         `[${new Date().toLocaleTimeString()}] 📊 Seller Status Updated:`,
@@ -44,13 +90,24 @@ const SellerStatusManager = () => {
       );
 
       if (statusText === "NEED_REFRESH") {
-        // ... (ถ้ามีลอจิก Refresh Token อัตโนมัติใส่ตรงนี้ได้)
+        if (!isRetry) {
+          // ถ้าเป็นครั้งแรกที่เจอ NEED_REFRESH ให้ไปทำการขอ Token ใหม่
+          await handleRefreshAndRetry();
+          return; // 🛑 หยุดการทำงานตรงนี้ เพราะ handleRefreshAndRetry จะเรียก checkStatus ใหม่อีกรอบเอง
+        } else {
+          // ถ้าเคย Refresh ไปแล้ว 1 รอบ แต่ API ยังตอบกลับมาว่า NEED_REFRESH อีก (ผิดปกติ)
+          console.error(
+            "🚨 [Warning] ดึงข้อมูลซ้ำแล้วแต่ยังติด NEED_REFRESH อยู่!",
+          );
+          setStatus("APPLY_PAGE");
+          return;
+        }
       }
 
       setStatus(statusText as PageStatus);
     } catch (error) {
       console.error(error);
-      setStatus("APPLY_PAGE"); // Fallback
+      setStatus("APPLY_PAGE");
     }
   };
 
