@@ -13,14 +13,16 @@ import {
   View
 } from 'react-native';
 import { apiRequest } from '../utils/api';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   const { itemsData, price, type, sheetId, title, sellerName, orderId: paramOrderId } = params;
   const [loading, setLoading] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  // const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
   // ✅ จัดการข้อมูลสินค้า (รองรับทั้งจากตระกร้า และซื้อทันที)
   const displayItems = useMemo(() => {
@@ -30,9 +32,33 @@ export default function CheckoutScreen() {
       } catch (e) {
         return [];
       }
-    } 
+    }
     return [{ id: sheetId, sheetName: title, sellerName: sellerName, price: price }];
   }, [itemsData, type, sheetId, title, sellerName, price]);
+
+  const checkPaymentStatus = async (orderId: string) => {
+    try {
+      const res = await apiRequest(
+        `/payments/order/${orderId}/status`,
+        { method: "GET" }
+      );
+
+      const data = await res.json();
+      
+      if (data.status === "PAID") {
+        
+        router.replace({
+          pathname: "../payment-success",
+          params: { orderId }
+        });
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      return false;
+    }
+  };
 
   const handleCreatePayment = async () => {
     if (loading) return;
@@ -41,75 +67,81 @@ export default function CheckoutScreen() {
       setLoading(true);
       let finalOrderId = Array.isArray(paramOrderId) ? paramOrderId[0] : paramOrderId;
 
-      // --- ส่วนที่ 1: ตรวจสอบ/สร้าง Order (กรณี Quick Buy หรือ Cart) ---
+      // ===== สร้าง Order (เหมือนเดิม) =====
       if (!finalOrderId) {
         let targetCartItemIds: string[] = [];
 
         if (type === 'cart') {
           targetCartItemIds = displayItems.map((item: any) => item.id);
         } else {
-          // กรณี Quick Buy: เพิ่มลงตะกร้าก่อน
           await apiRequest('/cart', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sheetId: sheetId }) 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sheetId })
           });
 
           const cartResponse = await apiRequest('/cart/user', { method: 'GET' });
           const cartData = await cartResponse.json();
-          const addedItem = cartData.items?.find((item: any) => 
-              (item.sheet && item.sheet.id === sheetId) || item.sheetId === sheetId
+
+          const addedItem = cartData.items?.find((item: any) =>
+            (item.sheet && item.sheet.id === sheetId) || item.sheetId === sheetId
           );
-          if (!addedItem) throw new Error("ไม่พบสินค้าในระบบตะกร้า");
+
+          if (!addedItem) throw new Error("ไม่พบสินค้าในตะกร้า");
           targetCartItemIds = [addedItem.id];
         }
 
-        // สร้าง Order ใหม่
-        const orderResponse = await apiRequest('/order/checkout', { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cartItemIds: targetCartItemIds })
+        const orderResponse = await apiRequest('/order/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cartItemIds: targetCartItemIds })
         });
-        
-        if (!orderResponse.ok) throw new Error("สร้างรายการสั่งซื้อไม่สำเร็จ");
+
         const orderData = await orderResponse.json();
         finalOrderId = orderData.id;
       }
 
-      console.log("📌 กำลังขอ QR Code สำหรับ Order ID:", finalOrderId);
+      console.log("Create Stripe Checkout for:", finalOrderId);
 
-      // --- ส่วนที่ 2: สร้าง Payment Charge (ขอ QR Code) ---
-      // ✅ แก้ไขสำคัญ: ส่งเป็น JSON String ของ UUID โดยตรง (ไม่ใช่ Object)
-      // ตาม Backend: @RequestBody UUID orderId
-      const paymentResponse = await apiRequest('/payments/create-charge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalOrderId), 
-      });
+      // ===== เรียก Checkout Session (ใหม่) =====
+      const res = await apiRequest(
+        `/payments/create-checkout-session/${finalOrderId}`,
+        { method: 'POST' }
+      );
 
-      const paymentData = await paymentResponse.json();
+      const data = await res.json();
 
-      if (!paymentResponse.ok) {
-        // หากเจอ Error 401/500 จาก Backend (Internal Server Error)
-        throw new Error(paymentData.message || "ระบบ Backend ขัดข้อง (ตรวจสอบการเชื่อมต่อระหว่าง Service)");
+      if (!res.ok || !data.checkout_url) {
+        throw new Error(data.message || "ไม่สามารถสร้างหน้าชำระเงินได้");
       }
 
-      // --- ส่วนที่ 3: รับข้อมูล QR Code ---
-      // Backend คืนค่า success, qr_url, และอื่นๆ
-      if (paymentData.success && paymentData.qr_url) {
-        setQrCodeUrl(paymentData.qr_url);
-      } else {
-        throw new Error(paymentData.message || "ไม่ได้รับ QR Code จากระบบ");
-      }
+      // ===== เปิด Safari =====
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.checkout_url,
+        "growthsheet://payment"
+      );
+
+      // 🔥 Polling เช็คสถานะทุก 2 วิ สูงสุด 30 วิ
+      let attempts = 0;
+      const maxAttempts = 15;
+
+      const interval = setInterval(async () => {
+        attempts++;
+
+        const isPaid = await checkPaymentStatus(finalOrderId);
+
+        if (isPaid || attempts >= maxAttempts) {
+          clearInterval(interval);
+          setLoading(false);
+        }
+      }, 2000);
 
     } catch (error: any) {
-      console.error("Payment Process Error:", error);
-      Alert.alert("ผิดพลาด", error.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
+      Alert.alert("ผิดพลาด", error.message);
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -126,59 +158,122 @@ export default function CheckoutScreen() {
           <View key={index} style={styles.orderCard}>
             <View style={styles.sheetInfo}>
               <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
-              <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}</Text>
+              <Text style={styles.sellerName}>
+                ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}
+              </Text>
             </View>
-            <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>
+            <Text style={styles.sheetPrice}>
+              ฿{Number(item.price).toLocaleString()}
+            </Text>
           </View>
         ))}
 
         <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>ยอดชำระสุทธิ</Text>
-          <Text style={styles.totalValue}>฿{Number(price).toLocaleString()}</Text>
+          <Text style={styles.totalValue}>
+            ฿{Number(price).toLocaleString()}
+          </Text>
         </View>
 
-        {qrCodeUrl ? (
-          <View style={styles.qrContainer}>
-            <Text style={styles.sectionTitle}>สแกนเพื่อชำระเงิน</Text>
-            <View style={styles.qrWrapper}>
-              <Image source={{ uri: qrCodeUrl }} style={styles.qrImage} />
-            </View>
-            <Text style={styles.qrInstruction}>
-              กรุณาสแกน QR Code ผ่านแอปธนาคาร{"\n"}ยอดชำระ: ฿{Number(price).toLocaleString()}
+        {/* วิธีการชำระเงิน */}
+        <View style={styles.paymentMethodSection}>
+          <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
+          <View style={styles.paymentOption}>
+            <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
+            <Text style={styles.paymentOptionText}>
+              PromptPay (ผ่าน Stripe)
             </Text>
+            <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
           </View>
-        ) : (
-          <View style={styles.paymentMethodSection}>
-            <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
-            <View style={styles.paymentOption}>
-              <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
-              <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
-              <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
-            </View>
-          </View>
-        )}
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {!qrCodeUrl ? (
-          <TouchableOpacity 
-            style={[styles.payButton, loading && { opacity: 0.7 }]}
-            onPress={handleCreatePayment}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.payButtonText}>ขอ QR Code ชำระเงิน</Text>}
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={[styles.payButton, { backgroundColor: '#10B981' }]}
-            onPress={() => router.replace('/order')}
-          >
-            <Text style={styles.payButtonText}>ตรวจสอบสถานะ / ไปที่คลัง</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.payButton, loading && { opacity: 0.7 }]}
+          onPress={handleCreatePayment}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.payButtonText}>
+              ไปหน้าชำระเงิน
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
+  // return (
+  //   <SafeAreaView style={styles.container}>
+  //     <View style={styles.header}>
+  //       <TouchableOpacity onPress={() => router.back()}>
+  //         <Ionicons name="arrow-back" size={24} color="#333" />
+  //       </TouchableOpacity>
+  //       <Text style={styles.headerTitle}>ชำระเงิน</Text>
+  //       <View style={{ width: 24 }} />
+  //     </View>
+
+  //     <ScrollView contentContainerStyle={styles.content}>
+  //       <Text style={styles.sectionTitle}>สรุปรายการสั่งซื้อ</Text>
+  //       {displayItems.map((item: any, index: number) => (
+  //         <View key={index} style={styles.orderCard}>
+  //           <View style={styles.sheetInfo}>
+  //             <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
+  //             <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}</Text>
+  //           </View>
+  //           <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>
+  //         </View>
+  //       ))}
+
+  //       <View style={styles.totalContainer}>
+  //         <Text style={styles.totalLabel}>ยอดชำระสุทธิ</Text>
+  //         <Text style={styles.totalValue}>฿{Number(price).toLocaleString()}</Text>
+  //       </View>
+
+  //       {qrCodeUrl ? (
+  //         <View style={styles.qrContainer}>
+  //           <Text style={styles.sectionTitle}>สแกนเพื่อชำระเงิน</Text>
+  //           <View style={styles.qrWrapper}>
+  //             <Image source={{ uri: qrCodeUrl }} style={styles.qrImage} />
+  //           </View>
+  //           <Text style={styles.qrInstruction}>
+  //             กรุณาสแกน QR Code ผ่านแอปธนาคาร{"\n"}ยอดชำระ: ฿{Number(price).toLocaleString()}
+  //           </Text>
+  //         </View>
+  //       ) : (
+  //         <View style={styles.paymentMethodSection}>
+  //           <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
+  //           <View style={styles.paymentOption}>
+  //             <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
+  //             <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
+  //             <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
+  //           </View>
+  //         </View>
+  //       )}
+  //     </ScrollView>
+
+  //     <View style={styles.footer}>
+  //       {!qrCodeUrl ? (
+  //         <TouchableOpacity 
+  //           style={[styles.payButton, loading && { opacity: 0.7 }]}
+  //           onPress={handleCreatePayment}
+  //           disabled={loading}
+  //         >
+  //           {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.payButtonText}>ขอ QR Code ชำระเงิน</Text>}
+  //         </TouchableOpacity>
+  //       ) : (
+  //         <TouchableOpacity 
+  //           style={[styles.payButton, { backgroundColor: '#10B981' }]}
+  //           onPress={() => router.replace('/order')}
+  //         >
+  //           <Text style={styles.payButtonText}>ตรวจสอบสถานะ / ไปที่คลัง</Text>
+  //         </TouchableOpacity>
+  //       )}
+  //     </View>
+  //   </SafeAreaView>
+  // );
 }
 
 const styles = StyleSheet.create({

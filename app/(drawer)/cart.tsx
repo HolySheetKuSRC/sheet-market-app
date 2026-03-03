@@ -35,6 +35,11 @@ export default function CartScreen() {
         method: 'GET',
       });
 
+      if (response.status === 429) {
+        console.warn('Too many requests, retry later');
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         const items: CartItem[] = (data.items || []).map((item: any) => ({
