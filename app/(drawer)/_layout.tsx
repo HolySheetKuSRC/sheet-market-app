@@ -17,9 +17,11 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { useRouter } from "expo-router";
-import { apiRequest } from "../../utils/api";
-import { clearTokens, getSessionToken } from "../../utils/token";
+import { apiRequest } from '../../utils/api';
+import {
+  clearTokens,
+  getAccessToken
+} from '../../utils/token';
 
 interface User {
   id: string;
@@ -43,8 +45,8 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       try {
         console.log("===== DRAWER FETCH USER START =====");
 
-        const token = await getSessionToken();
-        console.log("JWT:", token);
+        const token = await getAccessToken();
+        console.log("ACCESS TOKEN SENT >>>", token);
 
         if (!token) {
           console.log("No token found");
