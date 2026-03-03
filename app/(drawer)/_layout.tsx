@@ -4,6 +4,7 @@ import {
   DrawerContentScrollView,
   DrawerItem,
 } from "@react-navigation/drawer";
+import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { useEffect, useState } from "react";
 import {
