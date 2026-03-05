@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "./seller-dasboard.styles"; // Import จากไฟล์ที่แยกไว้
+import { styles } from "../../styles/seller-dashboard.styles"; // Import จากไฟล์ที่แยกไว้
 
 export default function SellerDashboardScreen() {
   const router = useRouter();
@@ -47,7 +47,10 @@ export default function SellerDashboardScreen() {
             <Ionicons name="storefront-outline" size={16} color="#555" />
             <Text style={styles.pillButtonText}>หน้าผู้ซื้อ</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.pillButtonPrimary}>
+          <TouchableOpacity
+            style={styles.pillButtonPrimary}
+            onPress={() => router.push("/(seller-drawer)/create-sheet")} // แก้ path ให้ตรงกับโครงสร้าง expo-router ของคุณ
+          >
             <Ionicons name="add" size={18} color="#7A82FF" />
             <Text style={styles.pillButtonTextPrimary}>ขายชีท</Text>
           </TouchableOpacity>
