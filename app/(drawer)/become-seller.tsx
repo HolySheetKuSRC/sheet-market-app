@@ -177,7 +177,7 @@ const SellerStatusManager = () => {
               buttonText="ไปที่หน้า Dashboard"
               onAction={() => {
                 console.log("🚀 Switching to Seller Mode...");
-                router.replace("/(seller-drawer)/seller-dashboard");
+                router.replace("../(seller-drawer)/seller-dashboard");
               }}
             />
           )}
