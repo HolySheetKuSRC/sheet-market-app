@@ -40,7 +40,7 @@ interface SheetDetailData {
 interface UserDTO {
   id: string;
   name: string;
-  avatarUrl?: string | null;
+  userPhotoUrl?: string | null;
 }
 
 interface ReviewData {
@@ -346,9 +346,9 @@ export default function SheetDetail() {
                 >
                   {/* Card Top Row: Avatar + Name */}
                   <View style={styles.reviewCardHeader}>
-                    {review.user?.avatarUrl ? (
+                    {review.user?.userPhotoUrl ? (
                       <Image
-                        source={{ uri: review.user.avatarUrl }}
+                        source={{ uri: review.user.userPhotoUrl }}
                         style={styles.reviewAvatar}
                       />
                     ) : (
