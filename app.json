@@ -3,7 +3,7 @@
     "name": "mymobileapp",
     "slug": "mymobileapp",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "mymobileapp",
     "userInterfaceStyle": "automatic",
@@ -41,7 +41,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,
