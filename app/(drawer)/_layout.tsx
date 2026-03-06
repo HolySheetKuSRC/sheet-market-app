@@ -4,7 +4,7 @@ import {
   DrawerContentScrollView,
   DrawerItem,
 } from "@react-navigation/drawer";
-import { useRouter } from "expo-router";
+import { router, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { useEffect, useState } from "react";
 import {
@@ -32,9 +32,13 @@ interface User {
   photoUrl?: string;
 }
 
-const CustomDrawerContent = (props: DrawerContentComponentProps) => {
-  const { navigation, state } = props;
-  const router = useRouter();
+import React, { createContext, useContext } from 'react';
+
+interface DrawerProps extends DrawerContentComponentProps {
+  showNotification: (msg: string) => void;
+}
+const CustomDrawerContent = (props: DrawerProps) => {
+  const { navigation, state, showNotification } = props;
   const focusedRouteName = state.routeNames[state.index];
   const THEME_COLOR = "#6C63FF";
 
@@ -231,13 +235,13 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
             labelStyle={{ fontWeight: "bold" }}
             style={{
               borderWidth: 1,
-              borderColor: "rgba(108, 99, 255, 0.3)", // เส้นขอบสีม่วงจางๆ
-              marginVertical: 10, // เพิ่มระยะห่างบนล่างให้ดูเป็นปุ่มแยกออกมา
+              borderColor: "rgba(108, 99, 255, 0.3)", 
+              marginVertical: 10, 
             }}
             icon={({ color }) => (
               <Ionicons name="business" size={24} color={color} />
             )}
-            onPress={() => router.replace("/(seller-drawer)/seller-dashboard")}
+            onPress={() => router.replace("./(seller-drawer)/seller-dashboard")}
           />
         )}
 
@@ -275,28 +279,71 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
     </View>
   );
 };
+interface DrawerProps extends DrawerContentComponentProps {
+  showNotification: (msg: string) => void;
+}
+
+const NotificationContext = createContext<
+  (msg: string) => void
+>(() => { });
+
+export const useNotification = () =>
+  useContext(NotificationContext);
 
 export default function DrawerLayout() {
+  const [toastVisible, setToastVisible] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const showNotification = (msg: string) => {
+    setMessage(msg);
+    setToastVisible(true);
+
+    setTimeout(() => {
+      setToastVisible(false);
+    }, 2500);
+  };
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Drawer
-        backBehavior="history"
-        drawerContent={(props) => <CustomDrawerContent {...props} />}
-        screenOptions={{
-          headerShown: false,
-          drawerType: "front",
-        }}
-      >
-        <Drawer.Screen name="home" />
-        <Drawer.Screen name="marketplace" />
-        <Drawer.Screen name="become-seller" />
-        <Drawer.Screen name="transcribe" />
-        <Drawer.Screen name="myLibrary" />
-        <Drawer.Screen name="order" />
-        <Drawer.Screen name="cart" />
-        <Drawer.Screen name="profile" />
-      </Drawer>
-    </GestureHandlerRootView>
+    <NotificationContext.Provider value={showNotification}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <>
+          <Drawer
+            backBehavior="history"
+            drawerContent={(props) => (
+              <CustomDrawerContent
+                {...props}
+                showNotification={showNotification}
+              />
+            )}
+            screenOptions={{
+              headerShown: false,
+              drawerType: 'front',
+            }}
+          >
+            <Drawer.Screen name="home" />
+            <Drawer.Screen name="marketplace" />
+            <Drawer.Screen name="become-seller" />
+            <Drawer.Screen name="transcribe" />
+            <Drawer.Screen name="myLibrary" />
+            <Drawer.Screen name="order" />
+            <Drawer.Screen name="cart" />
+            <Drawer.Screen name="profile" />
+          </Drawer>
+
+          {toastVisible && (
+            <View style={styles.toast}>
+              <Ionicons
+                name="notifications"
+                size={18}
+                color="#FFF"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.toastText}>{message}</Text>
+            </View>
+          )}
+        </>
+      </GestureHandlerRootView>
+    </NotificationContext.Provider>
   );
 }
 
@@ -338,6 +385,56 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
-  userName: { fontWeight: "bold", fontSize: 16 },
-  userStatus: { fontSize: 12, color: "#666" },
+  userName: { fontWeight: 'bold', fontSize: 16 },
+  userStatus: { fontSize: 12, color: '#666' },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  modalBox: {
+    width: 280,
+    backgroundColor: '#FFF',
+    padding: 25,
+    borderRadius: 20,
+    alignItems: 'center',
+    elevation: 5,
+  },
+
+  modalText: {
+    marginVertical: 15,
+    textAlign: 'center',
+    fontSize: 16,
+  },
+
+  modalButton: {
+    backgroundColor: '#6C63FF',
+    paddingHorizontal: 30,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  toast: {
+    position: 'absolute',
+    top: 90,
+    right: 20,
+    backgroundColor: '#6C63FF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 6,
+  },
+
+  toastText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
