@@ -11,7 +11,7 @@ import {
 const { width, height } = Dimensions.get('window');
 
 export interface NotificationHandle {
-  show: () => void;
+  show: (msg?: string) => void;
   hide: () => void;
   isVisible: boolean;
 }
