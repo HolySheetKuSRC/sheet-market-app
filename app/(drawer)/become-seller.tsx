@@ -31,52 +31,6 @@ const SellerStatusManager = () => {
     }, []),
   );
 
-  const handleRefreshAndRetry = async () => {
-    try {
-      console.log("🔄 [Refresh] กำลังขอ Token ใหม่...");
-      const currentRefreshToken = await getRefreshToken();
-
-      if (!currentRefreshToken) {
-        console.warn(
-          "❌ [Refresh] ไม่มี Refresh Token ในเครื่อง (ต้องล็อกอินใหม่)",
-        );
-        setStatus("APPLY_PAGE"); // หรือถ้ามีระบบบังคับ Logout ให้เรียกตรงนี้
-        return;
-      }
-
-      // ⚠️ เปลี่ยน "/auth/refresh" เป็น Endpoint จริงของ Backend คุณ
-      const response = await apiRequest("/auth/refresh", {
-        method: "POST",
-        body: JSON.stringify({ refreshToken: currentRefreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        // บันทึก Token ใหม่ (ตรวจสอบชื่อ Field จาก Backend ให้ตรงด้วยนะครับ)
-        await saveTokens(
-          data.accessToken,
-          data.refreshToken,
-          data.sessionToken, // ถ้า Backend ไม่ได้ส่งกลับมา ให้ใส่ undefined หรือปล่อยว่าง
-        );
-
-        console.log(
-          "✅ [Refresh] ได้รับ Token ใหม่แล้ว! กำลังเช็คสถานะอีกครั้ง...",
-        );
-
-        // เรียกเช็คสถานะใหม่อีกรอบ พร้อมส่ง Flag ว่า "นี่คือการลองซ้ำนะ"
-        checkStatus(true);
-      } else {
-        console.error("❌ [Refresh] API ปฏิเสธการ Refresh Token");
-        setStatus("APPLY_PAGE");
-      }
-    } catch (error) {
-      console.error("❌ [Refresh] เกิดข้อผิดพลาดระหว่าง Refresh:", error);
-      setStatus("APPLY_PAGE");
-    }
-  };
-
-  // เพิ่ม Parameter isRetry = false เพื่อป้องกันการ Refresh วนลูปไม่รู้จบ
   const checkStatus = async (isRetry = false) => {
     console.log("📍 Step 3: checkStatus function is starting");
     try {
@@ -84,21 +38,45 @@ const SellerStatusManager = () => {
       const res = await apiRequest("/users/page-status", { method: "GET" });
       const statusText = await res.text();
 
-      console.log(
-        `[${new Date().toLocaleTimeString()}] 📊 Seller Status Updated:`,
-        statusText,
-      );
+      console.log(`[${new Date().toLocaleTimeString()}] 📊 Seller Status Updated:`, statusText);
 
       if (statusText === "NEED_REFRESH") {
         if (!isRetry) {
-          // ถ้าเป็นครั้งแรกที่เจอ NEED_REFRESH ให้ไปทำการขอ Token ใหม่
-          await handleRefreshAndRetry();
-          return; // 🛑 หยุดการทำงานตรงนี้ เพราะ handleRefreshAndRetry จะเรียก checkStatus ใหม่อีกรอบเอง
+          console.log("🔄 [Refresh] ต้องขอรับ Token ใหม่ตามคำขอ NEED_REFRESH...");
+          const currentRefreshToken = await getRefreshToken();
+
+          if (!currentRefreshToken) {
+            console.warn("❌ [Refresh] ไม่มี Refresh Token ในเครื่อง");
+            setStatus("APPLY_PAGE");
+            return;
+          }
+
+          // Use raw fetch for refresh so we don't trigger interceptor loops
+          const API_URL = process.env.EXPO_PUBLIC_API_URL;
+          const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: currentRefreshToken }),
+          });
+
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            const newAccessToken = data.access_token || data.accessToken;
+            const newRefreshToken = data.refresh_token || data.refreshToken || currentRefreshToken;
+
+            if (newAccessToken) {
+              await saveTokens(newAccessToken, newRefreshToken);
+              console.log("✅ [Refresh] สำเร็จ! ยิง checkStatus ซ้ำ...");
+              checkStatus(true);
+            } else {
+              setStatus("APPLY_PAGE");
+            }
+          } else {
+            setStatus("APPLY_PAGE");
+          }
+          return;
         } else {
-          // ถ้าเคย Refresh ไปแล้ว 1 รอบ แต่ API ยังตอบกลับมาว่า NEED_REFRESH อีก (ผิดปกติ)
-          console.error(
-            "🚨 [Warning] ดึงข้อมูลซ้ำแล้วแต่ยังติด NEED_REFRESH อยู่!",
-          );
+          console.error("🚨 [Warning] ร้องขอ Refresh แล้วแต่ยังติด NEED_REFRESH");
           setStatus("APPLY_PAGE");
           return;
         }

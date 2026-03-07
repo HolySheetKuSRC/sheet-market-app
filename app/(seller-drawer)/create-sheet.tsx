@@ -5,16 +5,17 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { styles } from "../../styles/create-sheet.styles";
 
@@ -59,6 +60,7 @@ export default function CreateSheetScreen() {
     ImagePicker.ImagePickerAsset[]
   >([]);
   const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- Functions การเลือกไฟล์ ---
@@ -211,7 +213,7 @@ export default function CreateSheetScreen() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} disabled={isSubmitting}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>อัปโหลดชีทสรุป</Text>
         <View style={{ width: 24 }} />
@@ -221,359 +223,360 @@ export default function CreateSheetScreen() {
         contentContainerStyle={styles.scrollContent}
         nestedScrollEnabled={true}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.label}>ชื่อชีทสรุป (Title)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="ตั้งชื่อชีทให้น่าสนใจ..."
-          value={form.title}
-          onChangeText={(t) => setForm({ ...form, title: t })}
-        />
+        {/* Section 1: รายละเอียดชีทสรุป */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="document-text" size={20} color="#7A82FF" />
+            <Text style={styles.sectionTitle}>รายละเอียดชีทสรุป</Text>
+          </View>
 
-        {/* --- Dropdown มหาวิทยาลัย --- */}
-        <Text style={styles.label}>ชื่อสถาบันที่ต้องการเผยแพร่ชีทนี้</Text>
-        <TouchableOpacity
-          style={[
-            styles.dropdown,
-            isUniDropdownOpen && {
-              borderBottomLeftRadius: 0,
-              borderBottomRightRadius: 0,
-              borderColor: "#7A82FF",
-            },
-          ]}
-          onPress={() => {
-            setIsUniDropdownOpen(!isUniDropdownOpen);
-            setIsCategoryDropdownOpen(false);
-            setSearchQuery("");
-          }}
-        >
-          <Text
-            style={[styles.placeholder, selectedUniLabel && { color: "#333" }]}
-          >
-            {selectedUniLabel || "เลือกสถาบัน..."}
+          <Text style={[styles.label, { marginTop: 0 }]}>
+            ชื่อชีทสรุป (Title)
           </Text>
-          <Ionicons
-            name={isUniDropdownOpen ? "chevron-up" : "chevron-down"}
-            size={18}
-            color="#999"
+          <TextInput
+            style={styles.input}
+            placeholder="ตั้งชื่อชีทให้น่าสนใจ..."
+            placeholderTextColor="#9CA3AF"
+            value={form.title}
+            onChangeText={(t) => setForm({ ...form, title: t })}
           />
-        </TouchableOpacity>
 
-        {isUniDropdownOpen && (
-          <View
-            style={{
-              borderWidth: 1,
-              borderTopWidth: 0,
-              borderColor: "#7A82FF",
-              borderBottomLeftRadius: 12,
-              borderBottomRightRadius: 12,
-              backgroundColor: "#fff",
-              maxHeight: 250,
-              overflow: "hidden",
-              zIndex: 1000,
+          <Text style={styles.label}>รายละเอียดเนื้อหา</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="ใส่รายละเอียด เช่น บทเรียนที่สรุป..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            value={form.description}
+            onChangeText={(t) => setForm({ ...form, description: t })}
+          />
+
+          <Text style={styles.label}>แท็ก #</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="#มกศช, #cal1, #พี่ฮอตเก่งโหลด"
+            placeholderTextColor="#9CA3AF"
+            value={form.hashtags}
+            onChangeText={(t) => setForm({ ...form, hashtags: t })}
+          />
+        </View>
+
+        {/* Section 2: ข้อมูลสถาบันและรายวิชา */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="school" size={20} color="#7A82FF" />
+            <Text style={styles.sectionTitle}>ข้อมูลสถาบันและรายวิชา</Text>
+          </View>
+
+          <Text style={[styles.label, { marginTop: 0 }]}>
+            ชื่อสถาบันที่ต้องการเผยแพร่ชีทนี้
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.dropdown,
+              isUniDropdownOpen && {
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                borderColor: "#7A82FF",
+              },
+            ]}
+            onPress={() => {
+              setIsUniDropdownOpen(!isUniDropdownOpen);
+              setIsCategoryDropdownOpen(false);
+              setSearchQuery("");
             }}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 12,
-                borderBottomWidth: 1,
-                borderColor: "#E5E7EB",
-                backgroundColor: "#F9FAFB",
-              }}
+            <Text
+              style={[
+                styles.placeholder,
+                selectedUniLabel ? { color: "#1F2937" } : {},
+              ]}
             >
-              <Ionicons name="search" size={16} color="#9CA3AF" />
-              <TextInput
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 8,
-                  fontSize: 14,
-                  color: "#333",
-                }}
-                placeholder="พิมพ์เพื่อค้นหา..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus={true}
-              />
+              {selectedUniLabel || "เลือกสถาบัน..."}
+            </Text>
+            <Ionicons
+              name={isUniDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color="#9CA3AF"
+            />
+          </TouchableOpacity>
+
+          {isUniDropdownOpen && (
+            <View style={styles.dropdownMenu}>
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={16} color="#9CA3AF" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="พิมพ์เพื่อค้นหา..."
+                  placeholderTextColor="#9CA3AF"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus={true}
+                />
+              </View>
+              <ScrollView
+                nestedScrollEnabled={true}
+                keyboardShouldPersistTaps="handled"
+                style={{ maxHeight: 200 }}
+              >
+                {filteredUniversities.length > 0 ? (
+                  filteredUniversities.map((item) => (
+                    <TouchableOpacity
+                      key={item.value.toString()}
+                      style={[
+                        styles.dropdownItem,
+                        form.universityId === item.value.toString() && {
+                          backgroundColor: "#F4F6FF",
+                        },
+                      ]}
+                      onPress={() => selectUniversity(item)}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          {
+                            color:
+                              form.universityId === item.value.toString()
+                                ? "#7A82FF"
+                                : "#1F2937",
+                          },
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <Text
+                    style={{
+                      padding: 16,
+                      textAlign: "center",
+                      color: "#9CA3AF",
+                    }}
+                  >
+                    ไม่พบสถาบันที่ค้นหา
+                  </Text>
+                )}
+              </ScrollView>
             </View>
-            <ScrollView
-              nestedScrollEnabled={true}
-              keyboardShouldPersistTaps="handled"
+          )}
+
+          <Text style={styles.label}>ชนิดของชีทสรุป</Text>
+          <TouchableOpacity
+            style={[
+              styles.dropdown,
+              isCategoryDropdownOpen && {
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                borderColor: "#7A82FF",
+              },
+            ]}
+            onPress={() => {
+              setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+              setIsUniDropdownOpen(false);
+            }}
+          >
+            <Text
+              style={[
+                styles.placeholder,
+                selectedCategoryLabel ? { color: "#1F2937" } : {},
+              ]}
             >
-              {filteredUniversities.length > 0 ? (
-                filteredUniversities.map((item) => (
+              {selectedCategoryLabel || "เลือกชนิดของชีท..."}
+            </Text>
+            <Ionicons
+              name={isCategoryDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color="#9CA3AF"
+            />
+          </TouchableOpacity>
+
+          {isCategoryDropdownOpen && (
+            <View style={styles.dropdownMenu}>
+              <ScrollView
+                nestedScrollEnabled={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                {categoryData.map((item) => (
                   <TouchableOpacity
                     key={item.value.toString()}
-                    style={{
-                      padding: 14,
-                      borderBottomWidth: 1,
-                      borderColor: "#f0f0f0",
-                      backgroundColor:
-                        form.universityId === item.value.toString()
-                          ? "#F3F4FF"
-                          : "#fff",
-                    }}
-                    onPress={() => selectUniversity(item)}
+                    style={[
+                      styles.dropdownItem,
+                      form.categoryId === item.value.toString() && {
+                        backgroundColor: "#F4F6FF",
+                      },
+                    ]}
+                    onPress={() => selectCategory(item)}
                   >
                     <Text
-                      style={{
-                        fontSize: 14,
-                        color:
-                          form.universityId === item.value.toString()
-                            ? "#7A82FF"
-                            : "#333",
-                      }}
+                      style={[
+                        styles.dropdownItemText,
+                        {
+                          color:
+                            form.categoryId === item.value.toString()
+                              ? "#7A82FF"
+                              : "#1F2937",
+                        },
+                      ]}
                     >
                       {item.label}
                     </Text>
                   </TouchableOpacity>
-                ))
-              ) : (
-                <Text
-                  style={{ padding: 16, textAlign: "center", color: "#999" }}
-                >
-                  ไม่พบสถาบันที่ค้นหา
-                </Text>
-              )}
-            </ScrollView>
-          </View>
-        )}
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
-        {/* --- Dropdown ชนิดของชีท --- */}
-        <Text style={styles.label}>ชนิดของชีทสรุป</Text>
-        <TouchableOpacity
-          style={[
-            styles.dropdown,
-            isCategoryDropdownOpen && {
-              borderBottomLeftRadius: 0,
-              borderBottomRightRadius: 0,
-              borderColor: "#7A82FF",
-            },
-          ]}
-          onPress={() => {
-            setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
-            setIsUniDropdownOpen(false);
-          }}
-        >
-          <Text
-            style={[
-              styles.placeholder,
-              selectedCategoryLabel && { color: "#333" },
-            ]}
-          >
-            {selectedCategoryLabel || "เลือกชนิดของชีท..."}
-          </Text>
-          <Ionicons
-            name={isCategoryDropdownOpen ? "chevron-up" : "chevron-down"}
-            size={18}
-            color="#999"
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.label}>ภาคเรียน</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="1"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={form.studyYear}
+                onChangeText={(t) => setForm({ ...form, studyYear: t })}
+              />
+            </View>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.label}>ปีการศึกษา</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="2025"
+                placeholderTextColor="#9CA3AF"
+                value={form.academicYear}
+                onChangeText={(t) => setForm({ ...form, academicYear: t })}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.label}>รหัสวิชา</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="03603435-65"
+            placeholderTextColor="#9CA3AF"
+            value={form.courseCode}
+            onChangeText={(t) => setForm({ ...form, courseCode: t })}
           />
-        </TouchableOpacity>
 
-        {isCategoryDropdownOpen && (
-          <View
-            style={{
-              borderWidth: 1,
-              borderTopWidth: 0,
-              borderColor: "#7A82FF",
-              borderBottomLeftRadius: 12,
-              borderBottomRightRadius: 12,
-              backgroundColor: "#fff",
-              overflow: "hidden",
-              zIndex: 999,
-            }}
-          >
-            <ScrollView
-              nestedScrollEnabled={true}
-              keyboardShouldPersistTaps="handled"
-            >
-              {categoryData.map((item) => (
-                <TouchableOpacity
-                  key={item.value.toString()}
-                  style={{
-                    padding: 14,
-                    borderBottomWidth: 1,
-                    borderColor: "#f0f0f0",
-                    backgroundColor:
-                      form.categoryId === item.value.toString()
-                        ? "#F3F4FF"
-                        : "#fff",
-                  }}
-                  onPress={() => selectCategory(item)}
-                >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color:
-                        form.categoryId === item.value.toString()
-                          ? "#7A82FF"
-                          : "#333",
-                    }}
-                  >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* --- Input อื่นๆ --- */}
-        <View style={styles.row}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.label}>ภาคเรียน</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="1"
-              keyboardType="numeric"
-              value={form.studyYear}
-              onChangeText={(t) => setForm({ ...form, studyYear: t })}
-            />
-          </View>
-          <View style={{ flex: 2 }}>
-            <Text style={styles.label}>ปีการศึกษา</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="2025"
-              value={form.academicYear}
-              onChangeText={(t) => setForm({ ...form, academicYear: t })}
-            />
-          </View>
+          <Text style={styles.label}>ชื่อรายวิชา</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="ชื่อรายวิชา..."
+            placeholderTextColor="#9CA3AF"
+            value={form.courseName}
+            onChangeText={(t) => setForm({ ...form, courseName: t })}
+          />
         </View>
 
-        <Text style={styles.label}>รหัสวิชา</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="03603435-65"
-          value={form.courseCode}
-          onChangeText={(t) => setForm({ ...form, courseCode: t })}
-        />
+        {/* Section 3: การตั้งราคา */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="pricetag" size={20} color="#7A82FF" />
+            <Text style={styles.sectionTitle}>การตั้งราคา</Text>
+          </View>
+          <Text style={[styles.label, { marginTop: 0 }]}>ราคาขาย (บาท)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="20"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="numeric"
+            value={form.price}
+            onChangeText={(t) => setForm({ ...form, price: t })}
+          />
+        </View>
 
-        <Text style={styles.label}>ชื่อรายวิชา</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="ชื่อรายวิชา..."
-          value={form.courseName}
-          onChangeText={(t) => setForm({ ...form, courseName: t })}
-        />
+        {/* Section 4: ไฟล์และรูปภาพตัวอย่าง */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="images" size={20} color="#7A82FF" />
+            <Text style={styles.sectionTitle}>ไฟล์และรูปภาพตัวอย่าง</Text>
+          </View>
 
-        <Text style={styles.label}>รายละเอียดเนื้อหา</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="ใส่รายละเอียด เช่น บทเรียนที่สรุป..."
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-          value={form.description}
-          onChangeText={(t) => setForm({ ...form, description: t })}
-        />
-
-        <Text style={styles.label}>ราคาขาย (บาท)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="20"
-          keyboardType="numeric"
-          value={form.price}
-          onChangeText={(t) => setForm({ ...form, price: t })}
-        />
-
-        {/* --- อัปโหลดรูปภาพพรีวิว --- */}
-        <Text style={styles.label}>รูปภาพตัวอย่าง (หน้าปก/เนื้อหาบางส่วน)</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 8 }}
-        >
-          {previewImages.map((img, index) => (
-            <View key={index} style={{ marginRight: 12, position: "relative" }}>
-              <Image
-                source={{ uri: img.uri }}
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: "#ddd",
-                }}
-              />
-              <TouchableOpacity
-                style={{
-                  position: "absolute",
-                  top: -8,
-                  right: -8,
-                  backgroundColor: "white",
-                  borderRadius: 12,
-                }}
-                onPress={() => removeImage(index)}
-              >
-                <Ionicons name="close-circle" size={24} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-          ))}
-          <TouchableOpacity
-            style={{
-              width: 100,
-              height: 100,
-              borderWidth: 1,
-              borderColor: "#7A82FF",
-              borderStyle: "dashed",
-              borderRadius: 8,
-              justifyContent: "center",
-              alignItems: "center",
-              backgroundColor: "#F3F4FF",
-            }}
-            onPress={handlePickImages}
+          <Text style={[styles.label, { marginTop: 0 }]}>
+            รูปภาพตัวอย่าง (หน้าปก/เนื้อหาบางส่วน)
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 8 }}
+            contentContainerStyle={{ paddingVertical: 12, paddingRight: 12 }}
           >
-            <Ionicons name="add" size={30} color="#7A82FF" />
-            <Text style={{ fontSize: 12, color: "#7A82FF", marginTop: 4 }}>
-              เพิ่มรูปภาพ
+            {previewImages.map((img, index) => (
+              <View key={index} style={styles.imagePreviewContainer}>
+                <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+                <TouchableOpacity
+                  style={styles.deleteBadge}
+                  onPress={() => removeImage(index)}
+                >
+                  <Ionicons name="close-circle" size={24} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.addImageButton}
+              onPress={handlePickImages}
+            >
+              <Ionicons name="add" size={32} color="#7A82FF" />
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: "#7A82FF",
+                  marginTop: 4,
+                  fontWeight: "500",
+                }}
+              >
+                เพิ่มรูปภาพ
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          <Text style={styles.label}>ไฟล์ชีทสรุป (PDF เท่านั้น)</Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={handlePickPDF}>
+            <Ionicons
+              name={pdfFile ? "document-text" : "cloud-upload"}
+              size={48}
+              color={pdfFile ? "#10B981" : "#7A82FF"}
+            />
+            <Text
+              style={{
+                marginTop: 12,
+                color: pdfFile ? "#10B981" : "#7A82FF",
+                fontSize: 14,
+                fontWeight: "600",
+                paddingHorizontal: 16,
+                textAlign: "center",
+              }}
+              numberOfLines={1}
+            >
+              {pdfFile ? pdfFile.name : "แตะเพื่อเลือกไฟล์ PDF"}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
-
-        {/* --- อัปโหลด PDF --- */}
-        <Text style={styles.label}>ไฟล์ชีทสรุป (PDF เท่านั้น)</Text>
-        <TouchableOpacity style={styles.uploadBox} onPress={handlePickPDF}>
-          <Ionicons
-            name={pdfFile ? "document-text" : "cloud-upload-outline"}
-            size={40}
-            color={pdfFile ? "#10B981" : "#7A82FF"}
-          />
-          <Text
-            style={{
-              marginTop: 8,
-              color: pdfFile ? "#10B981" : "#7A82FF",
-              fontSize: 14,
-            }}
-          >
-            {pdfFile ? pdfFile.name : "แตะเพื่อเลือกไฟล์ PDF"}
-          </Text>
-        </TouchableOpacity>
-
-        {/* แท็ก */}
-        <Text style={styles.label}>แท็ก #</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="#มกศช, #cal1, #พี่ฮอตเก่งโหลด"
-          value={form.hashtags}
-          onChangeText={(t) => setForm({ ...form, hashtags: t })}
-        />
+        </View>
 
         {/* ยอมรับเงื่อนไข */}
         <View style={styles.checkboxRow}>
           <TouchableOpacity
-            style={[
-              styles.checkbox,
-              isTermsAccepted && { backgroundColor: "#F3F4FF" },
-            ]}
+            style={styles.checkbox}
             onPress={() => setIsTermsAccepted(!isTermsAccepted)}
+            activeOpacity={0.7}
           >
             {isTermsAccepted && <View style={styles.checkboxInner} />}
           </TouchableOpacity>
           <Text style={styles.checkboxText}>
-            ฉันได้อ่านและยอมรับ ข้อกำหนดและเงื่อนไขการใช้งานแล้ว
+            ฉันได้อ่านและยอมรับ{" "}
+            <Text
+              style={styles.linkText}
+              onPress={() => setIsTermsModalOpen(true)}
+            >
+              ข้อกำหนดและเงื่อนไขการใช้งาน
+            </Text>
+            แล้ว
           </Text>
         </View>
 
@@ -582,6 +585,7 @@ export default function CreateSheetScreen() {
           style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
           onPress={handleSubmit}
           disabled={isSubmitting}
+          activeOpacity={0.8}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#fff" />
@@ -590,6 +594,107 @@ export default function CreateSheetScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Loading Modal */}
+      <Modal visible={isSubmitting} transparent={true} animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#7A82FF" />
+            <Text style={styles.loadingText}>กำลังอัปโหลด...</Text>
+            <Text style={styles.loadingSubText}>
+              กรุณารอสักครู่ อาจใช้เวลาสักพักหากไฟล์มีขนาดใหญ่
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Terms and Conditions Modal */}
+      <Modal
+        visible={isTermsModalOpen}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.termsContainer}>
+            <View style={styles.termsHeader}>
+              <Text style={styles.termsTitle}>ข้อกำหนดและเงื่อนไข</Text>
+              <TouchableOpacity onPress={() => setIsTermsModalOpen(false)}>
+                <Ionicons name="close" size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.termsContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.termsParagraph}>
+                การใช้งานแพลตฟอร์มนี้ถือว่าผู้ใช้ได้อ่าน เข้าใจ
+                และยอมรับข้อกำหนดและเงื่อนไขดังต่อไปนี้
+              </Text>
+
+              <Text style={styles.termsHeading}>
+                1. การยืนยันความเป็นเจ้าของเนื้อหา
+              </Text>
+              <Text style={styles.termsParagraph}>
+                ผู้ใช้งานรับรองว่าเนื้อหาที่อัปโหลดเป็นผลงานของตนเอง
+                หรือมีสิทธิ์ในการเผยแพร่โดยชอบด้วยกฎหมาย และไม่ละเมิดลิขสิทธิ์
+                ทรัพย์สินทางปัญญา หรือสิทธิของบุคคลอื่น
+              </Text>
+
+              <Text style={styles.termsHeading}>
+                2. ความรับผิดชอบต่อเนื้อหา
+              </Text>
+              <Text style={styles.termsParagraph}>
+                ผู้ใช้งานเป็นผู้รับผิดชอบต่อเนื้อหา ไฟล์ เอกสาร
+                และข้อมูลทั้งหมดที่อัปโหลด หากเกิดข้อพิพาททางกฎหมาย
+                ผู้ใช้งานยินยอมรับผิดชอบแต่เพียงผู้เดียว
+              </Text>
+
+              <Text style={styles.termsHeading}>3. การใช้งานที่เหมาะสม</Text>
+              <Text style={styles.termsParagraph}>
+                ห้ามอัปโหลดเนื้อหาที่ผิดกฎหมาย ลามก อนาจาร มีความรุนแรง
+                สร้างความเกลียดชัง หลอกลวง หรือขัดต่อศีลธรรมอันดีของสังคม
+              </Text>
+
+              <Text style={styles.termsHeading}>4. สิทธิของแพลตฟอร์ม</Text>
+              <Text style={styles.termsParagraph}>
+                แพลตฟอร์มขอสงวนสิทธิ์ในการตรวจสอบ แก้ไข ระงับ
+                หรือถอดถอนเนื้อหาที่ไม่เป็นไปตามข้อกำหนด
+                โดยไม่ต้องแจ้งให้ทราบล่วงหน้า
+              </Text>
+
+              <Text style={styles.termsHeading}>5. การซื้อ–ขายและราคา</Text>
+              <Text style={styles.termsParagraph}>
+                ผู้ใช้งานเป็นผู้กำหนดราคาเนื้อหาเอง
+                แพลตฟอร์มไม่รับผิดชอบต่อข้อพิพาทที่เกิดจากการซื้อ–ขายระหว่างผู้ใช้
+              </Text>
+
+              <Text style={styles.termsHeading}>6. การจำกัดความรับผิด</Text>
+              <Text style={styles.termsParagraph}>
+                แพลตฟอร์มไม่รับประกันความถูกต้อง ความสมบูรณ์
+                หรือความเหมาะสมของเนื้อหา และไม่รับผิดชอบต่อความเสียหายใด ๆ
+                ที่เกิดจากการใช้งาน
+              </Text>
+
+              <Text style={styles.termsHeading}>7. การเปลี่ยนแปลงเงื่อนไข</Text>
+              <Text style={styles.termsParagraph}>
+                แพลตฟอร์มขอสงวนสิทธิ์ในการแก้ไขข้อกำหนดและเงื่อนไขโดยไม่ต้องแจ้งล่วงหน้า
+                การใช้งานต่อไปถือว่ายอมรับเงื่อนไขที่แก้ไขแล้ว
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.acceptTermsButton}
+              onPress={() => {
+                setIsTermsAccepted(true);
+                setIsTermsModalOpen(false);
+              }}
+            >
+              <Text style={styles.acceptTermsButtonText}>
+                ฉันเข้าใจและยอมรับ
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
