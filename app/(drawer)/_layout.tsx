@@ -4,7 +4,7 @@ import {
   DrawerContentScrollView,
   DrawerItem,
 } from "@react-navigation/drawer";
-import { router, useRouter } from "expo-router";
+import { router } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { useEffect, useState } from "react";
 import {
@@ -18,11 +18,8 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { apiRequest } from '../../utils/api';
-import {
-  clearTokens,
-  getAccessToken
-} from '../../utils/token';
+import { apiRequest } from "../../utils/api";
+import { clearTokens, getAccessToken } from "../../utils/token";
 
 interface User {
   id: string;
@@ -32,7 +29,7 @@ interface User {
   photoUrl?: string;
 }
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext } from "react";
 
 interface DrawerProps extends DrawerContentComponentProps {
   showNotification: (msg: string) => void;
@@ -235,13 +232,15 @@ const CustomDrawerContent = (props: DrawerProps) => {
             labelStyle={{ fontWeight: "bold" }}
             style={{
               borderWidth: 1,
-              borderColor: "rgba(108, 99, 255, 0.3)", 
-              marginVertical: 10, 
+              borderColor: "rgba(108, 99, 255, 0.3)",
+              marginVertical: 10,
             }}
             icon={({ color }) => (
               <Ionicons name="business" size={24} color={color} />
             )}
-            onPress={() => router.replace("./(seller-drawer)/seller-dashboard")}
+            onPress={() =>
+              router.replace("../(seller-drawer)/seller-dashboard")
+            }
           />
         )}
 
@@ -283,16 +282,13 @@ interface DrawerProps extends DrawerContentComponentProps {
   showNotification: (msg: string) => void;
 }
 
-const NotificationContext = createContext<
-  (msg: string) => void
->(() => { });
+const NotificationContext = createContext<(msg: string) => void>(() => {});
 
-export const useNotification = () =>
-  useContext(NotificationContext);
+export const useNotification = () => useContext(NotificationContext);
 
 export default function DrawerLayout() {
   const [toastVisible, setToastVisible] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
 
   const showNotification = (msg: string) => {
     setMessage(msg);
@@ -317,7 +313,7 @@ export default function DrawerLayout() {
             )}
             screenOptions={{
               headerShown: false,
-              drawerType: 'front',
+              drawerType: "front",
             }}
           >
             <Drawer.Screen name="home" />
@@ -385,56 +381,56 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
-  userName: { fontWeight: 'bold', fontSize: 16 },
-  userStatus: { fontSize: 12, color: '#666' },
+  userName: { fontWeight: "bold", fontSize: 16 },
+  userStatus: { fontSize: 12, color: "#666" },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   modalBox: {
     width: 280,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     padding: 25,
     borderRadius: 20,
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 5,
   },
 
   modalText: {
     marginVertical: 15,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 16,
   },
 
   modalButton: {
-    backgroundColor: '#6C63FF',
+    backgroundColor: "#6C63FF",
     paddingHorizontal: 30,
     paddingVertical: 10,
     borderRadius: 10,
   },
   toast: {
-    position: 'absolute',
+    position: "absolute",
     top: 90,
     right: 20,
-    backgroundColor: '#6C63FF',
+    backgroundColor: "#6C63FF",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     elevation: 6,
   },
 
   toastText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
