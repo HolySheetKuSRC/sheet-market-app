@@ -27,20 +27,19 @@ interface SheetCardProps {
   onPress?: () => void;
   isOwned?: boolean;
   onDownloadPress?: () => void;
-
   isLiked?: boolean;
   onLikePress?: () => void;
 }
+
 const SheetCard: React.FC<SheetCardProps> = ({
   item,
   isThreeColumns = false,
   onPress,
   isOwned = false,
   onDownloadPress,
+  isLiked = false,
+  onLikePress,
 }) => {
-  console.log("FULL ITEM:", item);
-  console.log("IMAGE URL:", item?.image);
-
   const router = useRouter();
   if (!item) return null;
 
@@ -80,9 +79,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
 
       {/* 🖼 Image */}
       <Image
-        source={{
-          uri: item.image || "https://via.placeholder.com/150",
-        }}
+        source={{ uri: item.image || "https://via.placeholder.com/150" }}
         style={styles.cardImage}
         resizeMode="cover"
       />
@@ -115,20 +112,39 @@ const SheetCard: React.FC<SheetCardProps> = ({
           ))}
         </View>
 
-        {/* 💰 Price หรือ Download */}
+        {/* 💰 Price หรือ Download + Like */}
         <View style={styles.bottomSection}>
           {isOwned ? (
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                onDownloadPress?.();
-              }}
-              activeOpacity={0.9}
-            >
-              <Ionicons name="download" size={18} color="#fff" />
-              <Text style={styles.downloadText}>Download Sheet</Text>
-            </TouchableOpacity>
+            <View style={styles.ownedActions}>
+              {/* ⬇️ Download */}
+              <TouchableOpacity
+                style={styles.downloadButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onDownloadPress?.();
+                }}
+                activeOpacity={0.9}
+              >
+                <Ionicons name="download-outline" size={14} color="#fff" />
+                <Text style={styles.downloadText}>ดาวน์โหลด</Text>
+              </TouchableOpacity>
+
+              {/* ❤️ Like */}
+              <TouchableOpacity
+                style={[styles.likeButton, isLiked && styles.likeButtonActive]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onLikePress?.();
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={isLiked ? "heart" : "heart-outline"}
+                  size={16}
+                  color={isLiked ? "#fff" : "#F43F5E"}
+                />
+              </TouchableOpacity>
+            </View>
           ) : (
             <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
           )}
@@ -271,15 +287,22 @@ const styles = StyleSheet.create({
     color: "#4F46E5",
   },
 
+  // ✅ Download + Like เคียงกัน
+  ownedActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
   downloadButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#4F46E5",
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 10,
-    gap: 6,
-    width: "100%",
+    gap: 4,
     shadowColor: "#4F46E5",
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -288,8 +311,25 @@ const styles = StyleSheet.create({
 
   downloadText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "800",
+  },
+
+  // ❤️ Like button — outline เมื่อยังไม่ like, เติมสีเมื่อ like แล้ว
+  likeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#F43F5E",
+    backgroundColor: "#FFF",
+  },
+
+  likeButtonActive: {
+    backgroundColor: "#F43F5E",
+    borderColor: "#F43F5E",
   },
 });
 
