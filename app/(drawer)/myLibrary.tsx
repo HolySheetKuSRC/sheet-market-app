@@ -22,17 +22,18 @@ interface Product {
   description: string;
   price: number;
   image: string;
-  ratingAverage: number;
+  averageRating: number;
   seller: { name: string };
   tags: string[];
   updatedAt: string[];
   fileUrl?: string;
 }
 
+
 export default function MyLibraryScreen() {
   const navigation = useNavigation();
   const router = useRouter();
-
+  const [likedSheets, setLikedSheets] = useState<string[]>([]);
   const [sheets, setSheets] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,63 +77,71 @@ export default function MyLibraryScreen() {
   }, []);
 
   const handleDownload = async (id: string) => {
-      try {
-        const response = await apiRequest(`/products/${id}/download`, {
-          method: "GET",
-        });
+    try {
+      const response = await apiRequest(`/products/${id}/download`, {
+        method: "GET",
+      });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText || "ไม่สามารถดาวน์โหลดไฟล์ได้");
-        }
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText || "ไม่สามารถดาวน์โหลดไฟล์ได้");
+      }
 
-        const data = await response.json();
-        const url = data.fileUrl;
-        const sheetName = data.sheetName;
+      const data = await response.json();
+      const url = data.fileUrl;
+      const sheetName = data.sheetName;
 
-        if (!url || !sheetName) {
-          throw new Error("ข้อมูลไฟล์ไม่ถูกต้อง");
-        }
+      if (!url || !sheetName) {
+        throw new Error("ข้อมูลไฟล์ไม่ถูกต้อง");
+      }
 
-        console.log("Downloading from:", url);
-        console.log("Sheet name:", sheetName);
+      console.log("Downloading from:", url);
+      console.log("Sheet name:", sheetName);
 
-        const safeName = sheetName.replace(/[<>:"/\\|?*]+/g, "");
-        const fileName = `${safeName}.pdf`;
-        const fileUri = FileSystem.documentDirectory + fileName;
+      const safeName = sheetName.replace(/[<>:"/\\|?*]+/g, "");
+      const fileName = `${safeName}.pdf`;
+      const fileUri = FileSystem.documentDirectory + fileName;
 
-        // ✅ เช็คไฟล์ซ้ำ
-        const fileInfo = await FileSystem.getInfoAsync(fileUri);
-        if (fileInfo.exists) {
-          console.log("File already exists:", fileUri);
-
-          if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(fileUri);
-          }
-          return;
-        }
-
-        const downloadResumable =
-          FileSystem.createDownloadResumable(url, fileUri);
-
-        const result = await downloadResumable.downloadAsync();
-
-        if (!result?.uri) {
-          throw new Error("Download failed");
-        }
-
-        console.log("File saved to:", result.uri);
+      // ✅ เช็คไฟล์ซ้ำ
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (fileInfo.exists) {
+        console.log("File already exists:", fileUri);
 
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(result.uri);
-        } else {
-          Alert.alert("Downloaded", "ไฟล์ถูกดาวน์โหลดแล้ว");
+          await Sharing.shareAsync(fileUri);
         }
-      } catch (err: any) {
-        console.log("Download error:", err);
-        Alert.alert("Error", err.message);
+        return;
       }
-    };
+
+      const downloadResumable =
+        FileSystem.createDownloadResumable(url, fileUri);
+
+      const result = await downloadResumable.downloadAsync();
+
+      if (!result?.uri) {
+        throw new Error("Download failed");
+      }
+
+      console.log("File saved to:", result.uri);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(result.uri);
+      } else {
+        Alert.alert("Downloaded", "ไฟล์ถูกดาวน์โหลดแล้ว");
+      }
+    } catch (err: any) {
+      console.log("Download error:", err);
+      Alert.alert("Error", err.message);
+    }
+  };
+
+  const toggleLike = (id: string) => {
+    setLikedSheets((prev) =>
+      prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : [...prev, id]
+    );
+  };
 
   const renderEmptyState = () => {
     if (loading) return null;
@@ -191,6 +200,9 @@ export default function MyLibraryScreen() {
               item={item}
               isThreeColumns={true}
               isOwned={true}
+
+              isLiked={likedSheets.includes(item.id)}
+              onLikePress={() => toggleLike(item.id)}
 
               onPress={() => {
                 router.push({

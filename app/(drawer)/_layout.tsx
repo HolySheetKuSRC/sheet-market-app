@@ -83,7 +83,6 @@ const CustomDrawerContent = (props: DrawerProps) => {
         }
 
         if (data) {
-          // 🔥 ดู field จริงก่อน
           console.log("Available fields:", Object.keys(data));
 
           setUser({
@@ -238,10 +237,7 @@ const CustomDrawerContent = (props: DrawerProps) => {
             icon={({ color }) => (
               <Ionicons name="business" size={24} color={color} />
             )}
-            onPress={() =>
-              router.replace("../(seller-drawer)/seller-dashboard")
-            }
-          />
+            onPress={() => router.replace("/seller-dashboard")} />
         )}
 
         <View style={styles.divider} />

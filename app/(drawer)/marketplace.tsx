@@ -32,7 +32,7 @@ interface Product {
   description: string;
   price: number;
   image: string;
-  ratingAverage: number;
+  averageRating: number;
   seller: { name: string };
   tags: string[];
   updatedAt: string[];

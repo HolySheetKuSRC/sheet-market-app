@@ -19,7 +19,7 @@ interface SheetCardProps {
     description: string;
     price: number;
     image: string;
-    ratingAverage: number;
+    averageRating: number;
     seller: { name: string };
     tags: string[];
   };
@@ -27,8 +27,10 @@ interface SheetCardProps {
   onPress?: () => void;
   isOwned?: boolean;
   onDownloadPress?: () => void;
-}
 
+  isLiked?: boolean;
+  onLikePress?: () => void;
+}
 const SheetCard: React.FC<SheetCardProps> = ({
   item,
   isThreeColumns = false,
@@ -65,7 +67,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
       <View style={styles.ratingBadge}>
         <Ionicons name="star" size={11} color="#FBBF24" />
         <Text style={styles.ratingText}>
-          {item.ratingAverage?.toFixed(1) || "0.0"}
+          {item.averageRating?.toFixed(1) || "0.0"}
         </Text>
       </View>
 
