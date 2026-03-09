@@ -1,7 +1,7 @@
 import axios from "axios";
 import * as Haptics from "expo-haptics";
 import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,54 +13,124 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { saveTokens } from '../utils/token';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { saveTokens } from "../utils/token";
 
-/* ===============================
-   ENV (สำคัญมากสำหรับ Expo Web)
-================================ */
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
+
+WebBrowser.maybeCompleteAuthSession();
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+const GOOGLE_CLIENT_ID =
+  "657352686440-of813ues4uubhm85i56rp73c7b68ammr.apps.googleusercontent.com";
 
 const THEME = {
   primary: "#4F46E5",
-  primaryDark: "#3730A3",
   bg: "#F8FAFC",
   surface: "#FFFFFF",
   textMain: "#0F172A",
   textSub: "#64748B",
   border: "#E2E8F0",
-  inputBg: "#FFFFFF",
 };
 
 export default function AuthScreen() {
-  const [isLogin, setIsLogin] = useState<boolean>(true);
-  const [loading, setLoading] = useState<boolean>(false);
   const router = useRouter();
 
-  // --- States สำหรับ Form Data ---
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [username, setUsername] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleTabChange = (mode: boolean) => {
-    if (mode !== isLogin) {
-      if (Platform.OS !== "web") {
-        Haptics.selectionAsync();
+  /* ---------------- GOOGLE AUTH ---------------- */
+
+  // const redirectUri = AuthSession.makeRedirectUri({
+  // });
+
+  // console.log("Redirect URI:", redirectUri);
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: GOOGLE_CLIENT_ID,
+    scopes: ["profile", "email"],
+    responseType: "id_token",
+  });
+
+  useEffect(() => {
+    if (response?.type === "success") {
+
+      const idToken = response.params?.id_token;
+
+      console.log("ID TOKEN:", idToken);
+
+      if (idToken) {
+        handleGoogleBackend(idToken);
+      } else {
+        Alert.alert("Google login failed");
       }
-      setIsLogin(mode);
+    }
+  }, [response]);
+
+  const handleGoogleBackend = async (idToken: string) => {
+    try {
+      setGoogleLoading(true);
+
+      const res = await axios.post(`${API_URL}/auth/google-login`, {
+        idToken,
+      });
+
+      const accessToken = res.data.access_token;
+      const refreshToken = res.data.refresh_token;
+      const sessionToken = res.data.session_token;
+
+      await saveTokens(accessToken, refreshToken, sessionToken);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      router.replace("/(drawer)/home" as any);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Google login failed");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      if (!request) return;
+
+      setGoogleLoading(true);
+
+      const result = await promptAsync({
+      });
+
+      console.log("Google result:", result);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Google login error");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  /* ---------------- EMAIL LOGIN ---------------- */
+
   const handleAuthAction = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill in all required fields.");
+      Alert.alert("Error", "Please fill all fields");
       return;
     }
 
     if (!API_URL) {
-      Alert.alert("Config Error", "EXPO_PUBLIC_API_URL is not defined");
+      Alert.alert("Config Error", "API URL missing");
       return;
     }
 
@@ -68,70 +138,46 @@ export default function AuthScreen() {
 
     try {
       if (isLogin) {
-        // ---------- LOGIN ----------
-        // ยิงไปที่ /auth/login (Gateway จะจัดการ Path ให้)
-        const response = await axios.post(`${API_URL}/auth/login`, {
+        const res = await axios.post(`${API_URL}/auth/login`, {
           email,
           password,
         });
 
-        console.log("Login Success:", response.data);
+        const accessToken = res.data.access_token;
+        const refreshToken = res.data.refresh_token;
+        const sessionToken = res.data.session_token;
 
-        
-        const accessToken = response.data.access_token;
-        const refreshToken = response.data.refresh_token;
-        const sessionToken = response.data.session_token;
+        await saveTokens(accessToken, refreshToken, sessionToken);
 
-        if (accessToken) {
-          // 3. เรียกใช้ saveTokens เพื่อเก็บลงเครื่อง
-          // (ถ้า saveTokens ของคุณรับ 2 ค่า ให้ใส่ refreshToken ไปด้วย)
-          await saveTokens(accessToken, refreshToken, sessionToken);
-
-          if (Platform.OS !== "web") {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-
-          router.replace("/(drawer)/home" as any);
-        } else {
-          console.warn("Login success but no access_token found in response");
-          Alert.alert(
-            "Login Error",
-            "ได้รับข้อมูลตอบกลับไม่ถูกต้องจากเซิร์ฟเวอร์",
-          );
-        }
+        router.replace("/(drawer)/home" as any);
       } else {
-        // ---------- REGISTER ----------
         if (password !== confirmPassword) {
-          Alert.alert("Error", "Passwords do not match!");
+          Alert.alert("Passwords do not match");
           setLoading(false);
           return;
         }
 
-        const response = await axios.post(`${API_URL}/auth/register`, {
+        await axios.post(`${API_URL}/auth/register`, {
           username,
           email,
           password,
           secPassword: confirmPassword,
         });
 
-        console.log("Register Success:", response.data);
-        Alert.alert("Success", "Account created successfully! Please Log In.");
+        Alert.alert("Success", "Account created");
         setIsLogin(true);
       }
     } catch (error: any) {
-      console.error("Auth Error:", error);
-      const errorMessage =
+      const message =
         error.response?.data?.message || "Connection error. Please try again.";
 
-      Alert.alert("Authentication Failed", errorMessage);
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Alert.alert("Authentication Failed", message);
     } finally {
       setLoading(false);
     }
   };
+
+  /* ---------------- UI ---------------- */
 
   return (
     <SafeAreaView style={styles.container}>
@@ -139,151 +185,84 @@ export default function AuthScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.flex1}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        style={{ flex: 1 }}
       >
-        <ScrollView
-          style={styles.flex1}
-          contentContainerStyle={styles.scrollContent}
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.mainWrapper}>
-            {/* Header */}
-            <View style={styles.headerRow}>
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity
-                onPress={() =>
-                  Platform.OS !== "web" &&
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                }
-              >
-                <Text style={styles.helpText}>Need help?</Text>
-              </TouchableOpacity>
-            </View>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <View style={styles.form}>
+            <Text style={styles.title}>
+              {isLogin ? "Welcome Back" : "Create Account"}
+            </Text>
 
-            {/* Content */}
-            <View
-              style={[
-                styles.centeredContent,
-                !isLogin && styles.registerMargin,
-              ]}
+            {!isLogin && (
+              <TextInput
+                placeholder="Username"
+                style={styles.input}
+                value={username}
+                onChangeText={setUsername}
+              />
+            )}
+
+            <TextInput
+              placeholder="Email"
+              style={styles.input}
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+
+            <TextInput
+              placeholder="Password"
+              style={styles.input}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            {!isLogin && (
+              <TextInput
+                placeholder="Confirm Password"
+                style={styles.input}
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+            )}
+
+            <TouchableOpacity
+              style={styles.mainButton}
+              onPress={handleAuthAction}
+              disabled={loading}
             >
-              <View style={styles.formConstraint}>
-                <View style={styles.welcomeContainer}>
-                  <Text style={styles.title}>
-                    {isLogin ? "Welcome Back!" : "Join Us!"}
-                  </Text>
-                  <Text style={styles.subtitle}>
-                    Access verified Thai university study guides & AI tools
-                  </Text>
-                </View>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {isLogin ? "Sign In" : "Register"}
+                </Text>
+              )}
+            </TouchableOpacity>
 
-                {/* Tabs */}
-                <View style={styles.tabContainer}>
-                  <TouchableOpacity
-                    style={[styles.tabButton, isLogin && styles.activeTab]}
-                    onPress={() => handleTabChange(true)}
-                  >
-                    <Text
-                      style={[styles.tabText, isLogin && styles.activeTabText]}
-                    >
-                      Log In
-                    </Text>
-                  </TouchableOpacity>
+            {/* GOOGLE BUTTON */}
 
-                  <TouchableOpacity
-                    style={[styles.tabButton, !isLogin && styles.activeTab]}
-                    onPress={() => handleTabChange(false)}
-                  >
-                    <Text
-                      style={[styles.tabText, !isLogin && styles.activeTabText]}
-                    >
-                      Register
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={handleGoogleLogin}
+              disabled={!request || googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator />
+              ) : (
+                <Text style={styles.googleText}>Continue with Google</Text>
+              )}
+            </TouchableOpacity>
 
-                {/* Form */}
-                <View style={styles.form}>
-                  {!isLogin && (
-                    <>
-                      <View style={styles.dotContainer}>
-                        <View style={[styles.dot, styles.activeDot]} />
-                        <View style={styles.dot} />
-                      </View>
-
-                      <Text style={styles.inputLabel}>Username</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Somchai_Inw"
-                        placeholderTextColor="#94A3B8"
-                        value={username}
-                        onChangeText={setUsername}
-                      />
-                    </>
-                  )}
-
-                  <Text style={styles.inputLabel}>Email</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="name@university.ac.th"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-
-                  <Text style={styles.inputLabel}>Password</Text>
-                  <TextInput
-                    style={styles.input}
-                    secureTextEntry
-                    placeholder="••••••••"
-                    placeholderTextColor="#94A3B8"
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-
-                  {!isLogin && (
-                    <>
-                      <Text style={styles.inputLabel}>Confirm Password</Text>
-                      <TextInput
-                        style={styles.input}
-                        secureTextEntry
-                        placeholder="Repeat password"
-                        placeholderTextColor="#94A3B8"
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                      />
-                    </>
-                  )}
-
-                  {isLogin && (
-                    <TouchableOpacity>
-                      <Text style={styles.forgotText}>Forgot Password?</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.mainButton, loading && { opacity: 0.8 }]}
-                    onPress={handleAuthAction}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#FFF" />
-                    ) : (
-                      <Text style={styles.mainButtonText}>
-                        {isLogin ? "Sign In" : "Create Account"}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={{ height: 40 }} />
+            <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
+              <Text style={styles.switchText}>
+                {isLogin
+                  ? "Don't have an account? Register"
+                  : "Already have account? Login"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -291,140 +270,72 @@ export default function AuthScreen() {
   );
 }
 
+/* ---------------- STYLE ---------------- */
+
 const styles = StyleSheet.create({
-  flex1: { flex: 1 },
-  container: { flex: 1, backgroundColor: THEME.bg },
-  scrollContent: { flexGrow: 1, justifyContent: "center" },
-  mainWrapper: {
+  container: {
     flex: 1,
-    paddingHorizontal: 32,
-    paddingTop: Platform.OS === "android" ? 20 : 0,
+    backgroundColor: THEME.bg,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 60,
+
+  scroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 32,
   },
-  helpText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: THEME.textSub,
+
+  form: {
+    width: "100%",
   },
-  centeredContent: { alignItems: "center", paddingVertical: 20 },
-  registerMargin: { paddingTop: 10 },
-  formConstraint: { width: "100%", maxWidth: 400 },
-  welcomeContainer: { alignItems: "center", marginBottom: 24 },
+
   title: {
     fontSize: 32,
     fontWeight: "800",
+    marginBottom: 30,
     color: THEME.textMain,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
     textAlign: "center",
-    color: THEME.textSub,
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
-    paddingHorizontal: 10,
   },
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: "#E2E8F0",
-    borderRadius: 16,
-    padding: 4,
-    alignSelf: "center",
-    marginBottom: 24,
-  },
-  tabButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 36,
-    borderRadius: 12,
-  },
-  activeTab: {
-    backgroundColor: THEME.surface,
-    ...Platform.select({
-      web: {
-        boxShadow: "0px 4px 6px -1px rgba(0,0,0,0.1)",
-      },
-      default: {
-        elevation: 3,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-      },
-    }),
-  },
-  tabText: {
-    fontWeight: "700",
-    color: THEME.textSub,
-    fontSize: 14,
-  },
-  activeTabText: { color: THEME.primary },
-  form: { width: "100%" },
-  inputLabel: {
-    fontWeight: "700",
-    marginBottom: 6,
-    fontSize: 14,
-    color: THEME.textMain,
-    marginLeft: 4,
-  },
+
   input: {
-    backgroundColor: THEME.surface,
     borderWidth: 1,
     borderColor: THEME.border,
-    borderRadius: 14,
+    backgroundColor: "#fff",
     padding: 14,
-    fontSize: 16,
+    borderRadius: 12,
     marginBottom: 14,
-    color: THEME.textMain,
   },
-  forgotText: {
-    textAlign: "right",
-    fontWeight: "700",
-    marginBottom: 20,
-    fontSize: 14,
-    color: THEME.primary,
-  },
+
   mainButton: {
     backgroundColor: THEME.primary,
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: "center",
     marginTop: 10,
-    ...Platform.select({
-      web: {
-        boxShadow: "0px 10px 15px -3px rgba(79, 70, 229, 0.3)",
-      },
-      default: {
-        elevation: 4,
-        shadowColor: THEME.primary,
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-    }),
   },
-  mainButtonText: {
-    fontWeight: "bold",
+
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 16,
-    color: "#FFF",
   },
-  dotContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
+
+  googleButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    padding: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    marginTop: 12,
+    backgroundColor: "#fff",
   },
-  dot: {
-    width: 24,
-    height: 6,
-    backgroundColor: THEME.border,
-    borderRadius: 3,
-    marginHorizontal: 4,
+
+  googleText: {
+    fontWeight: "600",
   },
-  activeDot: {
-    backgroundColor: THEME.primary,
-    width: 36,
+
+  switchText: {
+    textAlign: "center",
+    marginTop: 20,
+    color: "#555",
   },
 });
