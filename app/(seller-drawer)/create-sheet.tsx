@@ -568,16 +568,18 @@ export default function CreateSheetScreen() {
           >
             {isTermsAccepted && <View style={styles.checkboxInner} />}
           </TouchableOpacity>
-          <Text style={styles.checkboxText}>
+          <Text style={[styles.checkboxText, { flex: 0 }]}>
             ฉันได้อ่านและยอมรับ{" "}
-            <Text
-              style={styles.linkText}
-              onPress={() => setIsTermsModalOpen(true)}
-            >
+          </Text>
+          <TouchableOpacity
+            onPress={() => setIsTermsModalOpen(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.linkText}>
               ข้อกำหนดและเงื่อนไขการใช้งาน
             </Text>
-            แล้ว
-          </Text>
+          </TouchableOpacity>
+          <Text style={[styles.checkboxText, { flex: 0 }]}> แล้ว</Text>
         </View>
 
         {/* ปุ่มอัปโหลด (Submit) */}

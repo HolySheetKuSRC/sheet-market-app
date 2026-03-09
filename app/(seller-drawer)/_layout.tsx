@@ -107,7 +107,6 @@ export default function SellerLayout() {
             ),
           }}
         />
-        {/* คุณสามารถเพิ่มหน้าอื่นๆ เช่น 'manage-sheets' ได้ที่นี่ในอนาคต */}
         <Drawer.Screen
           name="create-sheet"
           options={{
@@ -115,6 +114,26 @@ export default function SellerLayout() {
             title: "Create Sheet",
             drawerIcon: ({ color }) => (
               <Ionicons name="add-circle-outline" size={22} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="my-sheets"
+          options={{
+            drawerLabel: "ชีทที่ฉันขาย",
+            title: "ชีทที่ฉันขาย",
+            drawerIcon: ({ color }) => (
+              <Ionicons name="document-text-outline" size={22} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="withdrawal"
+          options={{
+            drawerLabel: "ถอนเงิน",
+            title: "ถอนเงิน",
+            drawerIcon: ({ color }) => (
+              <Ionicons name="cash-outline" size={22} color={color} />
             ),
           }}
         />
