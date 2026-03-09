@@ -1,12 +1,38 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "../../styles/seller-dashboard.styles"; // Import จากไฟล์ที่แยกไว้
+import { apiRequest } from "../../utils/api";
+import { getUserIdFromSessionToken } from "../../utils/token";
 
 export default function SellerDashboardScreen() {
   const router = useRouter();
+  const [balance, setBalance] = useState<number | null>(null);
+  const [loadingBalance, setLoadingBalance] = useState(true);
+
+  const fetchBalance = useCallback(async () => {
+    try {
+      const userId = await getUserIdFromSessionToken();
+      if (!userId) return;
+      const response = await apiRequest("/api/payments/withdrawals/balance", {
+        headers: { "X-USER-ID": userId },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBalance(data.availableBalance ?? 0);
+      }
+    } catch (err) {
+      console.error("Error fetching balance:", err);
+    } finally {
+      setLoadingBalance(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBalance();
+  }, [fetchBalance]);
 
   const recentTransactions = [
     {
@@ -85,12 +111,21 @@ export default function SellerDashboardScreen() {
               <View style={styles.iconBoxWhite}>
                 <Ionicons name="cash-outline" size={20} color="#7A82FF" />
               </View>
-              <TouchableOpacity style={styles.withdrawButton}>
+              <TouchableOpacity
+                style={styles.withdrawButton}
+                onPress={() => router.push("/(seller-drawer)/withdrawal")}
+              >
                 <Text style={styles.withdrawButtonText}>ถอนเงิน</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.cardTitleWhite}>ยอดเงินทั้งหมด</Text>
-            <Text style={styles.cardValueWhite}>฿555</Text>
+            {loadingBalance ? (
+              <ActivityIndicator size="small" color="#fff" style={{ alignSelf: "flex-start", marginTop: 4 }} />
+            ) : (
+              <Text style={styles.cardValueWhite}>
+                ฿{balance?.toLocaleString() ?? "0"}
+              </Text>
+            )}
           </View>
         </View>
 
