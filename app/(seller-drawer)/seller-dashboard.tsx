@@ -16,7 +16,7 @@ export default function SellerDashboardScreen() {
     try {
       const userId = await getUserIdFromSessionToken();
       if (!userId) return;
-      const response = await apiRequest("/api/payments/withdrawals/balance", {
+      const response = await apiRequest("/payments/withdrawals/balance", {
         headers: { "X-USER-ID": userId },
       });
       if (response.ok) {
