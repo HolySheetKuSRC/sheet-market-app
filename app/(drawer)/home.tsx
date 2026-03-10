@@ -286,7 +286,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.statCard}
             activeOpacity={0.8}
-          // onPress={() => router.push("/ai-recorder")}
+          onPress={() => router.push("/transcribe")}
           >
 
             <Text style={styles.statNumber}>AI</Text>
