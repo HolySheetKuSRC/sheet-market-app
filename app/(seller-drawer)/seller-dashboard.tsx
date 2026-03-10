@@ -36,15 +36,13 @@ type PageResponse<T> = {
   content: T[];
   totalElements: number;
   totalPages: number;
-  number: number; // current page
+  number: number;
 };
 
 export default function SellerDashboardScreen() {
   const router = useRouter();
-  const [balance, setBalance] = useState<number | null>(null);
-  const [loadingBalance, setLoadingBalance] = useState(true);
 
-  // --- Summary Hook ---
+  // --- Summary Hook (ดึงข้อมูล Dashboard ทั้งหมดจบในเส้นเดียว) ---
   const { data: summary, loading: loadingSummary } = useSellerDashboardSummary();
 
   // --- Reviews state ---
@@ -54,64 +52,40 @@ export default function SellerDashboardScreen() {
   const [hasMore, setHasMore] = useState(true);
   const PAGE_SIZE = 10;
 
-  // --- Fetch balance ---
-  const fetchBalance = useCallback(async () => {
+  // --- Fetch reviews (pageable) ---
+  const fetchReviews = useCallback(async (pageToLoad: number) => {
     try {
+      setLoadingReviews(true);
       const userId = await getUserIdFromSessionToken();
       if (!userId) return;
-      const response = await apiRequest("/payments/withdrawals/balance", {
-        headers: { "X-USER-ID": userId },
-      });
+
+      const response = await apiRequest(
+        `/products/reviews/seller?page=${pageToLoad}&size=${PAGE_SIZE}`,
+        { headers: { "X-USER-ID": userId } }
+      );
+
       if (response.ok) {
-        const data = await response.json();
-        setBalance(data.availableBalance ?? 0);
+        const data: PageResponse<SellerReview> = await response.json();
+        setReviews((prev) =>
+          pageToLoad === 0 ? data.content : [...prev, ...data.content]
+        );
+        setHasMore(pageToLoad < data.totalPages - 1);
+        setReviewPage(pageToLoad);
       }
     } catch (err) {
-      console.error("Error fetching balance:", err);
+      console.error("Error fetching reviews:", err);
     } finally {
-      setLoadingBalance(false);
+      setLoadingReviews(false);
     }
   }, []);
 
-  // --- Fetch reviews (pageable) ---
-  const fetchReviews = useCallback(
-    async (pageToLoad: number) => {
-      try {
-        setLoadingReviews(true);
-        const userId = await getUserIdFromSessionToken();
-        if (!userId) return;
-
-        const response = await apiRequest(
-          `/products/reviews/seller?page=${pageToLoad}&size=${PAGE_SIZE}`,
-          { headers: { "X-USER-ID": userId } }
-        );
-
-        if (response.ok) {
-          const data: PageResponse<SellerReview> = await response.json();
-
-          // ถ้าโหลดหน้าแรก reset / ถ้าหน้าถัดไป append
-          setReviews((prev) =>
-            pageToLoad === 0 ? data.content : [...prev, ...data.content]
-          );
-          setHasMore(pageToLoad < data.totalPages - 1);
-          setReviewPage(pageToLoad);
-        }
-      } catch (err) {
-        console.error("Error fetching reviews:", err);
-      } finally {
-        setLoadingReviews(false);
-      }
-    },
-    []
-  );
-
   useEffect(() => {
-    fetchBalance();
     fetchReviews(0);
-  }, [fetchBalance, fetchReviews]);
+  }, [fetchReviews]);
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header Section (คงเดิม) */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>แดชบอร์ดผู้ขาย</Text>
         <View style={styles.headerActions}>
@@ -136,23 +110,36 @@ export default function SellerDashboardScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
           <View style={styles.row}>
-            <View style={[styles.card, styles.cardPurple]}>
+            {/* ยอดขายวันนี้ (แก้ให้ดึงจาก Backend) */}
+            <View style={[styles.card, styles.cardPurple, { flex: 1, marginRight: 8 }]}>
               <View style={[styles.iconBox, styles.iconBoxWhite]}>
                 <Ionicons name="bag-handle-outline" size={20} color="#7A82FF" />
               </View>
               <Text style={styles.cardTitleText}>ยอดขายวันนี้</Text>
-              <Text style={styles.cardValuePurple}>฿236</Text>
+              <Text style={styles.cardValuePurple}>
+                {loadingSummary ? "-" : `฿${summary?.todaySales?.toLocaleString() ?? 0}`}
+              </Text>
             </View>
-            <View style={[styles.card, styles.cardWhite]}>
+
+            {/* จำนวนขายรวมทั้งหมด (เพิ่มใหม่ให้ครอบคลุม API) */}
+            <View style={[styles.card, styles.cardWhite, { flex: 1, marginRight: 8 }]}>
               <View style={[styles.iconBox, styles.iconBoxOutline]}>
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={20}
-                  color="#7A82FF"
-                />
+                <Ionicons name="receipt-outline" size={20} color="#7A82FF" />
+              </View>
+              <Text style={styles.cardTitleText}>ขายได้ทั้งหมด</Text>
+              <Text style={styles.cardValuePurple}>
+                {loadingSummary ? "-" : `${summary?.totalOrders ?? 0} ออเดอร์`}
+              </Text>
+            </View>
+
+            {/* รีวิวใหม่ */}
+            <View style={[styles.card, styles.cardWhite, { flex: 1 }]}>
+              <View style={[styles.iconBox, styles.iconBoxOutline]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color="#7A82FF" />
               </View>
               <Text style={styles.cardTitleText}>รีวิวใหม่</Text>
               <Text style={styles.cardValuePurple}>
@@ -161,7 +148,8 @@ export default function SellerDashboardScreen() {
             </View>
           </View>
 
-          <View style={[styles.card, styles.cardDark]}>
+          {/* ยอดเงินทั้งหมด (แก้ให้ดึงจาก summary.totalBalance แทน) */}
+          <View style={[styles.card, styles.cardDark, { marginTop: 12 }]}>
             <View style={styles.totalBalanceHeader}>
               <View style={styles.iconBoxWhite}>
                 <Ionicons name="cash-outline" size={20} color="#7A82FF" />
@@ -173,16 +161,12 @@ export default function SellerDashboardScreen() {
                 <Text style={styles.withdrawButtonText}>ถอนเงิน</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.cardTitleWhite}>ยอดเงินทั้งหมด</Text>
-            {loadingBalance ? (
-              <ActivityIndicator
-                size="small"
-                color="#fff"
-                style={{ alignSelf: "flex-start", marginTop: 4 }}
-              />
+            <Text style={styles.cardTitleWhite}>ยอดเงินทั้งหมด (ที่ถอนได้)</Text>
+            {loadingSummary ? (
+              <ActivityIndicator size="small" color="#fff" style={{ alignSelf: "flex-start", marginTop: 4 }} />
             ) : (
               <Text style={styles.cardValueWhite}>
-                ฿{balance?.toLocaleString() ?? "0"}
+                ฿{summary?.totalBalance?.toLocaleString() ?? "0"}
               </Text>
             )}
           </View>
@@ -193,17 +177,14 @@ export default function SellerDashboardScreen() {
           <ActivityIndicator size="small" color="#7A82FF" style={{ marginTop: 24 }} />
         ) : summary ? (
           <View style={styles.chartSection}>
-            {/* Bar Chart */}
             <View style={styles.chartCard}>
               <WeeklySalesBarChart data={summary.weeklySales} />
             </View>
             
-            {/* Line Chart */}
             <View style={styles.chartCard}>
               <MonthlyRevenueLineChart data={summary.monthlySales} />
             </View>
             
-            {/* Pie Chart */}
             <View style={styles.chartCard}>
               <SalesPieChart
                 todaySales={summary.todaySales}
@@ -211,7 +192,7 @@ export default function SellerDashboardScreen() {
               />
             </View>
             
-            {/* Top Sheet Banner (ถ้ามี) */}
+            {/* Top Sheet Banner */}
             {summary.topSheetTitle && (
               <View style={styles.topSheetBanner}>
                 <Ionicons name="trophy-outline" size={20} color="#F59E0B" />
@@ -229,16 +210,37 @@ export default function SellerDashboardScreen() {
           </View>
         ) : null}
 
-        {/* Reviews Section */}
+        {/* ===== Sheet Performances Section (เพิ่มใหม่) ===== */}
+        {!loadingSummary && summary?.sheetPerformances && summary.sheetPerformances.length > 0 && (
+          <View style={styles.recentSection}>
+            <Text style={styles.recentTitle}>ผลงานชีทสรุป (ยอดขายรายตัว)</Text>
+            {summary.sheetPerformances.map((perf, index) => (
+              <View key={index} style={styles.listItem}>
+                 <View style={[styles.listIconBox, { backgroundColor: "#E0E7FF" }]}>
+                  <Ionicons name="document-text-outline" size={20} color="#4F46E5" />
+                </View>
+                <View style={styles.listTextContainer}>
+                  <Text style={styles.listTitle} numberOfLines={1}>
+                    {perf.sheetName}
+                  </Text>
+                  <Text style={styles.listSubtitle}>
+                    ขายได้ {perf.salesCount} ออเดอร์
+                  </Text>
+                </View>
+                <Text style={{ fontWeight: "bold", color: "#333" }}>
+                  ฿{perf.totalRevenue.toLocaleString()}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ===== Reviews Section ===== */}
         <View style={styles.recentSection}>
           <Text style={styles.recentTitle}>รีวิวล่าสุด</Text>
 
           {loadingReviews && reviews.length === 0 ? (
-            <ActivityIndicator
-              size="small"
-              color="#7A82FF"
-              style={{ marginTop: 16 }}
-            />
+            <ActivityIndicator size="small" color="#7A82FF" style={{ marginTop: 16 }} />
           ) : reviews.length === 0 ? (
             <Text style={{ color: "#999", textAlign: "center", marginTop: 16 }}>
               ยังไม่มีรีวิว
@@ -249,7 +251,6 @@ export default function SellerDashboardScreen() {
                 <TouchableOpacity
                   key={item.reviewId}
                   style={styles.listItem}
-                  // กดแล้วไปหน้า sheet นั้น
                   onPress={() => router.push(`/sheet/${item.sheetId}`)}
                 >
                   <View style={[styles.listIconBox, styles.listIconBoxYellow]}>
@@ -259,17 +260,16 @@ export default function SellerDashboardScreen() {
                     <Text style={styles.listTitle} numberOfLines={1}>
                       {item.sheetTitle}
                     </Text>
-                    <Text style={styles.listSubtitle} numberOfLines={1}>
+                    <Text style={styles.listSubtitle} numberOfLines={2}>
                       ⭐ {item.rating} · {item.reviewerName} · "{item.comment}"
                     </Text>
                   </View>
                 </TouchableOpacity>
               ))}
 
-              {/* Load More */}
               {hasMore && (
                 <TouchableOpacity
-                  style={styles.pillButton}
+                  style={[styles.pillButton, { alignSelf: "center", marginTop: 12 }]}
                   onPress={() => fetchReviews(reviewPage + 1)}
                   disabled={loadingReviews}
                 >
