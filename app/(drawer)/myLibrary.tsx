@@ -17,9 +17,10 @@ import {
   View,
 } from "react-native";
 
+import ReportModal from "../../components/report-modal";
 import SheetCard from "../../components/sheetcard";
-import { apiRequest } from "../../utils/api";
 import { universityData as rawUniversityData } from "../../constants/universities";
+import { apiRequest } from "../../utils/api";
 
 const universityData: { label: string; value: number }[] = rawUniversityData.map((u) => ({
   label: u.label,
@@ -50,26 +51,30 @@ interface Product {
 }
 
 const CATEGORIES = [
-  { id: 0,  name: "ทั้งหมด",  icon: "apps",           color: "#64748B" },
-  { id: 1,  name: "มิดเทอม", icon: "book-outline",    color: "#F59E0B" },
-  { id: 2,  name: "ไฟนอล",   icon: "trophy-outline",  color: "#EF4444" },
-  { id: 3,  name: "สรุปรวม", icon: "layers-outline",  color: "#10B981" },
+  { id: 0, name: "ทั้งหมด", icon: "apps", color: "#64748B" },
+  { id: 1, name: "มิดเทอม", icon: "book-outline", color: "#F59E0B" },
+  { id: 2, name: "ไฟนอล", icon: "trophy-outline", color: "#EF4444" },
+  { id: 3, name: "สรุปรวม", icon: "layers-outline", color: "#10B981" },
 ];
 
 export default function MyLibraryScreen() {
   const navigation = useNavigation();
-  const router     = useRouter();
+  const router = useRouter();
 
-  const [likedSheets,    setLikedSheets]    = useState<string[]>([]);
-  const [sheets,         setSheets]         = useState<Product[]>([]);
-  const [loading,        setLoading]        = useState(true);
-  const [refreshing,     setRefreshing]     = useState(false);
-  const [error,          setError]          = useState<string | null>(null);
+  const [likedSheets, setLikedSheets] = useState<string[]>([]);
+  const [sheets, setSheets] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // ── Filter state ──
   const [selectedCategory, setSelectedCategory] = useState(0);          // 0 = ทั้งหมด
-  const [selectedUniId,    setSelectedUniId]    = useState<number | null>(null);
-  const [showUniModal,     setShowUniModal]     = useState(false);
+  const [selectedUniId, setSelectedUniId] = useState<number | null>(null);
+  const [showUniModal, setShowUniModal] = useState(false);
+
+  // ── Report Modal state ──
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportSheetId, setReportSheetId] = useState<string | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────
   const fetchPurchasedSheets = async () => {
@@ -98,8 +103,8 @@ export default function MyLibraryScreen() {
       const { fileUrl: url, sheetName } = await response.json();
       if (!url || !sheetName) throw new Error("ข้อมูลไฟล์ไม่ถูกต้อง");
       const safeName = sheetName.replace(/[<>:"/\\|?*]+/g, "");
-      const fileUri  = FileSystem.documentDirectory + `${safeName}.pdf`;
-      const info     = await FileSystem.getInfoAsync(fileUri);
+      const fileUri = FileSystem.documentDirectory + `${safeName}.pdf`;
+      const info = await FileSystem.getInfoAsync(fileUri);
       if (info.exists) {
         if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(fileUri);
         return;
@@ -119,12 +124,12 @@ export default function MyLibraryScreen() {
   // ── Filtered lists ─────────────────────────────────────
   const applyFilters = useCallback((list: Product[]) => {
     let result = list;
-    if (selectedCategory !== 0)  result = result.filter((s) => s.category?.id === selectedCategory);
-    if (selectedUniId    !== null) result = result.filter((s) => s.university?.id === selectedUniId);
+    if (selectedCategory !== 0) result = result.filter((s) => s.category?.id === selectedCategory);
+    if (selectedUniId !== null) result = result.filter((s) => s.university?.id === selectedUniId);
     return result;
   }, [selectedCategory, selectedUniId]);
 
-  const favoriteSheets  = useMemo(() => applyFilters(sheets.filter((s) => likedSheets.includes(s.id))), [sheets, likedSheets, applyFilters]);
+  const favoriteSheets = useMemo(() => applyFilters(sheets.filter((s) => likedSheets.includes(s.id))), [sheets, likedSheets, applyFilters]);
   const purchasedSheets = useMemo(() => applyFilters(sheets), [sheets, applyFilters]);
 
   // selected university label
@@ -144,6 +149,10 @@ export default function MyLibraryScreen() {
       isOwned
       isLiked={likedSheets.includes(item.id)}
       onLikePress={() => toggleLike(item.id)}
+      onReportPress={() => {
+        setReportSheetId(item.id);
+        setReportModalVisible(true);
+      }}
       onPress={() => router.push({ pathname: "/sheet/openPDF", params: { id: item.id } })}
       onDownloadPress={() => handleDownload(item.id)}
     />
@@ -356,6 +365,14 @@ export default function MyLibraryScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Report Modal ── */}
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        sheetId={reportSheetId}
+        type="REPORT"
+      />
     </View>
   );
 }
@@ -440,30 +457,30 @@ const styles = StyleSheet.create({
     justifyContent: "center", alignItems: "center",
     shadowColor: "#F43F5E", shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
-  favTitle:      { fontSize: 15, fontWeight: "800", color: "#BE123C" },
-  favSubtitle:   { fontSize: 11, color: "#FDA4AF", marginTop: 1 },
+  favTitle: { fontSize: 15, fontWeight: "800", color: "#BE123C" },
+  favSubtitle: { fontSize: 11, color: "#FDA4AF", marginTop: 1 },
   favCountBadge: { backgroundColor: "#F43F5E", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  favCountText:  { fontSize: 12, fontWeight: "700", color: "#fff" },
+  favCountText: { fontSize: 12, fontWeight: "700", color: "#fff" },
 
   purIconBg: {
     width: 34, height: 34, borderRadius: 10, backgroundColor: "#6C63FF",
     justifyContent: "center", alignItems: "center",
     shadowColor: "#6C63FF", shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
-  purTitle:      { fontSize: 15, fontWeight: "800", color: "#4338CA" },
-  purSubtitle:   { fontSize: 11, color: "#A5B4FC", marginTop: 1 },
+  purTitle: { fontSize: 15, fontWeight: "800", color: "#4338CA" },
+  purSubtitle: { fontSize: 11, color: "#A5B4FC", marginTop: 1 },
   purCountBadge: { backgroundColor: "#6C63FF", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  purCountText:  { fontSize: 12, fontWeight: "700", color: "#fff" },
+  purCountText: { fontSize: 12, fontWeight: "700", color: "#fff" },
 
-  hList:   { paddingLeft: 16, paddingRight: 8 },
-  hCard:   { marginRight: 8 },
-  gridContent:   { paddingHorizontal: 8, paddingTop: 4 },
+  hList: { paddingLeft: 16, paddingRight: 8 },
+  hCard: { marginRight: 8 },
+  gridContent: { paddingHorizontal: 8, paddingTop: 4 },
   columnWrapper: { justifyContent: "flex-start" },
 
   favEmpty: { alignItems: "center", paddingVertical: 24, gap: 6 },
-  favEmptyText:  { fontSize: 13, fontWeight: "600", color: "#FB7185" },
+  favEmptyText: { fontSize: 13, fontWeight: "600", color: "#FB7185" },
 
-  purEmpty:      { alignItems: "center", paddingVertical: 28, gap: 8 },
+  purEmpty: { alignItems: "center", paddingVertical: 28, gap: 8 },
   purEmptyTitle: { fontSize: 14, fontWeight: "700", color: "#818CF8" },
 
   exploreBtn: {
@@ -492,13 +509,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: "#F8FAFC",
   },
-  uniRowActive:     { backgroundColor: "#EEF2FF" },
-  uniRowText:       { fontSize: 14, color: "#475569", flex: 1 },
+  uniRowActive: { backgroundColor: "#EEF2FF" },
+  uniRowText: { fontSize: 14, color: "#475569", flex: 1 },
   uniRowTextActive: { color: "#4F46E5", fontWeight: "700" },
 
-  center:      { padding: 24, alignItems: "center" },
+  center: { padding: 24, alignItems: "center" },
   loadingText: { marginTop: 10, color: "#64748B", fontSize: 14 },
-  errorText:   { color: "#B91C1C", fontSize: 14, marginBottom: 12, textAlign: "center" },
-  retryBtn:    { paddingVertical: 8, paddingHorizontal: 20, backgroundColor: "#B91C1C", borderRadius: 8 },
-  retryText:   { color: "#FFF", fontWeight: "bold", fontSize: 14 },
+  errorText: { color: "#B91C1C", fontSize: 14, marginBottom: 12, textAlign: "center" },
+  retryBtn: { paddingVertical: 8, paddingHorizontal: 20, backgroundColor: "#B91C1C", borderRadius: 8 },
+  retryText: { color: "#FFF", fontWeight: "bold", fontSize: 14 },
 });

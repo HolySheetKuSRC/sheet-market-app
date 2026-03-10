@@ -11,52 +11,33 @@ export default function SellerDashboardScreen() {
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
 
-  const fetchBalance = useCallback(async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const userId = await getUserIdFromSessionToken();
       if (!userId) return;
-      const response = await apiRequest("/api/payments/withdrawals/balance", {
+      const response = await apiRequest("/api/payments/seller/dashboard/summary", {
         headers: { "X-USER-ID": userId },
       });
       if (response.ok) {
         const data = await response.json();
-        setBalance(data.availableBalance ?? 0);
+        setBalance(data.withdrawableAmount ?? 0);
+        setTotalRevenue(data.totalRevenue ?? 0);
       }
     } catch (err) {
-      console.error("Error fetching balance:", err);
+      console.error("Error fetching dashboard data:", err);
     } finally {
       setLoadingBalance(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchBalance();
-  }, [fetchBalance]);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
-  const recentTransactions = [
-    {
-      id: "1",
-      type: "sale",
-      title: "ทำยังไงให้ผ่าน SE Midterm",
-      subtitle: "ซื้อโดย User#1293 | 5 นาทีที่ผ่านมา",
-      amount: "+69฿",
-    },
-    {
-      id: "2",
-      type: "sale",
-      title: "ทำยังไงให้ผ่าน SE Midterm",
-      subtitle: "ซื้อโดย User#1293 | 10 นาทีที่ผ่านมา",
-      amount: "+69฿",
-    },
-    {
-      id: "3",
-      type: "review",
-      title: "รีวิวใหม่ 5 ดาว",
-      subtitle: "“เขียนรู้เรื่องมากครับ กลัวไม่ผ่านสุดๆเลย”",
-      amount: null,
-    },
-  ];
+  // TODO: เตรียมดึงข้อมูลรายการล่าสุดจาก Backend
+  const recentTransactions: any[] = [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -90,8 +71,8 @@ export default function SellerDashboardScreen() {
               <View style={[styles.iconBox, styles.iconBoxWhite]}>
                 <Ionicons name="bag-handle-outline" size={20} color="#7A82FF" />
               </View>
-              <Text style={styles.cardTitleText}>ยอดขายวันนี้</Text>
-              <Text style={styles.cardValuePurple}>฿236</Text>
+              <Text style={styles.cardTitleText}>ยอดขายรวม</Text>
+              <Text style={styles.cardValuePurple}>฿{totalRevenue.toLocaleString()}</Text>
             </View>
             <View style={[styles.card, styles.cardWhite]}>
               <View style={[styles.iconBox, styles.iconBoxOutline]}>
@@ -102,7 +83,7 @@ export default function SellerDashboardScreen() {
                 />
               </View>
               <Text style={styles.cardTitleText}>รีวิวใหม่</Text>
-              <Text style={styles.cardValuePurple}>+2</Text>
+              <Text style={styles.cardValuePurple}>0</Text>
             </View>
           </View>
 
@@ -131,39 +112,45 @@ export default function SellerDashboardScreen() {
 
         <View style={styles.recentSection}>
           <Text style={styles.recentTitle}>รายการล่าสุด</Text>
-          {recentTransactions.map((item) => (
-            <View key={item.id} style={styles.listItem}>
-              <View
-                style={[
-                  styles.listIconBox,
-                  item.type === "review"
-                    ? styles.listIconBoxYellow
-                    : styles.listIconBoxPurple,
-                ]}
-              >
-                <Ionicons
-                  name={
+          {recentTransactions.length > 0 ? (
+            recentTransactions.map((item) => (
+              <View key={item.id} style={styles.listItem}>
+                <View
+                  style={[
+                    styles.listIconBox,
                     item.type === "review"
-                      ? "star-outline"
-                      : "document-text-outline"
-                  }
-                  size={20}
-                  color={item.type === "review" ? "#F59E0B" : "#7A82FF"}
-                />
+                      ? styles.listIconBoxYellow
+                      : styles.listIconBoxPurple,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      item.type === "review"
+                        ? "star-outline"
+                        : "document-text-outline"
+                    }
+                    size={20}
+                    color={item.type === "review" ? "#F59E0B" : "#7A82FF"}
+                  />
+                </View>
+                <View style={styles.listTextContainer}>
+                  <Text style={styles.listTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.listSubtitle} numberOfLines={1}>
+                    {item.subtitle}
+                  </Text>
+                </View>
+                {item.amount && (
+                  <Text style={styles.listAmount}>{item.amount}</Text>
+                )}
               </View>
-              <View style={styles.listTextContainer}>
-                <Text style={styles.listTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.listSubtitle} numberOfLines={1}>
-                  {item.subtitle}
-                </Text>
-              </View>
-              {item.amount && (
-                <Text style={styles.listAmount}>{item.amount}</Text>
-              )}
-            </View>
-          ))}
+            ))
+          ) : (
+            <Text style={{ textAlign: "center", color: "#9ca3af", marginTop: 20 }}>
+              ยังไม่มีรายการล่าสุด
+            </Text>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

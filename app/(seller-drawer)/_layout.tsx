@@ -179,6 +179,16 @@ export default function SellerLayout() {
           }}
         />
         <Drawer.Screen
+          name="sales-analysis"
+          options={{
+            drawerLabel: "วิเคราะห์ยอดขาย",
+            title: "วิเคราะห์ยอดขาย",
+            drawerIcon: ({ color }) => (
+              <Ionicons name="pie-chart-outline" size={22} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
           name="my-sheets"
           options={{
             drawerLabel: "ชีทที่ฉันขาย",
