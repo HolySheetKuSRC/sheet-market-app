@@ -4,10 +4,14 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   RefreshControl,
   Text,
+  TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -79,6 +83,12 @@ export default function WithdrawalScreen() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // ===== Modal state =====
+  const [modalVisible, setModalVisible] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // ===== Fetch Balance =====
   const fetchBalance = useCallback(async () => {
@@ -162,12 +172,64 @@ export default function WithdrawalScreen() {
     setLoadingMore(false);
   }, [hasMore, loadingMore, page, fetchHistory]);
 
-  // ===== Withdraw action (placeholder) =====
+  // ===== Open withdraw modal =====
   const handleWithdraw = () => {
-    if (Platform.OS === "web") {
-      alert("ฟีเจอร์ถอนเงินจะพร้อมใช้งานเร็ว ๆ นี้");
-    } else {
-      Alert.alert("ถอนเงิน", "ฟีเจอร์ถอนเงินจะพร้อมใช้งานเร็ว ๆ นี้");
+    setWithdrawAmount("");
+    setModalError(null);
+    setModalVisible(true);
+  };
+
+  // ===== Submit withdrawal request =====
+  const submitWithdrawal = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (!withdrawAmount || isNaN(amount) || amount <= 0) {
+      setModalError("กรุณาใส่จำนวนเงินที่ถูกต้อง");
+      return;
+    }
+    if (balance && amount > balance.availableBalance) {
+      setModalError("จำนวนเงินเกินยอดที่ถอนได้");
+      return;
+    }
+
+    try {
+      setWithdrawing(true);
+      setModalError(null);
+      const userId = await getUserIdFromSessionToken();
+      if (!userId) {
+        setModalError("ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่");
+        setWithdrawing(false);
+        return;
+      }
+
+      const response = await apiRequest("/payments/withdrawals/request", {
+        method: "POST",
+        headers: {
+          "X-USER-ID": userId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ amount }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setModalVisible(false);
+        if (Platform.OS === "web") {
+          alert(data.message || "สร้างคำขอถอนเงินเรียบร้อย รอ admin อนุมัติ");
+        } else {
+          Alert.alert("สำเร็จ", data.message || "สร้างคำขอถอนเงินเรียบร้อย รอ admin อนุมัติ");
+        }
+        // Refresh balance & history
+        setPage(0);
+        await Promise.all([fetchBalance(), fetchHistory(0)]);
+      } else {
+        setModalError(data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
+      }
+    } catch (err) {
+      console.error("Withdrawal error:", err);
+      setModalError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -285,6 +347,93 @@ export default function WithdrawalScreen() {
           ) : null
         }
       />
+      {/* ===== Withdrawal Modal ===== */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !withdrawing && setModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => !withdrawing && setModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => { }}>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+              >
+                <View style={styles.modalContent}>
+                  {/* Header */}
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalIconBox}>
+                      <Ionicons name="cash-outline" size={28} color="#fff" />
+                    </View>
+                    <Text style={styles.modalTitle}>ถอนเงิน</Text>
+                    <TouchableOpacity
+                      style={styles.modalCloseBtn}
+                      onPress={() => !withdrawing && setModalVisible(false)}
+                    >
+                      <Ionicons name="close" size={22} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Available balance */}
+                  <View style={styles.modalBalanceRow}>
+                    <Text style={styles.modalBalanceLabel}>ยอดเงินที่ถอนได้</Text>
+                    <Text style={styles.modalBalanceValue}>
+                      ฿{balance?.availableBalance?.toLocaleString() ?? "0"}
+                    </Text>
+                  </View>
+
+                  {/* Amount input */}
+                  <Text style={styles.modalInputLabel}>จำนวนเงินที่ต้องการถอน (บาท)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="0.00"
+                    placeholderTextColor="#bbb"
+                    keyboardType="numeric"
+                    value={withdrawAmount}
+                    onChangeText={(text) => {
+                      setWithdrawAmount(text);
+                      setModalError(null);
+                    }}
+                    editable={!withdrawing}
+                  />
+
+                  {/* Error */}
+                  {modalError && (
+                    <Text style={styles.modalErrorText}>{modalError}</Text>
+                  )}
+
+                  {/* Buttons */}
+                  <View style={styles.modalBtnRow}>
+                    <TouchableOpacity
+                      style={styles.modalCancelBtn}
+                      onPress={() => setModalVisible(false)}
+                      disabled={withdrawing}
+                    >
+                      <Text style={styles.modalCancelBtnText}>ยกเลิก</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.modalSubmitBtn,
+                        withdrawing && { opacity: 0.6 },
+                      ]}
+                      onPress={submitWithdrawal}
+                      disabled={withdrawing}
+                      activeOpacity={0.8}
+                    >
+                      {withdrawing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.modalSubmitBtnText}>ยืนยันถอนเงิน</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </KeyboardAvoidingView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
