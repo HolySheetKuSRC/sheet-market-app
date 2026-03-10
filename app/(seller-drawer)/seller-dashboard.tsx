@@ -13,6 +13,11 @@ import { styles } from "../../styles/seller-dashboard.styles";
 import { apiRequest } from "../../utils/api";
 import { getUserIdFromSessionToken } from "../../utils/token";
 
+import { MonthlyRevenueLineChart } from "../../components/charts/MonthlyRevenueLineChart";
+import { SalesPieChart } from "../../components/charts/SalesPieChart";
+import { WeeklySalesBarChart } from "../../components/charts/WeeklySalesBarChart";
+import { useSellerDashboardSummary } from "../../hooks/useSellerDashboardSummary";
+
 // --- Type ---
 type SellerReview = {
   sheetId: string;
@@ -38,6 +43,9 @@ export default function SellerDashboardScreen() {
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(true);
+
+  // --- Summary Hook ---
+  const { data: summary, loading: loadingSummary } = useSellerDashboardSummary();
 
   // --- Reviews state ---
   const [reviews, setReviews] = useState<SellerReview[]>([]);
@@ -128,7 +136,7 @@ export default function SellerDashboardScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Summary Cards — เหมือนเดิม */}
+        {/* Summary Cards */}
         <View style={styles.summaryContainer}>
           <View style={styles.row}>
             <View style={[styles.card, styles.cardPurple]}>
@@ -180,6 +188,47 @@ export default function SellerDashboardScreen() {
           </View>
         </View>
 
+        {/* ===== Chart Section ===== */}
+        {loadingSummary ? (
+          <ActivityIndicator size="small" color="#7A82FF" style={{ marginTop: 24 }} />
+        ) : summary ? (
+          <View style={styles.chartSection}>
+            {/* Bar Chart */}
+            <View style={styles.chartCard}>
+              <WeeklySalesBarChart data={summary.weeklySales} />
+            </View>
+            
+            {/* Line Chart */}
+            <View style={styles.chartCard}>
+              <MonthlyRevenueLineChart data={summary.monthlySales} />
+            </View>
+            
+            {/* Pie Chart */}
+            <View style={styles.chartCard}>
+              <SalesPieChart
+                todaySales={summary.todaySales}
+                totalBalance={summary.totalBalance}
+              />
+            </View>
+            
+            {/* Top Sheet Banner (ถ้ามี) */}
+            {summary.topSheetTitle && (
+              <View style={styles.topSheetBanner}>
+                <Ionicons name="trophy-outline" size={20} color="#F59E0B" />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.topSheetLabel}>ชีทขายดีที่สุด</Text>
+                  <Text style={styles.topSheetTitle} numberOfLines={1}>
+                    {summary.topSheetTitle}
+                  </Text>
+                </View>
+                <Text style={styles.topSheetRevenue}>
+                  ฿{summary.topSheetRevenue?.toLocaleString()}
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : null}
+
         {/* Reviews Section */}
         <View style={styles.recentSection}>
           <Text style={styles.recentTitle}>รีวิวล่าสุด</Text>
@@ -201,9 +250,7 @@ export default function SellerDashboardScreen() {
                   key={item.reviewId}
                   style={styles.listItem}
                   // กดแล้วไปหน้า sheet นั้น
-                  onPress={() =>
-                    router.push(`/sheet/${item.sheetId}`)
-                  }
+                  onPress={() => router.push(`/sheet/${item.sheetId}`)}
                 >
                   <View style={[styles.listIconBox, styles.listIconBoxYellow]}>
                     <Ionicons name="star-outline" size={20} color="#F59E0B" />
