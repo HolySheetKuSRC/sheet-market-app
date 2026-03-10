@@ -19,7 +19,6 @@ import { saveTokens } from "../utils/token";
 
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -52,15 +51,14 @@ export default function AuthScreen() {
 
   /* ---------------- GOOGLE AUTH ---------------- */
 
-  // const redirectUri = AuthSession.makeRedirectUri({
-  // });
+  // TODO: สร้าง iOS Client ID จาก Google Cloud Console แล้วใส่ที่นี่
+  const GOOGLE_IOS_CLIENT_ID = "";
 
-  // console.log("Redirect URI:", redirectUri);
+  const isGoogleSupported = Platform.OS !== "ios" || !!GOOGLE_IOS_CLIENT_ID;
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_CLIENT_ID,
-    androidClientId: GOOGLE_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || GOOGLE_CLIENT_ID, // fallback เพื่อไม่ให้ crash
     scopes: ["profile", "email"],
     responseType: "id_token",
   });
@@ -244,19 +242,20 @@ export default function AuthScreen() {
               )}
             </TouchableOpacity>
 
-            {/* GOOGLE BUTTON */}
-
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleGoogleLogin}
-              disabled={!request || googleLoading}
-            >
-              {googleLoading ? (
-                <ActivityIndicator />
-              ) : (
-                <Text style={styles.googleText}>Continue with Google</Text>
-              )}
-            </TouchableOpacity>
+            {/* GOOGLE BUTTON — ซ่อนบน iOS ถ้ายังไม่มี iosClientId */}
+            {isGoogleSupported && (
+              <TouchableOpacity
+                style={styles.googleButton}
+                onPress={handleGoogleLogin}
+                disabled={!request || googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Text style={styles.googleText}>Continue with Google</Text>
+                )}
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
               <Text style={styles.switchText}>
