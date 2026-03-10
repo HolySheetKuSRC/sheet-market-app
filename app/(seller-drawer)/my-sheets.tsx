@@ -33,6 +33,8 @@ interface SheetItem {
   pageCount: number;
   createdAt: string;
   updatedAt: string;
+  // --- เพิ่มยอดขาย (ต้องให้ Backend ส่งฟิลด์นี้มาด้วยนะครับ) ---
+  salesCount?: number;
 }
 
 interface PageResponse {
@@ -299,6 +301,14 @@ export default function MySheetsScreen() {
             </View>
           )}
 
+          {/* --- Section แสดงยอดขาย (แสดงทุกสถานะ) --- */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+            <Ionicons name="bag-check-outline" size={14} color="#10B981" />
+            <Text style={{ fontSize: 12, color: "#10B981", marginLeft: 4, fontWeight: "500" }}>
+              ขายแล้ว {item.salesCount ?? 0} ออเดอร์
+            </Text>
+          </View>
+
           {/* Price + Status */}
           <View style={styles.priceRow}>
             <Text style={styles.price}>
@@ -315,6 +325,7 @@ export default function MySheetsScreen() {
     );
   };
 
+  // ... (ส่วนการ render หลักด้านล่างเหมือนเดิมทั้งหมด)
   // ===== Loading state =====
   if (loading) {
     return (
