@@ -73,7 +73,9 @@ export const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    gap: 16,
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
   },
   card: {
     flex: 1,
@@ -109,15 +111,15 @@ export const styles = StyleSheet.create({
     borderColor: "#7A82FF",
   },
   cardTitleText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: 12,
+    color: "#555",
+    marginTop: 8,
   },
   cardValuePurple: {
-    fontSize: 28,
+    fontSize: 16, // ลดขนาดลงจากเดิมนิดหน่อยถ้ามี 3 columns
     fontWeight: "bold",
     color: "#7A82FF",
+    marginTop: 4,
   },
   totalBalanceHeader: {
     flexDirection: "row",
@@ -203,4 +205,42 @@ export const styles = StyleSheet.create({
     color: "#4CAF50",
     marginLeft: 10,
   },
+  // --- Chart Section ---
+  chartSection: {
+    gap: 12,
+    marginTop: 8,
+  },
+  chartCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  topSheetBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  topSheetLabel: {
+    fontSize: 11,
+    color: "#92400E",
+  },
+  topSheetTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#78350F",
+  },
+  topSheetRevenue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#F59E0B",
+  },
+
 });

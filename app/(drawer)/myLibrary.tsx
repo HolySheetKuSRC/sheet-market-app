@@ -92,8 +92,24 @@ export default function MyLibraryScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { fetchPurchasedSheets(); }, []));
-  const onRefresh = useCallback(() => { setRefreshing(true); fetchPurchasedSheets(); }, []);
+  // ── Fetch Liked Sheets ──
+  const fetchLikedSheets = async () => {
+    try {
+      // ดึงชีทที่ user เคย like ไว้ (ใส่ size เยอะๆ ไว้ก่อนเพื่อเก็บ ID มาให้ครบ)
+      const response = await apiRequest("/products/liked?page=0&size=100", { method: "GET" });
+      if (response.ok) {
+        const data = await response.json();
+        // ดึงมาเฉพาะ ID เพื่อเอามาเก็บใน likedSheets state
+        const likedIds = data.content.map((item: Product) => item.id);
+        setLikedSheets(likedIds);
+      }
+    } catch (err) {
+      console.error("Fetch Liked Sheets Error:", err);
+    }
+  };
+
+  useFocusEffect(useCallback(() => { fetchPurchasedSheets(); fetchLikedSheets();}, []));
+  const onRefresh = useCallback(() => { setRefreshing(true); fetchPurchasedSheets();  fetchLikedSheets();}, []);
 
   // ── Download ───────────────────────────────────────────
   const handleDownload = async (id: string) => {
@@ -118,8 +134,24 @@ export default function MyLibraryScreen() {
     }
   };
 
-  const toggleLike = (id: string) =>
+  // ── Toggle Like (เชื่อม Backend) ──
+  const toggleLike = async (id: string) => {
+    // 1. อัปเดต UI ทันทีให้ผู้ใช้รู้สึกว่าแอปตอบสนองไว
     setLikedSheets((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+
+    try {
+      // 2. ยิง API เพื่อบันทึกลง Database
+      const response = await apiRequest(`/products/${id}/like`, { method: "POST" });
+
+      if (!response.ok) {
+        throw new Error("บันทึก Like ไม่สำเร็จ");
+      }
+    } catch (error) {
+      console.error("Toggle Like Error:", error);
+      // 3. ถ้า API พัง ให้ Rollback state กลับไปค่าเดิม
+      setLikedSheets((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+    }
+  };
 
   // ── Filtered lists ─────────────────────────────────────
   const applyFilters = useCallback((list: Product[]) => {

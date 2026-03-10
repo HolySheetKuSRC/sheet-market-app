@@ -117,7 +117,7 @@ function CustomDrawerContent(props: any) {
       </DrawerContentScrollView>
 
       {/* User Footer — matching buyer drawer */}
-      <TouchableOpacity style={styles.userFooter}>
+      <TouchableOpacity style={styles.userFooter} onPress={() => router.push("/(drawer)/profile")}>
         {user?.photoUrl ? (
           <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
         ) : (
