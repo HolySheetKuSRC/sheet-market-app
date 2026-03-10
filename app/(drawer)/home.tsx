@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerActions } from '@react-navigation/native';
+import { Client } from "@stomp/stompjs";
 import { useNavigation } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,15 +11,13 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import React, { useState, useEffect } from 'react';
-import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
-import { useNotification } from './_layout';
-import { FloatingChat } from '../../components/FloatingChat';
 import { apiRequest } from '@/utils/api';
 import { getAccessToken, getUserIdFromSessionToken } from '@/utils/token';
 import { useRouter } from 'expo-router';
+import { FloatingChat } from '../../components/FloatingChat';
+import { useNotification } from './_layout';
 
 type Notification = {
   id: string;
@@ -262,21 +261,19 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.statCard}
             activeOpacity={0.8}
-          // onPress={() => router.push("/favorites")}
+            onPress={() => router.push("/myLibrary" as any)} // ✅ ปลดคอมเมนต์และเปลี่ยน path เป็นหน้า Library
           >
-
             <Text style={styles.statNumber}>1</Text>
             <Text style={styles.statTitle}>ชีทที่ชื่นชอบ</Text>
             <View style={styles.iconCircleBlue}>
               <Ionicons name="heart" size={22} color="#FFF" />
             </View>
-            
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.statCard}
             activeOpacity={0.8}
-          onPress={() => router.push("/pending-review")}
+            onPress={() => router.push("/pending-review")}
           >
 
             <Text style={styles.statNumber}>1</Text>
