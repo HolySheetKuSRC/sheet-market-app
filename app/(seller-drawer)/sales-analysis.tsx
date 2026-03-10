@@ -36,7 +36,7 @@ export default function SalesAnalysisScreen() {
             const userId = await getUserIdFromSessionToken();
             if (!userId) return;
 
-            const response = await apiRequest("/api/payments/seller/dashboard/summary", {
+            const response = await apiRequest("/payments/seller/dashboard/summary", {
                 headers: { "X-USER-ID": userId },
             });
 
