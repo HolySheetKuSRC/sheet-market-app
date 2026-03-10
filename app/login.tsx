@@ -1,10 +1,18 @@
 import axios from "axios";
 import * as Haptics from "expo-haptics";
 import { Stack, useRouter } from "expo-router";
+import {
+  Mitr_400Regular,
+  Mitr_500Medium,
+  Mitr_600SemiBold,
+  useFonts,
+} from "@expo-google-fonts/mitr";
+import { AntDesign } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,6 +20,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,17 +36,28 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const GOOGLE_CLIENT_ID =
   "657352686440-of813ues4uubhm85i56rp73c7b68ammr.apps.googleusercontent.com";
 
-const THEME = {
-  primary: "#4F46E5",
-  bg: "#F8FAFC",
+/* ── Brand palette (matches reference design) ── */
+const B = {
+  primary: "#3E4CD2",
+  bg: "#EEEEF8",
   surface: "#FFFFFF",
-  textMain: "#0F172A",
-  textSub: "#64748B",
-  border: "#E2E8F0",
-};
+  textMain: "#292524",
+  placeholder: "#D7D8F7",
+  link: "#63ADF1",
+  border: "#E0E2F5",
+  toggleBg: "rgba(62,76,210,0.10)",
+} as const;
 
 export default function AuthScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
+
+  const [fontsLoaded] = useFonts({
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+  });
 
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -179,91 +199,223 @@ export default function AuthScreen() {
 
   /* ---------------- UI ---------------- */
 
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: B.bg }}>
+        <ActivityIndicator size="large" color={B.primary} />
+      </View>
+    );
+  }
+
+  const f = {
+    regular: "Mitr_400Regular" as const,
+    medium: "Mitr_500Medium" as const,
+    semiBold: "Mitr_600SemiBold" as const,
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.form}>
-            <Text style={styles.title}>
-              {isLogin ? "Welcome Back" : "Create Account"}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            isLargeScreen && styles.scrollContentLarge,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.card, isLargeScreen && styles.cardLarge]}>
+
+            {/* ── Logo ── */}
+            <View style={styles.logoRow}>
+              <Image
+                source={require("../assets/images/icon.png")}
+                style={styles.logoImg}
+                resizeMode="contain"
+              />
+              <Text style={[styles.logoText, { fontFamily: f.semiBold }]}>
+                GROWTHSHEET
+              </Text>
+            </View>
+
+            {/* ── Headline ── */}
+            <Text style={[styles.title, { fontFamily: f.semiBold }]}>
+              {isLogin ? "ยินดีต้อนรับ" : "สร้างบัญชีใหม่"}
+            </Text>
+            <Text style={[styles.subtitle, { fontFamily: f.regular }]}>
+              {isLogin
+                ? "เข้าถึงคลังชีทสรุปคุณภาพจากมหาวิทยาลัยชั้นนำของไทย และ ยกระดับการเรียนรู้ด้วยเครื่องมือ AI อัจฉริยะ"
+                : "เข้าร่วม GrowthSheet และเริ่มต้นการเรียนรู้ที่ชาญฉลาดยิ่งขึ้น"}
             </Text>
 
+            {/* ── Login / Register Toggle ── */}
+            <View style={styles.toggleWrap}>
+              <TouchableOpacity
+                style={[styles.toggleTab, isLogin && styles.toggleTabActive]}
+                onPress={() => setIsLogin(true)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.toggleTabText,
+                    { fontFamily: f.regular },
+                    isLogin && styles.toggleTabTextActive,
+                  ]}
+                >
+                  เข้าสู่ระบบ
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleTab, !isLogin && styles.toggleTabActive]}
+                onPress={() => setIsLogin(false)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.toggleTabText,
+                    { fontFamily: f.regular },
+                    !isLogin && styles.toggleTabTextActive,
+                  ]}
+                >
+                  สมัครสมาชิก
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Username (register only) ── */}
             {!isLogin && (
-              <TextInput
-                placeholder="Username"
-                style={styles.input}
-                value={username}
-                onChangeText={setUsername}
-              />
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
+                  ชื่อผู้ใช้ (Username)
+                </Text>
+                <TextInput
+                  placeholder="ชื่อผู้ใช้ของคุณ"
+                  style={[styles.input, { fontFamily: f.regular }]}
+                  placeholderTextColor={B.placeholder}
+                  value={username}
+                  onChangeText={setUsername}
+                />
+              </View>
             )}
 
-            <TextInput
-              placeholder="Email"
-              style={styles.input}
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
-
-            <TextInput
-              placeholder="Password"
-              style={styles.input}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-
-            {!isLogin && (
+            {/* ── Email ── */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
+                อีเมล (Email)
+              </Text>
               <TextInput
-                placeholder="Confirm Password"
-                style={styles.input}
+                placeholder="อีเมลที่ลงทะเบียนไว้"
+                style={[styles.input, { fontFamily: f.regular }]}
+                placeholderTextColor={B.placeholder}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            {/* ── Password ── */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
+                รหัสผ่าน (Password)
+              </Text>
+              <TextInput
+                placeholder="ระบุรหัสผ่านของคุณ"
+                style={[styles.input, { fontFamily: f.regular }]}
+                placeholderTextColor={B.placeholder}
                 secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                value={password}
+                onChangeText={setPassword}
               />
+            </View>
+
+            {/* ── Forgot password (login only) ── */}
+            {isLogin && (
+              <TouchableOpacity style={styles.forgotRow}>
+                <Text style={[styles.forgotText, { fontFamily: f.regular }]}>
+                  ลืมรหัสผ่าน?
+                </Text>
+              </TouchableOpacity>
             )}
 
+            {/* ── Confirm Password (register only) ── */}
+            {!isLogin && (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
+                  ยืนยันรหัสผ่าน
+                </Text>
+                <TextInput
+                  placeholder="ยืนยันรหัสผ่านอีกครั้ง"
+                  style={[styles.input, { fontFamily: f.regular }]}
+                  placeholderTextColor={B.placeholder}
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                />
+              </View>
+            )}
+
+            {/* ── Primary CTA ── */}
             <TouchableOpacity
-              style={styles.mainButton}
+              style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
               onPress={handleAuthAction}
               disabled={loading}
+              activeOpacity={0.85}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={B.primary} />
               ) : (
-                <Text style={styles.buttonText}>
-                  {isLogin ? "Sign In" : "Register"}
+                <Text style={[styles.primaryBtnText, { fontFamily: f.medium }]}>
+                  {isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
                 </Text>
               )}
             </TouchableOpacity>
 
-            {/* GOOGLE BUTTON — ซ่อนบน iOS ถ้ายังไม่มี iosClientId */}
+            {/* ── OR divider ── */}
+            {isGoogleSupported && (
+              <View style={styles.dividerRow}>
+                <View style={styles.divLine} />
+                <Text style={[styles.divText, { fontFamily: f.regular }]}>
+                  หรือ
+                </Text>
+                <View style={styles.divLine} />
+              </View>
+            )}
+
+            {/* ── Google Button ── */}
             {isGoogleSupported && (
               <TouchableOpacity
-                style={styles.googleButton}
+                style={[
+                  styles.googleBtn,
+                  (!request || googleLoading) && { opacity: 0.6 },
+                ]}
                 onPress={handleGoogleLogin}
                 disabled={!request || googleLoading}
+                activeOpacity={0.85}
               >
                 {googleLoading ? (
-                  <ActivityIndicator />
+                  <ActivityIndicator color={B.primary} />
                 ) : (
-                  <Text style={styles.googleText}>Continue with Google</Text>
+                  <>
+                    <AntDesign
+                      name="google"
+                      size={20}
+                      color="#4285F4"
+                      style={{ marginRight: 10 }}
+                    />
+                    <Text style={[styles.googleBtnText, { fontFamily: f.medium }]}>
+                      Sign in with Google
+                    </Text>
+                  </>
                 )}
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
-              <Text style={styles.switchText}>
-                {isLogin
-                  ? "Don't have an account? Register"
-                  : "Already have account? Login"}
-              </Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -271,72 +423,185 @@ export default function AuthScreen() {
   );
 }
 
-/* ---------------- STYLE ---------------- */
+/* ──────────────────────── STYLES ──────────────────────── */
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: THEME.bg,
+    backgroundColor: B.bg,
   },
 
-  scroll: {
+  /* Scroll */
+  scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 32,
+    paddingHorizontal: 24,
+    paddingVertical: 36,
+  },
+  scrollContentLarge: {
+    alignItems: "center",
+    paddingVertical: 60,
   },
 
-  form: {
+  /* Card — transparent on mobile, elevated white on large screens */
+  card: {
     width: "100%",
   },
+  cardLarge: {
+    maxWidth: 480,
+    backgroundColor: B.surface,
+    borderRadius: 28,
+    paddingHorizontal: 44,
+    paddingVertical: 52,
+    shadowColor: "#3E4CD2",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.09,
+    shadowRadius: 28,
+    elevation: 10,
+  },
 
+  /* Logo */
+  logoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 32,
+    gap: 10,
+  },
+  logoImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 9,
+  },
+  logoText: {
+    fontSize: 14,
+    color: B.primary,
+    letterSpacing: 2,
+  },
+
+  /* Headline */
   title: {
-    fontSize: 32,
-    fontWeight: "800",
-    marginBottom: 30,
-    color: THEME.textMain,
-    textAlign: "center",
+    fontSize: 29,
+    color: B.primary,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 17,
+    color: B.textMain,
+    lineHeight: 27,
+    marginBottom: 28,
   },
 
+  /* Toggle pill */
+  toggleWrap: {
+    flexDirection: "row",
+    backgroundColor: B.toggleBg,
+    borderRadius: 50,
+    padding: 4,
+    marginBottom: 28,
+    alignSelf: "center",
+  },
+  toggleTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 26,
+    borderRadius: 50,
+  },
+  toggleTabActive: {
+    backgroundColor: B.primary,
+    shadowColor: B.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  toggleTabText: {
+    fontSize: 14,
+    color: B.textMain,
+  },
+  toggleTabTextActive: {
+    color: "#FFFFFF",
+  },
+
+  /* Form fields */
+  fieldGroup: {
+    marginBottom: 18,
+  },
+  fieldLabel: {
+    fontSize: 17,
+    color: B.textMain,
+    marginBottom: 8,
+  },
   input: {
-    borderWidth: 1,
-    borderColor: THEME.border,
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 14,
-  },
-
-  mainButton: {
-    backgroundColor: THEME.primary,
-    padding: 16,
+    backgroundColor: B.surface,
+    borderWidth: 1.5,
+    borderColor: B.border,
     borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
+    fontSize: 14,
+    color: B.textMain,
+    minHeight: 52,
+  },
+
+  /* Forgot password */
+  forgotRow: {
+    alignSelf: "flex-end",
+    marginTop: -6,
+    marginBottom: 24,
+  },
+  forgotText: {
+    fontSize: 14,
+    color: B.link,
+  },
+
+  /* Primary CTA button */
+  primaryBtn: {
+    backgroundColor: "#C8CCF2",
+    borderWidth: 1.5,
+    borderColor: "rgba(62,76,210,0.22)",
+    borderRadius: 50,
+    minHeight: 52,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  primaryBtnText: {
+    fontSize: 17,
+    color: B.primary,
   },
 
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-
-  googleButton: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    padding: 14,
-    borderRadius: 14,
+  /* Divider */
+  dividerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
-    backgroundColor: "#fff",
+    marginBottom: 16,
+    gap: 12,
+  },
+  divLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: B.border,
+  },
+  divText: {
+    fontSize: 13,
+    color: "#9CA3AF",
   },
 
-  googleText: {
-    fontWeight: "600",
+  /* Google button */
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: B.surface,
+    borderWidth: 1.5,
+    borderColor: B.border,
+    borderRadius: 50,
+    minHeight: 52,
+    paddingHorizontal: 20,
   },
-
-  switchText: {
-    textAlign: "center",
-    marginTop: 20,
-    color: "#555",
+  googleBtnText: {
+    fontSize: 17,
+    color: B.primary,
   },
 });
