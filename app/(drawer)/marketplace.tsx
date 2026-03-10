@@ -72,17 +72,16 @@ export default function MarketplaceScreen() {
 
     try {
       if (pageNum > 0) setLoadingMore(true);
-      
+
       const currentSize = pageNum === 0 ? 12 : 6;
       const searchParam = searchTxt
         ? `&search=${encodeURIComponent(searchTxt)}`
         : "";
 
-      // ✅ 2. ใช้ apiRequest แทน fetch
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
       const response = await apiRequest(
-        `/products?page=${pageNum}&size=${currentSize}${searchParam}`,
+        `/products?page=${pageNum}&size=${currentSize}&isPublished=true${searchParam}`,
         { method: 'GET' }
       );
 
@@ -101,7 +100,7 @@ export default function MarketplaceScreen() {
     } catch (err) {
       console.error("Marketplace Fetch Error:", err);
       setError("ไม่สามารถดึงข้อมูลได้");
-      setLoading(false); 
+      setLoading(false);
     } finally {
       setLoading(false);
       setRefreshing(false);
