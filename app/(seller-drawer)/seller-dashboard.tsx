@@ -54,6 +54,7 @@ export default function SellerDashboardScreen() {
 
   // --- Fetch reviews (pageable) ---
   const fetchReviews = useCallback(async (pageToLoad: number) => {
+    
     try {
       setLoadingReviews(true);
       const userId = await getUserIdFromSessionToken();

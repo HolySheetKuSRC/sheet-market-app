@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 
+import ReportModal from "../../components/report-modal";
 import SheetCard from "../../components/sheetcard";
 import { universityData as rawUniversityData } from "../../constants/universities";
 import { apiRequest } from "../../utils/api";
@@ -70,6 +71,10 @@ export default function MyLibraryScreen() {
   const [selectedCategory, setSelectedCategory] = useState(0);          // 0 = ทั้งหมด
   const [selectedUniId, setSelectedUniId] = useState<number | null>(null);
   const [showUniModal, setShowUniModal] = useState(false);
+
+  // ── Report Modal state ──
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportSheetId, setReportSheetId] = useState<string | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────
   const fetchPurchasedSheets = async () => {
@@ -176,6 +181,10 @@ export default function MyLibraryScreen() {
       isOwned
       isLiked={likedSheets.includes(item.id)}
       onLikePress={() => toggleLike(item.id)}
+      onReportPress={() => {
+        setReportSheetId(item.id);
+        setReportModalVisible(true);
+      }}
       onPress={() => router.push({ pathname: "/sheet/openPDF", params: { id: item.id } })}
       onDownloadPress={() => handleDownload(item.id)}
     />
@@ -388,6 +397,14 @@ export default function MyLibraryScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Report Modal ── */}
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        sheetId={reportSheetId}
+        type="REPORT"
+      />
     </View>
   );
 }

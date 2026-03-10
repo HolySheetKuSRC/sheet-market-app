@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ReportModal from "../../components/report-modal";
 import { styles } from "../../styles/my-sheets.styles";
 import { apiRequest } from "../../utils/api";
 import { getUserIdFromSessionToken } from "../../utils/token";
@@ -49,6 +50,7 @@ const STATUS_FILTERS = [
   { label: "รออนุมัติ", value: "PENDING" },
   { label: "อนุมัติแล้ว", value: "APPROVED" },
   { label: "ถูกปฏิเสธ", value: "REJECTED" },
+  { label: "ถูกระงับ", value: "SUSPENDED" },
 ] as const;
 
 // ===== Helpers =====
@@ -60,6 +62,8 @@ function getStatusLabel(status: string): string {
       return "รออนุมัติ";
     case "REJECTED":
       return "ถูกปฏิเสธ";
+    case "SUSPENDED":
+      return "ถูกระงับ";
     default:
       return status;
   }
@@ -82,6 +86,12 @@ function getStatusStyle(status: string) {
         badge: styles.statusRejected,
         text: styles.statusTextRejected,
       };
+    case "SUSPENDED":
+      return {
+        // Reuse rejected style or create a specific suspended style if needed
+        badge: { ...styles.statusRejected, backgroundColor: "#FEF2F2", borderColor: "#EF4444" },
+        text: { ...styles.statusTextRejected, color: "#DC2626" },
+      };
     default:
       return {
         badge: styles.statusPending,
@@ -102,6 +112,10 @@ export default function MySheetsScreen() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [totalElements, setTotalElements] = useState(0);
 
+  // ── Appeal Modal state ──
+  const [appealModalVisible, setAppealModalVisible] = useState(false);
+  const [appealSheetId, setAppealSheetId] = useState<string | null>(null);
+
   const screenWidth = Dimensions.get("window").width;
   const numColumns = screenWidth > 900 ? 3 : screenWidth > 600 ? 3 : 2;
   const cardWidth =
@@ -118,7 +132,10 @@ export default function MySheetsScreen() {
         }
 
         let url = `/products/seller/sheet-applications?page=${pageNum}&size=10`;
-        if (status) {
+
+        if (status === "SUSPENDED") {
+          url = `/products/seller/suspended-sheets?page=${pageNum}&size=10`;
+        } else if (status) {
           url += `&status=${status}`;
         }
 
@@ -198,6 +215,9 @@ export default function MySheetsScreen() {
   const rejectedCount = sheets.filter(
     (s) => s.status?.toUpperCase() === "REJECTED"
   ).length;
+  const suspendedCount = sheets.filter(
+    (s) => s.status?.toUpperCase() === "SUSPENDED"
+  ).length;
 
   // ===== Render a single sheet card =====
   const renderSheetCard = ({ item }: { item: SheetItem }) => {
@@ -232,17 +252,31 @@ export default function MySheetsScreen() {
             </Text>
           </View>
 
-          {/* Edit button */}
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              // Future: navigate to edit page
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="create-outline" size={18} color="#6C63FF" />
-          </TouchableOpacity>
+          {/* Action button based on status */}
+          {item.status?.toUpperCase() === "SUSPENDED" ? (
+            <TouchableOpacity
+              style={[styles.editButton, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                setAppealSheetId(item.id.toString());
+                setAppealModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="warning-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                // Future: navigate to edit page
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={18} color="#6C63FF" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Card content */}
@@ -336,6 +370,12 @@ export default function MySheetsScreen() {
                   </Text>
                   <Text style={styles.statLabel}>ปฏิเสธ</Text>
                 </View>
+                <View style={styles.statCard}>
+                  <Text style={[styles.statValue, { color: "#EF4444" }]}>
+                    {suspendedCount}
+                  </Text>
+                  <Text style={styles.statLabel}>ถูกระงับ</Text>
+                </View>
               </View>
             )}
 
@@ -401,6 +441,18 @@ export default function MySheetsScreen() {
             </View>
           ) : null
         }
+      />
+
+      {/* ── Appeal Modal ── */}
+      <ReportModal
+        visible={appealModalVisible}
+        onClose={() => setAppealModalVisible(false)}
+        sheetId={appealSheetId}
+        type="APPEAL"
+        onSuccess={() => {
+          // Optional: refresh the list after appealing
+          onRefresh();
+        }}
       />
     </SafeAreaView>
   );

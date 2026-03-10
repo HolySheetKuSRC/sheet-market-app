@@ -29,6 +29,7 @@ interface SheetCardProps {
   onDownloadPress?: () => void;
   isLiked?: boolean;
   onLikePress?: () => void;
+  onReportPress?: () => void;
 }
 
 const SheetCard: React.FC<SheetCardProps> = ({
@@ -39,6 +40,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
   onDownloadPress,
   isLiked = false,
   onLikePress,
+  onReportPress,
 }) => {
   const router = useRouter();
   if (!item) return null;
@@ -144,6 +146,20 @@ const SheetCard: React.FC<SheetCardProps> = ({
                   color={isLiked ? "#fff" : "#F43F5E"}
                 />
               </TouchableOpacity>
+
+              {/* 🚩 Report (อุทธรณ์/รายงาน) */}
+              {onReportPress && (
+                <TouchableOpacity
+                  style={styles.reportButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onReportPress();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flag" size={14} color="#EF4444" />
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
@@ -330,6 +346,15 @@ const styles = StyleSheet.create({
   likeButtonActive: {
     backgroundColor: "#F43F5E",
     borderColor: "#F43F5E",
+  },
+
+  reportButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2", // Light red background
   },
 });
 
