@@ -1,17 +1,52 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "../../styles/seller-dashboard.styles"; // Import จากไฟล์ที่แยกไว้
+import { styles } from "../../styles/seller-dashboard.styles";
 import { apiRequest } from "../../utils/api";
 import { getUserIdFromSessionToken } from "../../utils/token";
+
+// --- Type ---
+type SellerReview = {
+  sheetId: string;
+  sheetTitle: string;
+  thumbnailUrl: string | null;
+  reviewId: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  reviewerId: string;
+  reviewerName: string;
+  reviewerAvatarUrl: string | null;
+};
+
+type PageResponse<T> = {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number; // current page
+};
 
 export default function SellerDashboardScreen() {
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(true);
 
+  // --- Reviews state ---
+  const [reviews, setReviews] = useState<SellerReview[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [reviewPage, setReviewPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 10;
+
+  // --- Fetch balance ---
   const fetchBalance = useCallback(async () => {
     try {
       const userId = await getUserIdFromSessionToken();
@@ -30,33 +65,42 @@ export default function SellerDashboardScreen() {
     }
   }, []);
 
+  // --- Fetch reviews (pageable) ---
+  const fetchReviews = useCallback(
+    async (pageToLoad: number) => {
+      try {
+        setLoadingReviews(true);
+        const userId = await getUserIdFromSessionToken();
+        if (!userId) return;
+
+        const response = await apiRequest(
+          `/products/reviews/seller?page=${pageToLoad}&size=${PAGE_SIZE}`,
+          { headers: { "X-USER-ID": userId } }
+        );
+
+        if (response.ok) {
+          const data: PageResponse<SellerReview> = await response.json();
+
+          // ถ้าโหลดหน้าแรก reset / ถ้าหน้าถัดไป append
+          setReviews((prev) =>
+            pageToLoad === 0 ? data.content : [...prev, ...data.content]
+          );
+          setHasMore(pageToLoad < data.totalPages - 1);
+          setReviewPage(pageToLoad);
+        }
+      } catch (err) {
+        console.error("Error fetching reviews:", err);
+      } finally {
+        setLoadingReviews(false);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     fetchBalance();
-  }, [fetchBalance]);
-
-  const recentTransactions = [
-    {
-      id: "1",
-      type: "sale",
-      title: "ทำยังไงให้ผ่าน SE Midterm",
-      subtitle: "ซื้อโดย User#1293 | 5 นาทีที่ผ่านมา",
-      amount: "+69฿",
-    },
-    {
-      id: "2",
-      type: "sale",
-      title: "ทำยังไงให้ผ่าน SE Midterm",
-      subtitle: "ซื้อโดย User#1293 | 10 นาทีที่ผ่านมา",
-      amount: "+69฿",
-    },
-    {
-      id: "3",
-      type: "review",
-      title: "รีวิวใหม่ 5 ดาว",
-      subtitle: "“เขียนรู้เรื่องมากครับ กลัวไม่ผ่านสุดๆเลย”",
-      amount: null,
-    },
-  ];
+    fetchReviews(0);
+  }, [fetchBalance, fetchReviews]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,7 +119,7 @@ export default function SellerDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.pillButtonPrimary}
-            onPress={() => router.push("/(seller-drawer)/create-sheet")} // แก้ path ให้ตรงกับโครงสร้าง expo-router ของคุณ
+            onPress={() => router.push("/(seller-drawer)/create-sheet")}
           >
             <Ionicons name="add" size={18} color="#7A82FF" />
             <Text style={styles.pillButtonTextPrimary}>ขายชีท</Text>
@@ -84,6 +128,7 @@ export default function SellerDashboardScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Summary Cards — เหมือนเดิม */}
         <View style={styles.summaryContainer}>
           <View style={styles.row}>
             <View style={[styles.card, styles.cardPurple]}>
@@ -102,7 +147,9 @@ export default function SellerDashboardScreen() {
                 />
               </View>
               <Text style={styles.cardTitleText}>รีวิวใหม่</Text>
-              <Text style={styles.cardValuePurple}>+2</Text>
+              <Text style={styles.cardValuePurple}>
+                {loadingReviews && reviews.length === 0 ? "-" : reviews.length}
+              </Text>
             </View>
           </View>
 
@@ -120,7 +167,11 @@ export default function SellerDashboardScreen() {
             </View>
             <Text style={styles.cardTitleWhite}>ยอดเงินทั้งหมด</Text>
             {loadingBalance ? (
-              <ActivityIndicator size="small" color="#fff" style={{ alignSelf: "flex-start", marginTop: 4 }} />
+              <ActivityIndicator
+                size="small"
+                color="#fff"
+                style={{ alignSelf: "flex-start", marginTop: 4 }}
+              />
             ) : (
               <Text style={styles.cardValueWhite}>
                 ฿{balance?.toLocaleString() ?? "0"}
@@ -129,41 +180,61 @@ export default function SellerDashboardScreen() {
           </View>
         </View>
 
+        {/* Reviews Section */}
         <View style={styles.recentSection}>
-          <Text style={styles.recentTitle}>รายการล่าสุด</Text>
-          {recentTransactions.map((item) => (
-            <View key={item.id} style={styles.listItem}>
-              <View
-                style={[
-                  styles.listIconBox,
-                  item.type === "review"
-                    ? styles.listIconBoxYellow
-                    : styles.listIconBoxPurple,
-                ]}
-              >
-                <Ionicons
-                  name={
-                    item.type === "review"
-                      ? "star-outline"
-                      : "document-text-outline"
+          <Text style={styles.recentTitle}>รีวิวล่าสุด</Text>
+
+          {loadingReviews && reviews.length === 0 ? (
+            <ActivityIndicator
+              size="small"
+              color="#7A82FF"
+              style={{ marginTop: 16 }}
+            />
+          ) : reviews.length === 0 ? (
+            <Text style={{ color: "#999", textAlign: "center", marginTop: 16 }}>
+              ยังไม่มีรีวิว
+            </Text>
+          ) : (
+            <>
+              {reviews.map((item) => (
+                <TouchableOpacity
+                  key={item.reviewId}
+                  style={styles.listItem}
+                  // กดแล้วไปหน้า sheet นั้น
+                  onPress={() =>
+                    router.push(`/sheet/${item.sheetId}`)
                   }
-                  size={20}
-                  color={item.type === "review" ? "#F59E0B" : "#7A82FF"}
-                />
-              </View>
-              <View style={styles.listTextContainer}>
-                <Text style={styles.listTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.listSubtitle} numberOfLines={1}>
-                  {item.subtitle}
-                </Text>
-              </View>
-              {item.amount && (
-                <Text style={styles.listAmount}>{item.amount}</Text>
+                >
+                  <View style={[styles.listIconBox, styles.listIconBoxYellow]}>
+                    <Ionicons name="star-outline" size={20} color="#F59E0B" />
+                  </View>
+                  <View style={styles.listTextContainer}>
+                    <Text style={styles.listTitle} numberOfLines={1}>
+                      {item.sheetTitle}
+                    </Text>
+                    <Text style={styles.listSubtitle} numberOfLines={1}>
+                      ⭐ {item.rating} · {item.reviewerName} · "{item.comment}"
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              {/* Load More */}
+              {hasMore && (
+                <TouchableOpacity
+                  style={styles.pillButton}
+                  onPress={() => fetchReviews(reviewPage + 1)}
+                  disabled={loadingReviews}
+                >
+                  {loadingReviews ? (
+                    <ActivityIndicator size="small" color="#7A82FF" />
+                  ) : (
+                    <Text style={styles.pillButtonText}>โหลดเพิ่มเติม</Text>
+                  )}
+                </TouchableOpacity>
               )}
-            </View>
-          ))}
+            </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
