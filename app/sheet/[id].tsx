@@ -30,13 +30,16 @@ interface SheetDetailData {
   tags: string[];
   ratingCount: number;
   ratingAverage: number;
-  seller: { name: string };
   pageCount: number | null;
   createdAt: string;
   updatedAt: string;
+  seller: {
+    id: string;
+    name: string;
+    userPhotoUrl?: string | null;
+  };
 }
 
-// ✅ Interface สำหรับ Review — ตรงกับ ReviewResponse + UserDTO จาก Backend
 interface UserDTO {
   id: string;
   name: string;
@@ -49,7 +52,7 @@ interface ReviewData {
   user: UserDTO;
   comment: string;
   rating: number;
-  createdAt: string; // ✅ LocalDateTime จาก Java จะ serialize เป็น ISO string
+  createdAt: string; 
 }
 
 export default function SheetDetail() {
@@ -62,10 +65,51 @@ export default function SheetDetail() {
   const [isInCart, setIsInCart] = useState(false);
   const [cartItemId, setCartItemId] = useState<string | null>(null);
   const [relatedSheets, setRelatedSheets] = useState<any[]>([]);
+  const [sellerProfile, setSellerProfile] = useState<{
+    id: string;
+    name: string;
+    userPhotoUrl?: string | null;
+    bio?: string | null;
+  } | null>(null);
 
-  // ✅ State สำหรับ Reviews
   const [reviews, setReviews] = useState<ReviewData[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+
+  // ✅ คำนวณค่าจาก Reviews State โดยตรง (Derived Values)
+  const reviewCount = reviews.length;
+  const reviewAverage = reviewCount > 0 
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount 
+    : 0;
+
+  const fetchSellerProfile = async (sellerId: string) => {
+    try {
+      const res = await apiRequest(`/users/${sellerId}`, { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        setSellerProfile(data);
+      }
+    } catch (e) {
+      console.error('Fetch Seller Profile Error:', e);
+    }
+  };
+
+  // ✅ ฟังก์ชันดึงชีทที่ใกล้เคียง (อิงจาก tags)
+  const fetchRelatedSheets = async (tags: string[]) => {
+    if (!tags || tags.length === 0) return;
+    try {
+      // ส่ง query เป็น tags เพื่อให้ backend ค้นหาชีทที่มีแท็กตรงกัน
+      const response = await apiRequest(`/products?tags=${tags.join(',')}&size=6`, { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        const sheets = data.content || [];
+        // กรองเอาชีทปัจจุบันออก เพื่อไม่ให้แสดงตัวเองซ้ำ
+        const filteredSheets = sheets.filter((item: any) => String(item.id) !== String(id));
+        setRelatedSheets(filteredSheets);
+      }
+    } catch (error) {
+      console.error("Fetch Related Sheets Error:", error);
+    }
+  };
 
   const checkCartStatus = async () => {
     try {
@@ -97,12 +141,16 @@ export default function SheetDetail() {
       if (response.ok) {
         const data = await response.json();
         setSheet(data);
-      }
 
-      const relatedRes = await apiRequest(`/products?page=0&size=6`, { method: 'GET' });
-      if (relatedRes.ok) {
-        const relatedData = await relatedRes.json();
-        setRelatedSheets(relatedData.content.filter((item: any) => item.id !== id));
+        // ดึงโปรไฟล์คนขาย
+        if (data.seller?.id) {
+          fetchSellerProfile(data.seller.id);
+        }
+
+        // ✅ เรียกดึงชีทใกล้เคียงโดยใช้ tags ของชีทนี้
+        if (data.tags && data.tags.length > 0) {
+          fetchRelatedSheets(data.tags);
+        }
       }
     } catch (error) {
       console.error("Fetch Detail Error:", error);
@@ -111,7 +159,6 @@ export default function SheetDetail() {
     }
   };
 
-  // ✅ ฟังก์ชันดึง Reviews จาก API
   const fetchReviews = async () => {
     try {
       setReviewsLoading(true);
@@ -130,7 +177,7 @@ export default function SheetDetail() {
   useEffect(() => {
     if (id) {
       fetchSheetDetail();
-      fetchReviews(); // ✅ โหลด reviews พร้อมกัน
+      fetchReviews();
     }
   }, [id]);
 
@@ -192,7 +239,6 @@ export default function SheetDetail() {
     } as any);
   };
 
-  // ✅ Helper: แปลงวันที่เป็นรูปแบบสวยงาม
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -203,7 +249,6 @@ export default function SheetDetail() {
     });
   };
 
-  // ✅ Helper: render ดาว rating
   const renderStars = (rating: number, size: number = 14) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Ionicons
@@ -216,7 +261,6 @@ export default function SheetDetail() {
     ));
   };
 
-  // ✅ Helper: สร้าง initials จากชื่อ
   const getInitials = (name: string) => {
     if (!name) return '?';
     const parts = name.trim().split(' ');
@@ -224,7 +268,6 @@ export default function SheetDetail() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  // ✅ สีพื้นหลัง Avatar ตาม initials
   const avatarColors = ['#6C63FF', '#EC4899', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6'];
   const getAvatarColor = (name: string) => {
     const index = (name?.charCodeAt(0) || 0) % avatarColors.length;
@@ -237,6 +280,7 @@ export default function SheetDetail() {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -250,10 +294,10 @@ export default function SheetDetail() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Product Image */}
         <View style={styles.mainImageOuter}>
           <View style={styles.mainImageWrapper}>
             <Image source={{ uri: sheet.imageUrl }} style={styles.mainImage} resizeMode="contain" />
-            {/* Shadow overlay bottom */}
             <View style={styles.mainImageBottomFade} />
           </View>
           <TouchableOpacity style={styles.previewBadge}>
@@ -269,17 +313,36 @@ export default function SheetDetail() {
               <View key={i} style={styles.tagPill}><Text style={styles.tagText}>#{tag}</Text></View>
             ))}
           </View>
-          <View style={styles.sellerRow}>
-            <View style={styles.avatarPlaceholder}><Ionicons name="person" size={20} color="#6C63FF" /></View>
-            <View>
+
+          {/* Seller Profile */}
+          <TouchableOpacity
+            style={styles.sellerRow}
+            onPress={() => {
+              if (sheet.seller?.id) {
+                router.push(`/seller/${sheet.seller.id}` as any);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            {sellerProfile?.userPhotoUrl ? (
+              <Image source={{ uri: sellerProfile.userPhotoUrl }} style={styles.sellerAvatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={20} color="#6C63FF" />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
               <Text style={styles.sellerName}>{sheet.seller?.name}</Text>
               <Text style={styles.sellerInfo}>{sheet.university?.name}</Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          {/* Stats Container: คำนวณใหม่จาก reviews */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{sheet.ratingAverage?.toFixed(1) || 0} ⭐</Text>
-              <Text style={styles.statLabel}>{sheet.ratingCount} รีวิว</Text>
+              <Text style={styles.statValue}>{reviewAverage.toFixed(1)} ⭐</Text>
+              <Text style={styles.statLabel}>{reviewCount} รีวิว</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
@@ -300,20 +363,16 @@ export default function SheetDetail() {
             <Text style={styles.bulletText}>• เหมาะสำหรับอ่านทบทวน</Text>
           </View>
 
-          {/* ✅ ===== REVIEWS SECTION ===== */}
+          {/* Reviews Section */}
           <View style={styles.divider} />
-
           <View style={styles.reviewsHeader}>
             <View>
               <Text style={styles.sectionHeader}>รีวิวจากผู้ซื้อ</Text>
-              <Text style={styles.reviewsSubtitle}>{reviews.length} ความคิดเห็น</Text>
+              <Text style={styles.reviewsSubtitle}>{reviewCount} ความคิดเห็น</Text>
             </View>
-            {/* Overall Rating Badge */}
-            {reviews.length > 0 && (
+            {reviewCount > 0 && (
               <View style={styles.overallRatingBadge}>
-                <Text style={styles.overallRatingValue}>
-                  {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
-                </Text>
+                <Text style={styles.overallRatingValue}>{reviewAverage.toFixed(1)}</Text>
                 <Ionicons name="star" size={14} color="#FBBF24" />
               </View>
             )}
@@ -325,7 +384,6 @@ export default function SheetDetail() {
               <Text style={styles.reviewsLoadingText}>กำลังโหลดรีวิว...</Text>
             </View>
           ) : reviews.length === 0 ? (
-            /* Empty State */
             <View style={styles.emptyReviews}>
               <View style={styles.emptyReviewsIcon}>
                 <MaterialCommunityIcons name="comment-text-outline" size={32} color="#C4C9D4" />
@@ -334,75 +392,51 @@ export default function SheetDetail() {
               <Text style={styles.emptyReviewsSubtext}>เป็นคนแรกที่รีวิวชีทนี้!</Text>
             </View>
           ) : (
-            /* Review Cards */
             <View style={styles.reviewsList}>
               {reviews.map((review, index) => (
-                <View
-                  key={review.id}
-                  style={[
-                    styles.reviewCard,
-                    index === reviews.length - 1 && { marginBottom: 0 }
-                  ]}
-                >
-                  {/* Card Top Row: Avatar + Name */}
+                <View key={review.id} style={[styles.reviewCard, index === reviews.length - 1 && { marginBottom: 0 }]}>
                   <View style={styles.reviewCardHeader}>
                     {review.user?.userPhotoUrl ? (
-                      <Image
-                        source={{ uri: review.user.userPhotoUrl }}
-                        style={styles.reviewAvatar}
-                      />
+                      <Image source={{ uri: review.user.userPhotoUrl }} style={styles.reviewAvatar} />
                     ) : (
-                      <View style={[
-                        styles.reviewAvatarFallback,
-                        { backgroundColor: getAvatarColor(review.user?.name) }
-                      ]}>
-                        <Text style={styles.reviewAvatarInitials}>
-                          {getInitials(review.user?.name)}
-                        </Text>
+                      <View style={[styles.reviewAvatarFallback, { backgroundColor: getAvatarColor(review.user?.name) }]}>
+                        <Text style={styles.reviewAvatarInitials}>{getInitials(review.user?.name)}</Text>
                       </View>
                     )}
-
                     <View style={styles.reviewUserInfo}>
-                      <Text style={styles.reviewUserName} numberOfLines={1}>
-                        {review.user?.name}
-                      </Text>
+                      <Text style={styles.reviewUserName} numberOfLines={1}>{review.user?.name}</Text>
                       <Text style={styles.reviewDate}>{formatDate(review.createdAt)}</Text>
                     </View>
-
-                    {/* Rating Pill (top right) */}
                     <View style={styles.reviewRatingPill}>
                       <Ionicons name="star" size={11} color="#FBBF24" />
                       <Text style={styles.reviewRatingPillText}>{review.rating.toFixed(1)}</Text>
                     </View>
                   </View>
-
-                  {/* Stars Row */}
-                  <View style={styles.reviewStarsRow}>
-                    {renderStars(review.rating)}
-                  </View>
-
-                  {/* Comment Text */}
+                  <View style={styles.reviewStarsRow}>{renderStars(review.rating)}</View>
                   <Text style={styles.reviewComment}>{review.comment}</Text>
                 </View>
               ))}
             </View>
           )}
 
-          {/* ✅ ===== END REVIEWS SECTION ===== */}
-
           <View style={styles.divider} />
           <Text style={styles.sectionHeader}>ชีทสรุปที่ใกล้เคียงกัน</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relatedScrollContent}>
-            {relatedSheets.map((item) => (
-              <View key={item.id} style={styles.relatedCardWrapper}>
-                <SheetCard item={item} isThreeColumns={true} />
-              </View>
-            ))}
-          </ScrollView>
+          {relatedSheets.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relatedScrollContent}>
+              {relatedSheets.map((item) => (
+                <View key={item.id} style={styles.relatedCardWrapper}>
+                  <SheetCard item={item} isThreeColumns={true} />
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 10 }}>ยังไม่มีชีทสรุปที่ใกล้เคียงกันในขณะนี้</Text>
+          )}
         </View>
         <View style={{ height: 120 }} />
       </ScrollView>
 
+      {/* Bottom Bar */}
       <View style={styles.bottomBar}>
         <View style={styles.priceContainer}>
           <Text style={styles.priceLabel}>ราคาพิเศษ</Text>
@@ -410,22 +444,14 @@ export default function SheetDetail() {
         </View>
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[
-              styles.cartBtn,
-              addingToCart && { opacity: 0.6 },
-              isInCart && { backgroundColor: '#6C63FF' }
-            ]}
+            style={[styles.cartBtn, addingToCart && { opacity: 0.6 }, isInCart && { backgroundColor: '#6C63FF' }]}
             onPress={handleToggleCart}
             disabled={addingToCart}
           >
             {addingToCart ? (
               <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
             ) : (
-              <Ionicons
-                name={isInCart ? "cart" : "cart-outline"}
-                size={24}
-                color={isInCart ? "#FFF" : "#6C63FF"}
-              />
+              <Ionicons name={isInCart ? "cart" : "cart-outline"} size={24} color={isInCart ? "#FFF" : "#6C63FF"} />
             )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
@@ -446,34 +472,10 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   iconBtn: { padding: 8, borderRadius: 20, backgroundColor: '#F3F4F6' },
   scrollContent: { paddingBottom: 20 },
-  mainImageOuter: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  mainImageWrapper: {
-    width: width - 48,
-    height: 600,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#FFF',
-    // Shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 10,
-  },
+  mainImageOuter: { backgroundColor: '#F1F5F9', paddingHorizontal: 24, paddingVertical: 20, alignItems: 'center' },
+  mainImageWrapper: { width: width - 48, height: 600, borderRadius: 16, overflow: 'hidden', backgroundColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10 },
   mainImage: { width: '100%', height: '100%' },
-  mainImageBottomFade: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    backgroundColor: 'rgba(0,0,0,0.04)',
-  },
+  mainImageBottomFade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.04)' },
   previewBadge: { marginTop: 14, alignSelf: 'center', backgroundColor: 'rgba(108, 99, 255, 0.9)', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 25, flexDirection: 'row', alignItems: 'center', elevation: 5 },
   previewText: { color: '#FFF', fontSize: 12, marginLeft: 6, fontWeight: 'bold' },
   contentContainer: { padding: 20 },
@@ -507,145 +509,28 @@ const styles = StyleSheet.create({
   cartBtn: { width: 54, height: 54, borderRadius: 15, borderWidth: 1.5, borderColor: '#6C63FF', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F3FF' },
   buyBtn: { flex: 1, backgroundColor: '#6C63FF', height: 54, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', elevation: 4 },
   buyText: { color: '#FFF', fontWeight: 'bold', fontSize: 16, marginRight: 8 },
-
-  // ========= REVIEWS STYLES =========
-  reviewsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  reviewsSubtitle: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2,
-    marginBottom: 0,
-  },
-  overallRatingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 4,
-  },
-  overallRatingValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  reviewsLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 30,
-    gap: 10,
-  },
-  reviewsLoadingText: {
-    color: '#94A3B8',
-    fontSize: 13,
-  },
-  emptyReviews: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  emptyReviewsIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  emptyReviewsText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 4,
-  },
-  emptyReviewsSubtext: {
-    fontSize: 12,
-    color: '#CBD5E1',
-  },
-  reviewsList: {
-    gap: 12,
-  },
-  reviewCard: {
-    backgroundColor: '#FAFAFA',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    marginBottom: 12,
-  },
-  reviewCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  reviewAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#E0E7FF',
-  },
-  reviewAvatarFallback: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reviewAvatarInitials: {
-    color: '#FFF',
-    fontWeight: '700',
-    fontSize: 15,
-    letterSpacing: 0.5,
-  },
-  reviewUserInfo: {
-    flex: 1,
-  },
-  reviewUserName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  reviewDate: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  reviewRatingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 3,
-  },
-  reviewRatingPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  reviewStarsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  reviewComment: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 20,
-  },
+  reviewsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  reviewsSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 2, marginBottom: 0 },
+  overallRatingBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, gap: 4 },
+  overallRatingValue: { fontSize: 14, fontWeight: '700', color: '#92400E' },
+  reviewsLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 30, gap: 10 },
+  reviewsLoadingText: { color: '#94A3B8', fontSize: 13 },
+  emptyReviews: { alignItems: 'center', paddingVertical: 30 },
+  emptyReviewsIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  emptyReviewsText: { fontSize: 15, fontWeight: '600', color: '#94A3B8', marginBottom: 4 },
+  emptyReviewsSubtext: { fontSize: 12, color: '#CBD5E1' },
+  reviewsList: { gap: 12 },
+  reviewCard: { backgroundColor: '#FAFAFA', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 12 },
+  reviewCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  reviewAvatar: { width: 42, height: 42, borderRadius: 21, marginRight: 12, borderWidth: 2, borderColor: '#E0E7FF' },
+  reviewAvatarFallback: { width: 42, height: 42, borderRadius: 21, marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+  reviewAvatarInitials: { color: '#FFF', fontWeight: '700', fontSize: 15, letterSpacing: 0.5 },
+  reviewUserInfo: { flex: 1 },
+  reviewUserName: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 2 },
+  reviewDate: { fontSize: 11, color: '#94A3B8' },
+  reviewRatingPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, gap: 3 },
+  reviewRatingPillText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
+  reviewStarsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  reviewComment: { fontSize: 13, color: '#475569', lineHeight: 20 },
+  sellerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: '#E0E7FF' },
 });
