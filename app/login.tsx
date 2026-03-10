@@ -59,6 +59,8 @@ export default function AuthScreen() {
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_CLIENT_ID,
+    iosClientId: GOOGLE_CLIENT_ID,
+    androidClientId: GOOGLE_CLIENT_ID,
     scopes: ["profile", "email"],
     responseType: "id_token",
   });
