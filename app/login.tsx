@@ -1,6 +1,3 @@
-import axios from "axios";
-import * as Haptics from "expo-haptics";
-import { Stack, useRouter } from "expo-router";
 import {
   Mitr_400Regular,
   Mitr_500Medium,
@@ -8,6 +5,9 @@ import {
   useFonts,
 } from "@expo-google-fonts/mitr";
 import { AntDesign } from "@expo/vector-icons";
+import axios from "axios";
+import * as Haptics from "expo-haptics";
+import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
