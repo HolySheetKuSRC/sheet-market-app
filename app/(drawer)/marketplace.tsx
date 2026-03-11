@@ -29,6 +29,7 @@ import FilterPopup, {
   SortType,
 } from "../../components/FilterPopup";
 
+import CartIconWithBadge from "../../components/CartIconWithBadge";
 import SheetCard from "../../components/sheetcard";
 
 const SIDEBAR_W = 280;
@@ -342,12 +343,11 @@ export default function MarketplaceScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.cartBtn}
-          onPress={() => router.push("/cart" as any)}
-        >
-          <Ionicons name="cart-outline" size={22} color="#6366F1" />
-        </TouchableOpacity>
+        <CartIconWithBadge
+          iconSize={22}
+          iconColor="#6366F1"
+          containerStyle={styles.cartBtn}
+        />
       </View>
 
       {loading && !refreshing ? (

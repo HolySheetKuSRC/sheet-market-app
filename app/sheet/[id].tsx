@@ -2,16 +2,17 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import CartIconWithBadge from '../../components/CartIconWithBadge';
 import SheetCard from '../../components/sheetcard';
 
 import { apiRequest } from '../../utils/api';
@@ -287,9 +288,11 @@ export default function SheetDetail() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>รายละเอียดชีท</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
-            <Ionicons name="cart-outline" size={22} color="#333" />
-          </TouchableOpacity>
+          <CartIconWithBadge
+            iconSize={22}
+            iconColor="#333"
+            containerStyle={styles.iconBtn}
+          />
         </View>
       </View>
 

@@ -1,24 +1,92 @@
+import {
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+    useFonts,
+} from '@expo-google-fonts/mitr';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { apiRequest } from '../utils/api';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
+
+// ─── Progress Stepper ─────────────────────────────────────────────────────────
+
+const STEPS = ['ตะกร้า', 'ชำระเงิน', 'เสร็จสิ้น'];
+
+function ProgressStepper({ activeStep }: { activeStep: number }) {
+  return (
+    <View style={stepStyles.container}>
+      {STEPS.map((step, index) => {
+        const isActive = index === activeStep;
+        const isDone = index < activeStep;
+        return (
+          <React.Fragment key={index}>
+            <View style={stepStyles.stepWrapper}>
+              <View
+                style={[
+                  stepStyles.circle,
+                  isActive && stepStyles.circleActive,
+                  isDone && stepStyles.circleDone,
+                ]}
+              >
+                {isDone ? (
+                  <Ionicons name="checkmark" size={14} color="#FFF" />
+                ) : (
+                  <Text
+                    style={[
+                      stepStyles.circleText,
+                      (isActive || isDone) && stepStyles.circleTextActive,
+                    ]}
+                  >
+                    {index + 1}
+                  </Text>
+                )}
+              </View>
+              <Text
+                style={[
+                  stepStyles.stepLabel,
+                  isActive && stepStyles.stepLabelActive,
+                ]}
+              >
+                {step}
+              </Text>
+            </View>
+            {index < STEPS.length - 1 && (
+              <View
+                style={[
+                  stepStyles.connector,
+                  isDone && stepStyles.connectorDone,
+                ]}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Checkout Screen ──────────────────────────────────────────────────────────
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { width } = useWindowDimensions();
+  const isTablet = width > 768;
+
+  const [fontsLoaded] = useFonts({ Mitr_400Regular, Mitr_500Medium, Mitr_600SemiBold });
 
   const { itemsData, price, type, sheetId, title, sellerName, orderId: paramOrderId } = params;
   const [loading, setLoading] = useState(false);
@@ -143,8 +211,78 @@ export default function CheckoutScreen() {
       setLoading(false);
     }
   };
+
+  // ── Payment Method Card (Left column) ──────────────────────────────────────
+
+  const PaymentMethodCard = () => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>สรุปรายการสั่งซื้อ</Text>
+
+      {displayItems.map((item: any, index: number) => (
+        <View key={index} style={styles.orderItemRow}>
+          <View style={styles.orderItemDot} />
+          <Text style={styles.orderItemName} numberOfLines={2}>
+            {item.sheetName || item.title}
+          </Text>
+          <Text style={styles.orderItemPrice}>
+            ฿{Number(item.price).toLocaleString()}
+          </Text>
+        </View>
+      ))}
+
+      <View style={styles.divider} />
+
+      <Text style={[styles.cardTitle, { marginTop: 4 }]}>วิธีการชำระเงิน</Text>
+      <View style={styles.paymentOptionRow}>
+        <View style={styles.paymentIconWrap}>
+          <Ionicons name="qr-code-outline" size={28} color="#4F46E5" />
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.paymentMethodName}>PromptPay (ผ่าน Stripe)</Text>
+          <Text style={styles.paymentMethodDesc}>สแกน QR Code ผ่านแอปธนาคาร</Text>
+        </View>
+        <Ionicons name="checkmark-circle" size={22} color="#4F46E5" />
+      </View>
+    </View>
+  );
+
+  // ── Confirmation Card (Right column) ───────────────────────────────────────
+
+  const ConfirmationCard = () => (
+    <View style={styles.confirmCard}>
+      <Text style={styles.confirmTitle}>ยอดชำระสุทธิ</Text>
+      <Text style={styles.confirmAmount}>฿{Number(price).toLocaleString()}</Text>
+
+      <View style={styles.divider} />
+
+      <View style={styles.secureRow}>
+        <Ionicons name="shield-checkmark-outline" size={16} color="#10B981" />
+        <Text style={styles.secureText}>ชำระเงินปลอดภัยผ่าน SSL</Text>
+      </View>
+      <View style={styles.secureRow}>
+        <Ionicons name="lock-closed-outline" size={16} color="#4F46E5" />
+        <Text style={styles.secureText}>ขับเคลื่อนโดย Stripe</Text>
+      </View>
+
+      <TouchableOpacity
+        style={[styles.payButton, loading && { opacity: 0.7 }]}
+        onPress={handleCreatePayment}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFF" />
+        ) : (
+          <Text style={styles.payButtonText}>ไปหน้าชำระเงิน</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -153,152 +291,255 @@ export default function CheckoutScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>สรุปรายการสั่งซื้อ</Text>
-        {displayItems.map((item: any, index: number) => (
-          <View key={index} style={styles.orderCard}>
-            <View style={styles.sheetInfo}>
-              <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
-              <Text style={styles.sellerName}>
-                ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}
-              </Text>
-            </View>
-            <Text style={styles.sheetPrice}>
-              ฿{Number(item.price).toLocaleString()}
-            </Text>
-          </View>
-        ))}
-
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>ยอดชำระสุทธิ</Text>
-          <Text style={styles.totalValue}>
-            ฿{Number(price).toLocaleString()}
-          </Text>
-        </View>
-
-        {/* วิธีการชำระเงิน */}
-        <View style={styles.paymentMethodSection}>
-          <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
-          <View style={styles.paymentOption}>
-            <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
-            <Text style={styles.paymentOptionText}>
-              PromptPay (ผ่าน Stripe)
-            </Text>
-            <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
-          </View>
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.payButton, loading && { opacity: 0.7 }]}
-          onPress={handleCreatePayment}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.payButtonText}>
-              ไปหน้าชำระเงิน
-            </Text>
-          )}
-        </TouchableOpacity>
+      {/* Progress Stepper */}
+      <View style={styles.stepperWrap}>
+        <ProgressStepper activeStep={1} />
       </View>
+
+      {/* Responsive Content */}
+      {isTablet ? (
+        /* ── Tablet / Desktop: 2-column ── */
+        <View style={styles.tabletContent}>
+          <ScrollView
+            style={styles.leftColumn}
+            contentContainerStyle={styles.columnContent}
+          >
+            <PaymentMethodCard />
+          </ScrollView>
+          <ScrollView
+            style={styles.rightColumn}
+            contentContainerStyle={styles.columnContent}
+          >
+            <ConfirmationCard />
+          </ScrollView>
+        </View>
+      ) : (
+        /* ── Mobile: stacked ── */
+        <ScrollView contentContainerStyle={styles.mobileContent}>
+          <PaymentMethodCard />
+          <ConfirmationCard />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
-  // return (
-  //   <SafeAreaView style={styles.container}>
-  //     <View style={styles.header}>
-  //       <TouchableOpacity onPress={() => router.back()}>
-  //         <Ionicons name="arrow-back" size={24} color="#333" />
-  //       </TouchableOpacity>
-  //       <Text style={styles.headerTitle}>ชำระเงิน</Text>
-  //       <View style={{ width: 24 }} />
-  //     </View>
-
-  //     <ScrollView contentContainerStyle={styles.content}>
-  //       <Text style={styles.sectionTitle}>สรุปรายการสั่งซื้อ</Text>
-  //       {displayItems.map((item: any, index: number) => (
-  //         <View key={index} style={styles.orderCard}>
-  //           <View style={styles.sheetInfo}>
-  //             <Text style={styles.sheetTitle}>{item.sheetName || item.title}</Text>
-  //             <Text style={styles.sellerName}>ผู้ขาย: {item.sellerName || 'ไม่ระบุ'}</Text>
-  //           </View>
-  //           <Text style={styles.sheetPrice}>฿{Number(item.price).toLocaleString()}</Text>
-  //         </View>
-  //       ))}
-
-  //       <View style={styles.totalContainer}>
-  //         <Text style={styles.totalLabel}>ยอดชำระสุทธิ</Text>
-  //         <Text style={styles.totalValue}>฿{Number(price).toLocaleString()}</Text>
-  //       </View>
-
-  //       {qrCodeUrl ? (
-  //         <View style={styles.qrContainer}>
-  //           <Text style={styles.sectionTitle}>สแกนเพื่อชำระเงิน</Text>
-  //           <View style={styles.qrWrapper}>
-  //             <Image source={{ uri: qrCodeUrl }} style={styles.qrImage} />
-  //           </View>
-  //           <Text style={styles.qrInstruction}>
-  //             กรุณาสแกน QR Code ผ่านแอปธนาคาร{"\n"}ยอดชำระ: ฿{Number(price).toLocaleString()}
-  //           </Text>
-  //         </View>
-  //       ) : (
-  //         <View style={styles.paymentMethodSection}>
-  //           <Text style={styles.sectionTitle}>วิธีการชำระเงิน</Text>
-  //           <View style={styles.paymentOption}>
-  //             <Ionicons name="qr-code-outline" size={24} color="#6C63FF" />
-  //             <Text style={styles.paymentOptionText}>Thai QR / PromptPay</Text>
-  //             <Ionicons name="checkmark-circle" size={24} color="#6C63FF" />
-  //           </View>
-  //         </View>
-  //       )}
-  //     </ScrollView>
-
-  //     <View style={styles.footer}>
-  //       {!qrCodeUrl ? (
-  //         <TouchableOpacity 
-  //           style={[styles.payButton, loading && { opacity: 0.7 }]}
-  //           onPress={handleCreatePayment}
-  //           disabled={loading}
-  //         >
-  //           {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.payButtonText}>ขอ QR Code ชำระเงิน</Text>}
-  //         </TouchableOpacity>
-  //       ) : (
-  //         <TouchableOpacity 
-  //           style={[styles.payButton, { backgroundColor: '#10B981' }]}
-  //           onPress={() => router.replace('/order')}
-  //         >
-  //           <Text style={styles.payButtonText}>ตรวจสอบสถานะ / ไปที่คลัง</Text>
-  //         </TouchableOpacity>
-  //       )}
-  //     </View>
-  //   </SafeAreaView>
-  // );
 }
 
+// ─── Step Styles ──────────────────────────────────────────────────────────────
+
+const stepStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    backgroundColor: '#FFF',
+  },
+  stepWrapper: { alignItems: 'center' },
+  circle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleActive: { backgroundColor: '#4F46E5' },
+  circleDone: { backgroundColor: '#4F46E5' },
+  circleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#979FAF',
+    fontFamily: 'Mitr_500Medium',
+  },
+  circleTextActive: { color: '#FFF' },
+  stepLabel: {
+    fontSize: 12,
+    color: '#979FAF',
+    marginTop: 4,
+    fontFamily: 'Mitr_400Regular',
+  },
+  stepLabelActive: { color: '#4F46E5', fontFamily: 'Mitr_600SemiBold' },
+  connector: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#E5E7EB',
+    marginTop: 15,
+    marginHorizontal: 4,
+  },
+  connectorDone: { backgroundColor: '#4F46E5' },
+});
+
+// ─── Main Styles ──────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 50, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  content: { padding: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
-  orderCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, elevation: 2 },
-  sheetInfo: { flex: 1 },
-  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
-  sellerName: { fontSize: 13, color: '#64748B', marginTop: 4 },
-  sheetPrice: { fontSize: 16, fontWeight: 'bold', color: '#6C63FF' },
-  totalContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0', marginTop: 10 },
-  totalLabel: { fontSize: 16, color: '#475569' },
-  totalValue: { fontSize: 24, fontWeight: '900', color: '#6C63FF' },
-  paymentMethodSection: { marginTop: 10 },
-  paymentOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#6C63FF' },
-  paymentOptionText: { flex: 1, marginLeft: 12, fontWeight: '600', color: '#1E293B' },
-  footer: { padding: 20, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingBottom: 40 },
-  payButton: { backgroundColor: '#6C63FF', padding: 18, borderRadius: 15, alignItems: 'center' },
-  payButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  qrContainer: { alignItems: 'center', backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginTop: 10, elevation: 2 },
-  qrWrapper: { padding: 10, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', marginVertical: 15 },
-  qrImage: { width: 250, height: 250, resizeMode: 'contain' },
-  qrInstruction: { textAlign: 'center', color: '#64748B', lineHeight: 22, fontSize: 14 }
+  safeArea: { flex: 1, backgroundColor: '#F5F6FA' },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 8,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E293B',
+    fontFamily: 'Mitr_600SemiBold',
+  },
+  stepperWrap: {
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+
+  // Tablet layout
+  tabletContent: {
+    flex: 1,
+    flexDirection: 'row',
+    padding: 24,
+    gap: 20,
+    backgroundColor: '#F5F6FA',
+  },
+  leftColumn: { flex: 2 },
+  rightColumn: { width: 320 },
+  columnContent: { paddingBottom: 24, gap: 16 },
+
+  // Mobile layout
+  mobileContent: { padding: 16, gap: 16, paddingBottom: 40 },
+
+  // Shared card
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: 'black',
+    fontFamily: 'Mitr_600SemiBold',
+    marginBottom: 14,
+  },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 14 },
+
+  // Order items
+  orderItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  orderItemDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4F46E5',
+    flexShrink: 0,
+  },
+  orderItemName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#334155',
+    fontFamily: 'Mitr_400Regular',
+  },
+  orderItemPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2740C2',
+    fontFamily: 'Mitr_500Medium',
+  },
+
+  // Payment method row
+  paymentOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  paymentIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paymentMethodName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    fontFamily: 'Mitr_500Medium',
+  },
+  paymentMethodDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontFamily: 'Mitr_400Regular',
+  },
+
+  // Confirmation Card
+  confirmCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: 'black',
+    fontFamily: 'Mitr_500Medium',
+    marginBottom: 8,
+  },
+  confirmAmount: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#2740C2',
+    fontFamily: 'Mitr_600SemiBold',
+    marginBottom: 4,
+  },
+  secureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  secureText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontFamily: 'Mitr_400Regular',
+  },
+
+  // Pay Button (black pill per Figma)
+  payButton: {
+    backgroundColor: '#000000',
+    paddingVertical: 16,
+    borderRadius: 50,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  payButtonText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '600',
+    fontFamily: 'Mitr_600SemiBold',
+  },
 });
