@@ -35,6 +35,8 @@ interface SheetCardProps {
   isLiked?: boolean;
   onLikePress?: () => void;
   onReportPress?: () => void;
+  /** Visual variant of the card */
+  variant?: "marketplace" | "library";
 }
 
 const SheetCard: React.FC<SheetCardProps> = ({
@@ -47,6 +49,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
   isLiked = false,
   onLikePress,
   onReportPress,
+  variant = "marketplace",
 }) => {
   const router = useRouter();
   if (!item) return null;
@@ -70,7 +73,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.card, { width: resolvedWidth, ...(explicitCardWidth ? { marginRight: 0 } : {}) }]}
+      style={[styles.card, { width: resolvedWidth as any, ...(explicitCardWidth ? { marginRight: 0 } : {}) }]}
       activeOpacity={0.88}
       onPress={handlePress}
     >
@@ -102,18 +105,36 @@ const SheetCard: React.FC<SheetCardProps> = ({
       {/* 👤 Seller row */}
       <View style={styles.sellerRow}>
         <Ionicons name="person-circle-outline" size={13} color="#6366F1" />
-        <Text style={styles.sellerText} numberOfLines={1}>
+        <Text
+          style={[
+            styles.sellerText,
+            variant === "library" && { color: "#6366F1" }, // Library overrides to purple
+          ]}
+          numberOfLines={1}
+        >
           {item.seller?.name || "ไม่ระบุผู้ขาย"}
         </Text>
       </View>
 
       {/* 📦 Content */}
       <View style={styles.cardContent}>
-        <Text style={styles.cardTitle} numberOfLines={2}>
+        <Text
+          style={[
+            styles.cardTitle,
+            variant === "library" && { color: "#292524", fontSize: 17, fontFamily: "Mitr_400Regular" },
+          ]}
+          numberOfLines={2}
+        >
           {item.title}
         </Text>
 
-        <Text style={styles.descriptionText} numberOfLines={2}>
+        <Text
+          style={[
+            styles.descriptionText,
+            variant === "library" && { color: "#979FAF", fontSize: 12 },
+          ]}
+          numberOfLines={2}
+        >
           {item.description}
         </Text>
 
@@ -139,15 +160,27 @@ const SheetCard: React.FC<SheetCardProps> = ({
             <View style={styles.ownedActions}>
               {/* ⬇️ Download */}
               <TouchableOpacity
-                style={styles.downloadButton}
+                style={[
+                  styles.downloadButton,
+                  variant === "library" && { backgroundColor: "transparent", paddingVertical: 0 },
+                ]}
                 onPress={(e) => {
                   e.stopPropagation();
                   onDownloadPress?.();
                 }}
                 activeOpacity={0.9}
               >
-                <Ionicons name="download-outline" size={14} color="#fff" />
-                <Text style={styles.downloadText}>ดาวน์โหลด</Text>
+                {variant !== "library" && (
+                  <Ionicons name="download-outline" size={14} color="#fff" />
+                )}
+                <Text
+                  style={[
+                    styles.downloadText,
+                    variant === "library" && { color: "#6366F1", fontSize: 14 },
+                  ]}
+                >
+                  ดาวน์โหลด
+                </Text>
               </TouchableOpacity>
 
               {/* ❤️ Like */}
@@ -180,7 +213,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
                 </TouchableOpacity>
               )}
             </View>
-          ) : (
+          ) : variant === "library" ? null : (
             <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
           )}
         </View>
