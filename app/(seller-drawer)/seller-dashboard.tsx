@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
+  Modal,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -52,13 +54,67 @@ export default function SellerDashboardScreen() {
   const [hasMore, setHasMore] = useState(true);
   const PAGE_SIZE = 10;
 
+  // --- Modal state ---
+  const [reviewsListVisible, setReviewsListVisible] = useState(false);
+  const [selectedReview, setSelectedReview] = useState<SellerReview | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+
+  const openReviewsList = () => {
+    setReviewsListVisible(true);
+  };
+
+  const closeReviewsList = () => {
+    setReviewsListVisible(false);
+  };
+
+  const openReviewDetail = (review: SellerReview) => {
+    setSelectedReview(review);
+    setDetailModalVisible(true);
+  };
+
+  const closeReviewDetail = () => {
+    setDetailModalVisible(false);
+    setSelectedReview(null);
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const renderStars = (rating: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Ionicons
+        key={i}
+        name={i < rating ? "star" : "star-outline"}
+        size={20}
+        color={i < rating ? "#F59E0B" : "#D1D5DB"}
+        style={{ marginRight: 2 }}
+      />
+    ));
+  };
+
   // --- Fetch reviews (pageable) ---
   const fetchReviews = useCallback(async (pageToLoad: number) => {
-    
+
     try {
       setLoadingReviews(true);
       const userId = await getUserIdFromSessionToken();
-      if (!userId) return;
+      if (!userId) {
+        setReviews([]);
+        setHasMore(false);
+        return;
+      }
 
       const response = await apiRequest(
         `/products/reviews/seller?page=${pageToLoad}&size=${PAGE_SIZE}`,
@@ -67,14 +123,17 @@ export default function SellerDashboardScreen() {
 
       if (response.ok) {
         const data: PageResponse<SellerReview> = await response.json();
+        const items = data.content;
         setReviews((prev) =>
-          pageToLoad === 0 ? data.content : [...prev, ...data.content]
+          pageToLoad === 0 ? items : [...prev, ...items]
         );
         setHasMore(pageToLoad < data.totalPages - 1);
         setReviewPage(pageToLoad);
       }
     } catch (err) {
       console.error("Error fetching reviews:", err);
+      setReviews([]);
+      setHasMore(false);
     } finally {
       setLoadingReviews(false);
     }
@@ -111,7 +170,7 @@ export default function SellerDashboardScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
+
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
           <View style={styles.row}>
@@ -137,8 +196,12 @@ export default function SellerDashboardScreen() {
               </Text>
             </View>
 
-            {/* รีวิวใหม่ */}
-            <View style={[styles.card, styles.cardWhite, { flex: 1 }]}>
+            {/* รีวิวใหม่ — กดเพื่อเปิด popup */}
+            <TouchableOpacity
+              style={[styles.card, styles.cardWhite, { flex: 1 }]}
+              onPress={openReviewsList}
+              activeOpacity={0.7}
+            >
               <View style={[styles.iconBox, styles.iconBoxOutline]}>
                 <Ionicons name="chatbubble-ellipses-outline" size={20} color="#7A82FF" />
               </View>
@@ -146,7 +209,7 @@ export default function SellerDashboardScreen() {
               <Text style={styles.cardValuePurple}>
                 {loadingReviews && reviews.length === 0 ? "-" : reviews.length}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* ยอดเงินทั้งหมด (แก้ให้ดึงจาก summary.totalBalance แทน) */}
@@ -181,18 +244,18 @@ export default function SellerDashboardScreen() {
             <View style={styles.chartCard}>
               <WeeklySalesBarChart data={summary.weeklySales} />
             </View>
-            
+
             <View style={styles.chartCard}>
               <MonthlyRevenueLineChart data={summary.monthlySales} />
             </View>
-            
+
             <View style={styles.chartCard}>
               <SalesPieChart
                 todaySales={summary.todaySales}
                 totalBalance={summary.totalBalance}
               />
             </View>
-            
+
             {/* Top Sheet Banner */}
             {summary.topSheetTitle && (
               <View style={styles.topSheetBanner}>
@@ -217,7 +280,7 @@ export default function SellerDashboardScreen() {
             <Text style={styles.recentTitle}>ผลงานชีทสรุป (ยอดขายรายตัว)</Text>
             {summary.sheetPerformances.map((perf, index) => (
               <View key={index} style={styles.listItem}>
-                 <View style={[styles.listIconBox, { backgroundColor: "#E0E7FF" }]}>
+                <View style={[styles.listIconBox, { backgroundColor: "#E0E7FF" }]}>
                   <Ionicons name="document-text-outline" size={20} color="#4F46E5" />
                 </View>
                 <View style={styles.listTextContainer}>
@@ -236,55 +299,176 @@ export default function SellerDashboardScreen() {
           </View>
         )}
 
-        {/* ===== Reviews Section ===== */}
-        <View style={styles.recentSection}>
-          <Text style={styles.recentTitle}>รีวิวล่าสุด</Text>
 
-          {loadingReviews && reviews.length === 0 ? (
-            <ActivityIndicator size="small" color="#7A82FF" style={{ marginTop: 16 }} />
-          ) : reviews.length === 0 ? (
-            <Text style={{ color: "#999", textAlign: "center", marginTop: 16 }}>
-              ยังไม่มีรีวิว
-            </Text>
-          ) : (
-            <>
-              {reviews.map((item) => (
-                <TouchableOpacity
-                  key={item.reviewId}
-                  style={styles.listItem}
-                  onPress={() => router.push(`/sheet/${item.sheetId}`)}
-                >
-                  <View style={[styles.listIconBox, styles.listIconBoxYellow]}>
-                    <Ionicons name="star-outline" size={20} color="#F59E0B" />
-                  </View>
-                  <View style={styles.listTextContainer}>
-                    <Text style={styles.listTitle} numberOfLines={1}>
-                      {item.sheetTitle}
-                    </Text>
-                    <Text style={styles.listSubtitle} numberOfLines={2}>
-                      ⭐ {item.rating} · {item.reviewerName} · "{item.comment}"
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-
-              {hasMore && (
-                <TouchableOpacity
-                  style={[styles.pillButton, { alignSelf: "center", marginTop: 12 }]}
-                  onPress={() => fetchReviews(reviewPage + 1)}
-                  disabled={loadingReviews}
-                >
-                  {loadingReviews ? (
-                    <ActivityIndicator size="small" color="#7A82FF" />
-                  ) : (
-                    <Text style={styles.pillButtonText}>โหลดเพิ่มเติม</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-        </View>
       </ScrollView>
+
+      {/* ===== Reviews List Modal (เปิดจากการกด icon รีวิวใหม่) ===== */}
+      <Modal
+        visible={reviewsListVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeReviewsList}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderTitle}>รีวิวทั้งหมด ({reviews.length})</Text>
+              <TouchableOpacity onPress={closeReviewsList} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={22} color="#555" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {loadingReviews && reviews.length === 0 ? (
+                <ActivityIndicator size="small" color="#7A82FF" style={{ marginTop: 24 }} />
+              ) : reviews.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <Ionicons name="chatbubble-outline" size={48} color="#D1D5DB" />
+                  <Text style={{ color: "#999", marginTop: 12, fontSize: 15 }}>
+                    ยังไม่มีรีวิว
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {reviews.map((item) => (
+                    <TouchableOpacity
+                      key={item.reviewId}
+                      style={styles.reviewListItem}
+                      onPress={() => openReviewDetail(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.reviewListItemLeft}>
+                        <View style={[styles.listIconBox, styles.listIconBoxYellow]}>
+                          <Ionicons name="star" size={18} color="#F59E0B" />
+                        </View>
+                        <View style={styles.listTextContainer}>
+                          <Text style={styles.listTitle} numberOfLines={1}>
+                            {item.sheetTitle}
+                          </Text>
+                          <Text style={styles.listSubtitle} numberOfLines={1}>
+                            ⭐ {item.rating} · {item.reviewerName}
+                          </Text>
+                          <Text style={styles.reviewListComment} numberOfLines={2}>
+                            "{item.comment}"
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+                    </TouchableOpacity>
+                  ))}
+
+                  {hasMore && (
+                    <TouchableOpacity
+                      style={[styles.pillButton, { alignSelf: "center", marginTop: 12, marginBottom: 16 }]}
+                      onPress={() => fetchReviews(reviewPage + 1)}
+                      disabled={loadingReviews}
+                    >
+                      {loadingReviews ? (
+                        <ActivityIndicator size="small" color="#7A82FF" />
+                      ) : (
+                        <Text style={styles.pillButtonText}>โหลดเพิ่มเติม</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===== Review Detail Modal ===== */}
+      <Modal
+        visible={detailModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeReviewDetail}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={closeReviewDetail}
+                style={{ flexDirection: "row", alignItems: "center" }}
+              >
+                <Ionicons name="chevron-back" size={20} color="#555" />
+                <Text style={styles.modalHeaderTitle}>รายละเอียดรีวิว</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { closeReviewDetail(); closeReviewsList(); }} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={22} color="#555" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedReview && (
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                {/* Sheet Info */}
+                <TouchableOpacity
+                  style={styles.modalSheetInfo}
+                  onPress={() => {
+                    closeReviewDetail();
+                    closeReviewsList();
+                    router.push(`/sheet/${selectedReview.sheetId}`);
+                  }}
+                >
+                  <View style={styles.modalSheetIconBox}>
+                    <Ionicons name="document-text-outline" size={24} color="#7A82FF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalSheetLabel}>ชีทที่ถูกรีวิว</Text>
+                    <Text style={styles.modalSheetTitle} numberOfLines={2}>
+                      {selectedReview.sheetTitle}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#B0B0B0" />
+                </TouchableOpacity>
+
+                {/* Divider */}
+                <View style={styles.modalDivider} />
+
+                {/* Reviewer Info */}
+                <View style={styles.modalReviewerRow}>
+                  {selectedReview.reviewerAvatarUrl ? (
+                    <Image
+                      source={{ uri: selectedReview.reviewerAvatarUrl }}
+                      style={styles.modalAvatar}
+                    />
+                  ) : (
+                    <View style={[styles.modalAvatar, styles.modalAvatarPlaceholder]}>
+                      <Ionicons name="person" size={20} color="#9CA3AF" />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalReviewerName}>
+                      {selectedReview.reviewerName}
+                    </Text>
+                    <Text style={styles.modalReviewDate}>
+                      {formatDate(selectedReview.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Rating */}
+                <View style={styles.modalRatingRow}>
+                  {renderStars(selectedReview.rating)}
+                  <Text style={styles.modalRatingText}>
+                    {selectedReview.rating}.0 / 5.0
+                  </Text>
+                </View>
+
+                {/* Comment */}
+                <View style={styles.modalCommentBox}>
+                  <Text style={styles.modalCommentLabel}>ความคิดเห็น</Text>
+                  <Text style={styles.modalCommentText}>
+                    {selectedReview.comment || "ไม่มีความคิดเห็นเพิ่มเติม"}
+                  </Text>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

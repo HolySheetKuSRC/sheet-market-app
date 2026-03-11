@@ -62,6 +62,7 @@ export default function CreateSheetScreen() {
   const [isTermsAccepted, setIsTermsAccepted] = useState(false);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
   // --- Functions การเลือกไฟล์ ---
   const handlePickPDF = async () => {
@@ -161,27 +162,60 @@ export default function CreateSheetScreen() {
       // 3. สร้าง FormData
       const formData = new FormData();
 
-      // แนบข้อมูล JSON
-      formData.append("data", {
-        string: JSON.stringify(requestData),
-        type: "application/json",
-      } as any);
+      if (Platform.OS === "web") {
+        // แนบข้อมูล JSON (Web) โดยสร้างเป็น Blob
+        formData.append(
+          "data",
+          new Blob([JSON.stringify(requestData)], { type: "application/json" })
+        );
 
-      // แนบไฟล์ PDF
-      formData.append("filePDF", {
-        uri: pdfFile.uri,
-        name: pdfFile.name || "document.pdf",
-        type: pdfFile.mimeType || "application/pdf",
-      } as any);
+        // แนบไฟล์ PDF (Web) จาก object File หรือดึงจาก URI เป็น Blob
+        if ((pdfFile as any).file) {
+          formData.append("filePDF", (pdfFile as any).file);
+        } else {
+          const pdfResponse = await fetch(pdfFile.uri);
+          const pdfBlob = await pdfResponse.blob();
+          formData.append("filePDF", pdfBlob, pdfFile.name || "document.pdf");
+        }
 
-      // แนบรูปภาพพรีวิวหลายรูป
-      previewImages.forEach((image, index) => {
-        formData.append("previewImage", {
-          uri: image.uri,
-          name: image.fileName || `preview_${index}.jpg`,
-          type: image.mimeType || "image/jpeg",
+        // แนบรูปภาพพรีวิว (Web) 
+        for (let i = 0; i < previewImages.length; i++) {
+          const image = previewImages[i];
+          if ((image as any).file) {
+            formData.append("previewImage", (image as any).file);
+          } else {
+            const imgResponse = await fetch(image.uri);
+            const imgBlob = await imgResponse.blob();
+            formData.append(
+              "previewImage",
+              imgBlob,
+              image.fileName || `preview_${i}.jpg`
+            );
+          }
+        }
+      } else {
+        // แนบข้อมูล JSON (Mobile)
+        formData.append("data", {
+          string: JSON.stringify(requestData),
+          type: "application/json",
         } as any);
-      });
+
+        // แนบไฟล์ PDF (Mobile)
+        formData.append("filePDF", {
+          uri: pdfFile.uri,
+          name: pdfFile.name || "document.pdf",
+          type: pdfFile.mimeType || "application/pdf",
+        } as any);
+
+        // แนบรูปภาพพรีวิวหลายรูป (Mobile)
+        previewImages.forEach((image, index) => {
+          formData.append("previewImage", {
+            uri: image.uri,
+            name: image.fileName || `preview_${index}.jpg`,
+            type: image.mimeType || "image/jpeg",
+          } as any);
+        });
+      }
 
       // 4. ยิง API ด้วย apiMultipartRequest
       const response = await apiMultipartRequest("/products/create", formData, {
@@ -195,9 +229,27 @@ export default function CreateSheetScreen() {
       const responseData = await response.json();
       console.log("Success:", responseData);
 
-      Alert.alert("สำเร็จ!", "อัปโหลดชีทสรุปเรียบร้อยแล้ว", [
-        { text: "ตกลง", onPress: () => router.back() },
-      ]);
+      // รีเซ็ตฟอร์มทั้งหมดหลังจากอัปโหลดสำเร็จ
+      setForm({
+        title: "",
+        description: "",
+        price: "",
+        categoryId: "",
+        universityId: "",
+        courseCode: "",
+        courseName: "",
+        studyYear: "",
+        academicYear: "",
+        hashtags: "",
+      });
+      setPdfFile(null);
+      setPreviewImages([]);
+      setIsTermsAccepted(false);
+      setSelectedUniLabel("");
+      setSelectedCategoryLabel("");
+      setSearchQuery("");
+
+      setIsSuccessModalOpen(true);
     } catch (error) {
       console.error("Upload error:", error);
       Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถอัปโหลดชีทได้ในขณะนี้");
@@ -692,6 +744,123 @@ export default function CreateSheetScreen() {
             >
               <Text style={styles.acceptTermsButtonText}>
                 ฉันเข้าใจและยอมรับ
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={isSuccessModalOpen}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              {
+                alignItems: "center",
+                justifyContent: "center",
+                paddingTop: 48,
+                paddingBottom: 32,
+                paddingHorizontal: 32,
+                borderRadius: 24,
+                width: "90%",
+                maxWidth: 420,
+                backgroundColor: "#FFFFFF",
+                shadowColor: "#000",
+                shadowOffset: {
+                  width: 0,
+                  height: 4,
+                },
+                shadowOpacity: 0.1,
+                shadowRadius: 16,
+                elevation: 5,
+              },
+            ]}
+          >
+            {/* Animated or nicely styled Icon Wrapper */}
+            <View
+              style={{
+                width: 96,
+                height: 96,
+                borderRadius: 48,
+                backgroundColor: "#EBF2FF", // Very soft light blue outer halo
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 24,
+              }}
+            >
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: "#4285F4", // Bright solid Google-like blue
+                  justifyContent: "center",
+                  alignItems: "center",
+                  shadowColor: "#4285F4",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+              >
+                <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              </View>
+            </View>
+
+            <Text
+              style={[
+                {
+                  textAlign: "center",
+                  fontSize: 22,
+                  fontWeight: "800",
+                  color: "#1F2937",
+                  marginBottom: 16,
+                },
+              ]}
+            >
+              ยอดเยี่ยม!
+            </Text>
+            
+            <Text
+              style={[
+                {
+                  textAlign: "center",
+                  fontSize: 15,
+                  lineHeight: 26,
+                  color: "#4B5563",
+                  marginBottom: 36,
+                },
+              ]}
+            >
+              ชีทสรุปของคุณถูกส่งเข้าระบบเรียบร้อยแล้ว และกำลังรอการตรวจสอบ
+            </Text>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#4285F4",
+                borderRadius: 16,
+                paddingVertical: 16,
+                width: "100%",
+                alignItems: "center",
+              }}
+              onPress={() => {
+                setIsSuccessModalOpen(false);
+                router.back();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 16,
+                  fontWeight: "700",
+                }}
+              >
+                ตกลง
               </Text>
             </TouchableOpacity>
           </View>
