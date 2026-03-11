@@ -1,23 +1,23 @@
 import {
-    Mitr_400Regular,
-    Mitr_500Medium,
-    Mitr_600SemiBold,
-    useFonts,
+  Mitr_400Regular,
+  Mitr_500Medium,
+  Mitr_600SemiBold,
+  useFonts,
 } from '@expo-google-fonts/mitr';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View
 } from 'react-native';
 import { apiRequest } from '../utils/api';
 
@@ -113,9 +113,9 @@ export default function CheckoutScreen() {
 
       const data = await res.json();
       console.log(data);
-      
+
       if (data.status === "PAID") {
-        
+
         router.replace({
           pathname: "../payment-success",
           params: { orderId }
@@ -141,25 +141,36 @@ export default function CheckoutScreen() {
         let targetCartItemIds: string[] = [];
 
         if (type === 'cart') {
+          // ถ้ามาจากหน้าตะกร้า มั่นใจว่า item.id คือ CartItem ID (ไม่ใช่ Sheet ID)
           targetCartItemIds = displayItems.map((item: any) => item.id);
         } else {
-          await apiRequest('/cart', {
+          // ถ้ากด "ซื้อทันที" เราจะใช้ Response จากการ Add เพื่อเอา ID มาเลย (แม่นยำกว่าไป Get ใหม่)
+          const addResponse = await apiRequest('/cart/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sheetId })
           });
 
-          const cartResponse = await apiRequest('/cart/user', { method: 'GET' });
-          const cartData = await cartResponse.json();
+          // 🚨 เช็คว่า Add ลงตะกร้าสำเร็จไหม
+          if (!addResponse.ok) {
+            throw new Error("ไม่สามารถเพิ่มสินค้าลงตะกร้าได้");
+          }
 
-          const addedItem = cartData.items?.find((item: any) =>
-            (item.sheet && item.sheet.id === sheetId) || item.sheetId === sheetId
-          );
+          const addData = await addResponse.json();
 
-          if (!addedItem) throw new Error("ไม่พบสินค้าในตะกร้า");
+          // หา Item ที่เพิ่งเพิ่มเข้าไปในตะกร้า
+          const addedItem = addData.items?.find((item: any) => item.sheetId === sheetId);
+
+          if (!addedItem || !addedItem.id) {
+            throw new Error("เกิดข้อผิดพลาดในการระบุรหัสสินค้าในตะกร้า");
+          }
+
           targetCartItemIds = [addedItem.id];
         }
 
+        console.log("กำลังจะ Checkout ด้วย Cart Item IDs:", targetCartItemIds);
+
+        // ===== สร้าง Order =====
         const orderResponse = await apiRequest('/order/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -167,7 +178,14 @@ export default function CheckoutScreen() {
         });
 
         const orderData = await orderResponse.json();
-        finalOrderId = orderData.id;
+
+        // 🚨 สำคัญมาก: ต้องดัก Error ตรงนี้ ป้องกันไม่ให้ทะลุไปหา Payment Service!
+        if (!orderResponse.ok) {
+          console.error("Order Checkout Error:", orderData);
+          throw new Error(orderData.message || "ไม่สามารถสร้างรายการสั่งซื้อได้ (กรุณาลองใหม่)");
+        }
+
+        finalOrderId = orderData.orderId;
       }
 
       console.log("Create Stripe Checkout for:", finalOrderId);
