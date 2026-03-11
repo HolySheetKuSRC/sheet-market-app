@@ -12,9 +12,11 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -68,6 +70,24 @@ export default function AuthScreen() {
 
   const [username, setUsername] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   /* ---------------- GOOGLE AUTH ---------------- */
 
@@ -229,7 +249,11 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.card, isLargeScreen && styles.cardLarge]}>
+          <Animated.View style={[
+            styles.card,
+            isLargeScreen && styles.cardLarge,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+          ]}>
 
             {/* ── Logo ── */}
             <View style={styles.logoRow}>
@@ -361,11 +385,14 @@ export default function AuthScreen() {
             )}
 
             {/* ── Primary CTA ── */}
-            <TouchableOpacity
-              style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                loading && { opacity: 0.7 },
+                { transform: [{ scale: pressed ? 0.96 : 1 }] }
+              ]}
               onPress={handleAuthAction}
               disabled={loading}
-              activeOpacity={0.85}
             >
               {loading ? (
                 <ActivityIndicator color={B.primary} />
@@ -374,7 +401,7 @@ export default function AuthScreen() {
                   {isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
                 </Text>
               )}
-            </TouchableOpacity>
+            </Pressable>
 
             {/* ── OR divider ── */}
             {isGoogleSupported && (
@@ -389,14 +416,14 @@ export default function AuthScreen() {
 
             {/* ── Google Button ── */}
             {isGoogleSupported && (
-              <TouchableOpacity
-                style={[
+              <Pressable
+                style={({ pressed }) => [
                   styles.googleBtn,
                   (!request || googleLoading) && { opacity: 0.6 },
+                  { transform: [{ scale: pressed ? 0.96 : 1 }] }
                 ]}
                 onPress={handleGoogleLogin}
                 disabled={!request || googleLoading}
-                activeOpacity={0.85}
               >
                 {googleLoading ? (
                   <ActivityIndicator color={B.primary} />
@@ -413,10 +440,10 @@ export default function AuthScreen() {
                     </Text>
                   </>
                 )}
-              </TouchableOpacity>
+              </Pressable>
             )}
 
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

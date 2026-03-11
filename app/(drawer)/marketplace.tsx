@@ -49,9 +49,9 @@ const SORT_LABELS: Record<SortType, string> = {
   most_popular:   "ยอดนิยม",
 };
 
-const universityData: { label: string; value: number }[] = rawUniversityData.map((u) => ({
+const universityData = rawUniversityData.map((u) => ({
   label: u.label,
-  value: Number(u.value),
+  value: u.value,
 }));
 
 interface Product {
@@ -88,7 +88,8 @@ export default function MarketplaceScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedUniId, setSelectedUniId] = useState<number | null>(null);
+  const [submittedSearch, setSubmittedSearch] = useState("");
+  const [selectedUniId, setSelectedUniId] = useState<string | number | null>(null);
   const [showUniModal, setShowUniModal] = useState(false);
 
   const selectedUniLabel = selectedUniId
@@ -111,33 +112,43 @@ export default function MarketplaceScreen() {
     if (w > 0 && w !== listWidth) setListWidth(w);
   };
 
+  const parseDate = (dateVal: any) => {
+    if (!dateVal) return 0;
+    if (Array.isArray(dateVal)) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = dateVal;
+      return new Date(year, month - 1, day, hour, minute, second).getTime();
+    }
+    return new Date(dateVal).getTime() || 0;
+  };
+
   const sortByUpdatedAt = (list: Product[], type: SortType): Product[] => {
-    return [...list].sort((a, b) => {
+    const sortedList = [...list].sort((a, b) => {
       switch (type) {
         case "newest":
-          return new Date(b.updatedAt as any).getTime() - new Date(a.updatedAt as any).getTime();
+          return parseDate(b.updatedAt) - parseDate(a.updatedAt);
         case "oldest":
-          return new Date(a.updatedAt as any).getTime() - new Date(b.updatedAt as any).getTime();
+          return parseDate(a.updatedAt) - parseDate(b.updatedAt);
         case "price_high":
-          return b.price - a.price;
+          return (Number(b.price) || 0) - (Number(a.price) || 0);
         case "price_low":
-          return a.price - b.price;
+          return (Number(a.price) || 0) - (Number(b.price) || 0);
         case "highest_rating":
-          return (b.averageRating || 0) - (a.averageRating || 0);
+          return (Number(b.averageRating) || 0) - (Number(a.averageRating) || 0);
         case "lowest_rating":
-          return (a.averageRating || 0) - (b.averageRating || 0);
+          return (Number(a.averageRating) || 0) - (Number(b.averageRating) || 0);
         case "most_popular":
-          return (b.averageRating || 0) - (a.averageRating || 0);
+          return (Number(b.averageRating) || 0) - (Number(a.averageRating) || 0);
         default:
           return 0;
       }
     });
+    return sortedList;
   };
 
   const fetchSheets = async (
     pageNum: number,
     isRefresh = false,
-    searchTxt = searchQuery,
+    searchTxt = submittedSearch,
   ) => {
     if ((isLastPage && !isRefresh) || (loadingMore && !isRefresh)) return;
 
@@ -145,17 +156,24 @@ export default function MarketplaceScreen() {
       if (pageNum > 0) setLoadingMore(true);
 
       const currentSize = pageNum === 0 ? 12 : 6;
-      const searchParam = searchTxt
-        ? `&search=${encodeURIComponent(searchTxt)}`
-        : "";
-      const uniParam = selectedUniId !== null ? `&universityId=${selectedUniId}` : "";
+
+      let url = "";
+      
+      if (searchTxt && searchTxt.trim() !== "") {
+        url = `/products/search?keyword=${encodeURIComponent(searchTxt.trim())}&page=${pageNum}&size=${currentSize}&isPublished=true`;
+      } else {
+        url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
+      }
+      
+      if (selectedUniId && selectedUniId !== "all" && selectedUniId !== "") {
+        url += `&university=${encodeURIComponent(selectedUniId as string)}`;
+      }
+
+      console.log('Fetching API URL:', url);
 
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
-      const response = await apiRequest(
-        `/products?page=${pageNum}&size=${currentSize}&isPublished=true${searchParam}${uniParam}`,
-        { method: 'GET' }
-      );
+      const response = await apiRequest(url, { method: 'GET' });
 
       if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
@@ -163,8 +181,7 @@ export default function MarketplaceScreen() {
 
       if (data && data.content) {
         const sorted = sortByUpdatedAt(data.content, sortType);
-
-        setSheets((prev) => (isRefresh ? sorted : [...prev, ...sorted]));
+        setSheets((prev) => (isRefresh ? sorted : sortByUpdatedAt([...prev, ...data.content], sortType)));
         setIsLastPage(data.last);
         setPage(pageNum);
         setError(null);
@@ -183,27 +200,23 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     setLoading(true);
     setIsLastPage(false);
-    fetchSheets(0, true);
-  }, [selectedUniId]);
+    fetchSheets(0, true, submittedSearch);
+  }, [selectedUniId, submittedSearch]);
 
   const handleSearch = () => {
-    setLoading(true);
-    setIsLastPage(false);
-    fetchSheets(0, true, searchQuery);
+    setSubmittedSearch(searchQuery);
   };
 
   const clearSearch = () => {
     setSearchQuery("");
-    setLoading(true);
-    setIsLastPage(false);
-    fetchSheets(0, true, "");
+    setSubmittedSearch("");
   };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setIsLastPage(false);
-    fetchSheets(0, true, searchQuery);
-  }, [searchQuery]);
+    fetchSheets(0, true, submittedSearch);
+  }, [submittedSearch, selectedUniId]);
 
   const handleLoadMore = () => {
     if (!loadingMore && !isLastPage && !loading) {
@@ -352,14 +365,6 @@ export default function MarketplaceScreen() {
     </View>
   );
 
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6366F1" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       {/* Top Bar */}
@@ -434,6 +439,13 @@ export default function MarketplaceScreen() {
         </View>
       )}
 
+      {/* Font Check Overlay Container */}
+      {!fontsLoaded && (
+        <View style={styles.absoluteCenterOverlay}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      )}
+
       {/* Mobile filter popup */}
       <FilterPopup
         ref={filterRef}
@@ -469,13 +481,15 @@ export default function MarketplaceScreen() {
             </TouchableOpacity>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {universityData.map((uni) => {
-                const active = selectedUniId === uni.value;
+              {universityData.map((uni, index) => {
+                const isAll = uni.value === 'all';
+                const safeValue = isAll ? null : (isNaN(Number(uni.value)) ? uni.value : Number(uni.value));
+                const active = selectedUniId === safeValue;
                 return (
                   <TouchableOpacity
-                    key={uni.value}
+                    key={uni.value?.toString() || index.toString()}
                     style={[styles.uniRow, active && styles.uniRowActive]}
-                    onPress={() => { setSelectedUniId(Number(uni.value)); setShowUniModal(false); }}
+                    onPress={() => { setSelectedUniId(safeValue); setShowUniModal(false); }}
                   >
                     <Ionicons name="school-outline" size={16} color={active ? "#6C63FF" : "#94A3B8"} />
                     <Text style={[styles.uniRowText, active && styles.uniRowTextActive]} numberOfLines={1}>
@@ -496,6 +510,7 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5F5FF" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  absoluteCenterOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "#F5F5FF", justifyContent: "center", alignItems: "center", zIndex: 999 },
   loadingInfo: {
     marginTop: 12,
     color: "#6366F1",
