@@ -13,8 +13,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
+  LayoutChangeEvent,
 } from "react-native";
 
 import ReportModal from "../../components/report-modal";
@@ -75,6 +77,26 @@ export default function MyLibraryScreen() {
   // ── Report Modal state ──
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportSheetId, setReportSheetId] = useState<string | null>(null);
+
+  // ── Search & Grid Layout state ──
+  const [searchQuery, setSearchQuery] = useState("");
+  const [listWidth, setListWidth] = useState(0);
+
+  const numColumns =
+    listWidth >= 1024 ? 5
+    : listWidth >= 768  ? 4
+    : listWidth >= 480  ? 3
+    : 2;
+
+  const cardWidth =
+    listWidth > 0
+      ? Math.floor((listWidth - 14 * 2 - 10 * (numColumns - 1)) / numColumns)
+      : 160;
+
+  const handleListLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== listWidth) setListWidth(w);
+  };
 
   // ── Fetch ──────────────────────────────────────────────
   const fetchPurchasedSheets = async () => {
@@ -156,10 +178,14 @@ export default function MyLibraryScreen() {
   // ── Filtered lists ─────────────────────────────────────
   const applyFilters = useCallback((list: Product[]) => {
     let result = list;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
+    }
     if (selectedCategory !== 0) result = result.filter((s) => s.category?.id === selectedCategory);
     if (selectedUniId !== null) result = result.filter((s) => s.university?.id === selectedUniId);
     return result;
-  }, [selectedCategory, selectedUniId]);
+  }, [selectedCategory, selectedUniId, searchQuery]);
 
   const favoriteSheets = useMemo(() => applyFilters(sheets.filter((s) => likedSheets.includes(s.id))), [sheets, likedSheets, applyFilters]);
   const purchasedSheets = useMemo(() => applyFilters(sheets), [sheets, applyFilters]);
@@ -177,7 +203,8 @@ export default function MyLibraryScreen() {
     <SheetCard
       key={item.id}
       item={{ ...item, tags: item.hashtags }}
-      isThreeColumns
+      variant="library"
+      cardWidth={cardWidth}
       isOwned
       isLiked={likedSheets.includes(item.id)}
       onLikePress={() => toggleLike(item.id)}
@@ -208,11 +235,32 @@ export default function MyLibraryScreen() {
     <View style={styles.container}>
       <HeaderBar navigation={navigation} />
 
+      {/* ── Search Bar ── */}
+      <View style={styles.searchBarWrapper}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={15} color="#B2B3F4" />
+          <TextInput
+            placeholder="ค้นหาชื่อวิชา..."
+            style={styles.searchInput}
+            placeholderTextColor="#B2B3F4"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={17} color="#C7D2FE" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* ── Filter Bar ── */}
       <View style={styles.filterBar}>
 
         {/* Category chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <Text style={styles.filterLabel}>ตัวกรอง</Text>
           {CATEGORIES.map((cat) => {
             const active = selectedCategory === cat.id;
             return (
@@ -266,54 +314,39 @@ export default function MyLibraryScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F43F5E" />}
       >
 
-        {/* ❤️ รายการโปรด — ชมพู, เลื่อนซ้าย-ขวา */}
-        <View style={styles.favSection}>
+        {/* ❤️ รายการโปรดของฉัน */}
+        <View style={styles.sectionContainer} onLayout={handleListLayout}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <View style={styles.favIconBg}>
-                <Ionicons name="heart" size={14} color="#fff" />
-              </View>
-              <View>
-                <Text style={styles.favTitle}>รายการโปรด</Text>
-                <Text style={styles.favSubtitle}>ชีทที่คุณกดหัวใจไว้</Text>
-              </View>
-            </View>
-            <View style={styles.favCountBadge}>
-              <Text style={styles.favCountText}>{favoriteSheets.length} รายการ</Text>
-            </View>
+            <Text style={styles.sectionTitle}>รายการโปรดของฉัน</Text>
+            <Text style={styles.itemCountText}>แสดง {favoriteSheets.length} รายการ</Text>
           </View>
 
           {favoriteSheets.length === 0 ? (
-            <View style={styles.favEmpty}>
+            <View style={styles.emptyContainer}>
               <Ionicons name="heart-dislike-outline" size={28} color="#FECDD3" />
-              <Text style={styles.favEmptyText}>
+              <Text style={styles.emptyText}>
                 {activeFilters > 0 ? "ไม่มีรายการโปรดที่ตรงกับตัวกรอง" : "ยังไม่มีรายการโปรด"}
               </Text>
             </View>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hList}>
-              {favoriteSheets.map((item) => (
-                <View key={item.id} style={styles.hCard}>{renderCard(item)}</View>
-              ))}
-            </ScrollView>
+            <FlatList
+              data={favoriteSheets}
+              renderItem={({ item }) => renderCard(item)}
+              keyExtractor={(item) => item.id}
+              numColumns={numColumns}
+              key={`fav-${numColumns}`}
+              columnWrapperStyle={styles.columnWrapper}
+              contentContainerStyle={styles.gridContent}
+              scrollEnabled={false}
+            />
           )}
         </View>
 
-        {/* 🛍 รายการที่ซื้อ — ม่วง, grid */}
-        <View style={[styles.purchasedSection, { marginTop: 14 }]}>
+        {/* 🛍 ชีทที่ซื้อจากร้านค้า */}
+        <View style={[styles.sectionContainer, { marginTop: 14 }]}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <View style={styles.purIconBg}>
-                <Ionicons name="bag-check" size={14} color="#fff" />
-              </View>
-              <View>
-                <Text style={styles.purTitle}>รายการที่ซื้อ</Text>
-                <Text style={styles.purSubtitle}>ชีทที่คุณเป็นเจ้าของ</Text>
-              </View>
-            </View>
-            <View style={styles.purCountBadge}>
-              <Text style={styles.purCountText}>{purchasedSheets.length} รายการ</Text>
-            </View>
+            <Text style={styles.sectionTitle}>ชีทที่ซื้อจากร้านค้า</Text>
+            <Text style={styles.itemCountText}>แสดง {purchasedSheets.length} รายการ</Text>
           </View>
 
           {error ? (
@@ -324,9 +357,9 @@ export default function MyLibraryScreen() {
               </TouchableOpacity>
             </View>
           ) : purchasedSheets.length === 0 ? (
-            <View style={styles.purEmpty}>
+            <View style={styles.emptyContainer}>
               <Ionicons name="bag-outline" size={40} color="#C7D2FE" />
-              <Text style={styles.purEmptyTitle}>
+              <Text style={styles.emptyTitle}>
                 {activeFilters > 0 ? "ไม่มีชีทที่ตรงกับตัวกรอง" : "ยังไม่มีชีทที่ซื้อ"}
               </Text>
               {activeFilters === 0 && (
@@ -341,13 +374,16 @@ export default function MyLibraryScreen() {
               data={purchasedSheets}
               renderItem={({ item }) => renderCard(item)}
               keyExtractor={(item) => item.id}
-              numColumns={3}
+              numColumns={numColumns}
+              key={`pur-${numColumns}`}
               columnWrapperStyle={styles.columnWrapper}
               contentContainerStyle={styles.gridContent}
               scrollEnabled={false}
             />
           )}
         </View>
+
+
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -437,6 +473,15 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "800", color: "#1E293B" },
 
+  // ── Search Bar ──
+  searchBarWrapper: { paddingHorizontal: 16, paddingTop: 10, backgroundColor: "#fff" },
+  searchBar: {
+    flexDirection: "row", backgroundColor: "#F4F4FF", borderRadius: 14,
+    paddingHorizontal: 12, height: 40, alignItems: "center", gap: 8,
+    borderWidth: 1, borderColor: "#E0E0FF",
+  },
+  searchInput: { flex: 1, fontSize: 13, fontFamily: "Mitr_400Regular", color: "#292524" },
+
   // ── Filter Bar ──
   filterBar: {
     backgroundColor: "#fff",
@@ -445,6 +490,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
   },
+  filterLabel: { color: "#6366F1", fontSize: 17, fontFamily: "Mitr_500Medium", marginRight: 4 },
   chipRow: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 5,
@@ -467,53 +513,26 @@ const styles = StyleSheet.create({
   clearText: { fontSize: 12, fontWeight: "700", color: "#F43F5E" },
 
   // ── Sections ──
-  favSection: {
-    marginTop: 16, marginHorizontal: 12, borderRadius: 20,
-    backgroundColor: "#FFF1F2", borderWidth: 1.5, borderColor: "#FECDD3",
-    overflow: "hidden", paddingTop: 16, paddingBottom: 16,
+  sectionContainer: {
+    marginTop: 16, paddingBottom: 8,
   },
-  purchasedSection: {
-    marginHorizontal: 12, borderRadius: 20,
-    backgroundColor: "#F5F3FF", borderWidth: 1.5, borderColor: "#DDD6FE",
-    overflow: "hidden", paddingTop: 16, paddingBottom: 8,
-  },
-
   sectionHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, marginBottom: 14,
   },
-  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-
-  favIconBg: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: "#F43F5E",
-    justifyContent: "center", alignItems: "center",
-    shadowColor: "#F43F5E", shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
+  sectionTitle: {
+    fontSize: 20, fontFamily: "Mitr_600SemiBold", color: "#000",
   },
-  favTitle: { fontSize: 15, fontWeight: "800", color: "#BE123C" },
-  favSubtitle: { fontSize: 11, color: "#FDA4AF", marginTop: 1 },
-  favCountBadge: { backgroundColor: "#F43F5E", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  favCountText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-
-  purIconBg: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: "#6C63FF",
-    justifyContent: "center", alignItems: "center",
-    shadowColor: "#6C63FF", shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
+  itemCountText: {
+    fontSize: 14, fontFamily: "Mitr_400Regular", color: "#292524",
   },
-  purTitle: { fontSize: 15, fontWeight: "800", color: "#4338CA" },
-  purSubtitle: { fontSize: 11, color: "#A5B4FC", marginTop: 1 },
-  purCountBadge: { backgroundColor: "#6C63FF", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  purCountText: { fontSize: 12, fontWeight: "700", color: "#fff" },
 
-  hList: { paddingLeft: 16, paddingRight: 8 },
-  hCard: { marginRight: 8 },
-  gridContent: { paddingHorizontal: 8, paddingTop: 4 },
-  columnWrapper: { justifyContent: "flex-start" },
+  gridContent: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 20 },
+  columnWrapper: { justifyContent: "flex-start", gap: 10 },
 
-  favEmpty: { alignItems: "center", paddingVertical: 24, gap: 6 },
-  favEmptyText: { fontSize: 13, fontWeight: "600", color: "#FB7185" },
-
-  purEmpty: { alignItems: "center", paddingVertical: 28, gap: 8 },
-  purEmptyTitle: { fontSize: 14, fontWeight: "700", color: "#818CF8" },
+  emptyContainer: { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyTitle: { fontSize: 14, fontFamily: "Mitr_600SemiBold", color: "#818CF8" },
+  emptyText: { fontSize: 13, fontFamily: "Mitr_400Regular", color: "#94A3B8" },
 
   exploreBtn: {
     flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4,

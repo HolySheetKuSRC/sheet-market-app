@@ -13,14 +13,17 @@ import {
   FlatList,
   LayoutChangeEvent,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
+  Modal,
 } from "react-native";
 
+import { universityData as rawUniversityData } from "../../constants/universities";
 import { apiRequest } from "../../utils/api";
 
 import FilterPopup, {
@@ -45,6 +48,11 @@ const SORT_LABELS: Record<SortType, string> = {
   lowest_rating:  "คะแนนต่ำสุด",
   most_popular:   "ยอดนิยม",
 };
+
+const universityData: { label: string; value: number }[] = rawUniversityData.map((u) => ({
+  label: u.label,
+  value: Number(u.value),
+}));
 
 interface Product {
   id: string;
@@ -80,6 +88,12 @@ export default function MarketplaceScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUniId, setSelectedUniId] = useState<number | null>(null);
+  const [showUniModal, setShowUniModal] = useState(false);
+
+  const selectedUniLabel = selectedUniId
+    ? universityData.find((u) => u.value === selectedUniId)?.label ?? "มหาวิทยาลัย"
+    : null;
 
   const numColumns =
     listWidth >= 1024 ? 5
@@ -134,11 +148,12 @@ export default function MarketplaceScreen() {
       const searchParam = searchTxt
         ? `&search=${encodeURIComponent(searchTxt)}`
         : "";
+      const uniParam = selectedUniId !== null ? `&universityId=${selectedUniId}` : "";
 
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
       const response = await apiRequest(
-        `/products?page=${pageNum}&size=${currentSize}&isPublished=true${searchParam}`,
+        `/products?page=${pageNum}&size=${currentSize}&isPublished=true${searchParam}${uniParam}`,
         { method: 'GET' }
       );
 
@@ -166,8 +181,10 @@ export default function MarketplaceScreen() {
   };
 
   useEffect(() => {
+    setLoading(true);
+    setIsLastPage(false);
     fetchSheets(0, true);
-  }, []);
+  }, [selectedUniId]);
 
   const handleSearch = () => {
     setLoading(true);
@@ -234,21 +251,50 @@ export default function MarketplaceScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Active sort chip */}
-      {sortType !== "newest" && (
-        <View style={styles.activeSortChip}>
-          <Ionicons name="swap-vertical-outline" size={12} color="#6366F1" />
-          <Text style={styles.activeSortText}>{SORT_LABELS[sortType]}</Text>
+      {/* Filter Row chips */}
+      <View style={styles.activeFiltersRow}>
+        <TouchableOpacity
+          style={[styles.uniChip, selectedUniId !== null && styles.uniChipActive]}
+          onPress={() => setShowUniModal(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="school-outline" size={13} color={selectedUniId !== null ? "#fff" : "#6C63FF"} />
+          <Text
+            style={[styles.uniChipText, selectedUniId !== null && styles.uniChipTextActive]}
+            numberOfLines={1}
+          >
+            {selectedUniLabel ?? "ค้นหาตามมหาวิทยาลัย"}
+          </Text>
+          <Ionicons name="chevron-down" size={11} color={selectedUniId !== null ? "#fff" : "#6C63FF"} />
+        </TouchableOpacity>
+
+        {selectedUniId !== null && (
           <TouchableOpacity
+            style={styles.clearUniBtn}
             onPress={() => {
-              setSortType("newest");
-              setSheets((prev) => sortByUpdatedAt(prev, "newest"));
+              setSelectedUniId(null);
             }}
           >
-            <Ionicons name="close-circle" size={13} color="#6366F1" />
+            <Ionicons name="close-circle" size={16} color="#F43F5E" />
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+
+        {/* Active sort chip */}
+        {sortType !== "newest" && (
+          <View style={styles.activeSortChip}>
+            <Ionicons name="swap-vertical-outline" size={12} color="#6366F1" />
+            <Text style={styles.activeSortText}>{SORT_LABELS[sortType]}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setSortType("newest");
+                setSheets((prev) => sortByUpdatedAt(prev, "newest"));
+              }}
+            >
+              <Ionicons name="close-circle" size={13} color="#6366F1" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
 
       {error && (
         <View style={styles.errorBox}>
@@ -397,6 +443,52 @@ export default function MarketplaceScreen() {
           setSheets((prev) => sortByUpdatedAt(prev, value));
         }}
       />
+
+      {/* ── University Modal ── */}
+      <Modal visible={showUniModal} transparent animationType="slide" onRequestClose={() => setShowUniModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>เลือกมหาวิทยาลัย</Text>
+              <TouchableOpacity onPress={() => setShowUniModal(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* ล้างตัวกรองมหาลัย */}
+            <TouchableOpacity
+              style={[styles.uniRow, selectedUniId === null && styles.uniRowActive]}
+              onPress={() => { setSelectedUniId(null); setShowUniModal(false); }}
+            >
+              <Ionicons name="apps-outline" size={16} color={selectedUniId === null ? "#6C63FF" : "#94A3B8"} />
+              <Text style={[styles.uniRowText, selectedUniId === null && styles.uniRowTextActive]}>
+                ทุกมหาวิทยาลัย
+              </Text>
+              {selectedUniId === null && <Ionicons name="checkmark" size={16} color="#6C63FF" style={{ marginLeft: "auto" }} />}
+            </TouchableOpacity>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {universityData.map((uni) => {
+                const active = selectedUniId === uni.value;
+                return (
+                  <TouchableOpacity
+                    key={uni.value}
+                    style={[styles.uniRow, active && styles.uniRowActive]}
+                    onPress={() => { setSelectedUniId(Number(uni.value)); setShowUniModal(false); }}
+                  >
+                    <Ionicons name="school-outline" size={16} color={active ? "#6C63FF" : "#94A3B8"} />
+                    <Text style={[styles.uniRowText, active && styles.uniRowTextActive]} numberOfLines={1}>
+                      {uni.label}
+                    </Text>
+                    {active && <Ionicons name="checkmark" size={16} color="#6C63FF" style={{ marginLeft: "auto" }} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -551,6 +643,29 @@ const styles = StyleSheet.create({
   filterBtnTextActive: {
     color: "#FFF",
   },
+  activeFiltersRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  uniChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1.5,
+    borderColor: "#C7D2FE", backgroundColor: "#EEF2FF", maxWidth: 180,
+  },
+  uniChipActive: { backgroundColor: "#6C63FF", borderColor: "#6C63FF" },
+  uniChipText: { fontSize: 13, fontFamily: "Mitr_500Medium", color: "#6C63FF", flex: 1 },
+  uniChipTextActive: { color: "#fff" },
+
+  clearUniBtn: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 2,
+  },
+
   activeDot: {
     width: 6,
     height: 6,
@@ -562,11 +677,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: "#EEF2FF",
-    alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    marginBottom: 8,
   },
   activeSortText: {
     fontSize: 12,
@@ -648,4 +761,28 @@ const styles = StyleSheet.create({
     color: "#6366F1",
     fontFamily: "Mitr_500Medium",
   },
+
+  // ── University Modal ──
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 8, paddingBottom: 32, maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: "#F1F5F9",
+  },
+  modalTitle: { fontSize: 16, fontFamily: "Mitr_600SemiBold", color: "#1E293B" },
+
+  uniRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: "#F8FAFC",
+  },
+  uniRowActive: { backgroundColor: "#EEF2FF" },
+  uniRowText: { fontSize: 14, fontFamily: "Mitr_400Regular", color: "#475569", flex: 1 },
+  uniRowTextActive: { color: "#4F46E5", fontFamily: "Mitr_600SemiBold" },
 });
