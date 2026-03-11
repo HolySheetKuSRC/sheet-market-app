@@ -73,15 +73,26 @@ export default function ReportModal({
                         ? "ส่งรายงานเรียบร้อยแล้ว ทีมงานจะตรวจสอบโดยเร็วที่สุด"
                         : "ส่งคำร้องอุทธรณ์เรียบร้อยแล้ว ทีมงานจะติดต่อกลับไป"
                 );
-                setReason("");
-                onSuccess?.();
-                onClose();
+
+                // รอ 2 วินาทีก่อนปิด Modal และล้างข้อมูล
+                setTimeout(() => {
+                    setReason("");
+                    onSuccess?.();
+                    onClose();
+                }, 2000);
+
             } else {
+                // เพิ่ม await ตรงนี้ เพื่อรอให้ parse json เสร็จก่อน
                 const errorData = await response.json().catch(() => null);
-                Alert.alert(
-                    "เกิดข้อผิดพลาด",
-                    errorData?.message || "ไม่สามารถทำรายการได้ในขณะนี้"
-                );
+
+                if (response.status === 409) {
+                    // ตอนนี้ errorData จะมีค่า message ที่ส่งมาจาก Backend (Java) แล้ว
+                    window.alert(errorData?.message || "คุณได้รายงานชีทนี้ไปแล้ว");
+                    setReason("");
+                    onClose();
+                } else {
+                    window.alert(errorData?.message || "ไม่สามารถทำรายการได้ในขณะนี้");
+                }
             }
         } catch (error) {
             console.error("REPORT ERROR:", error);

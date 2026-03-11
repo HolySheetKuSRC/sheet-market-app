@@ -23,6 +23,7 @@ interface User {
     year: number;
     faculty: string;
     photoUrl?: string;
+    role?: string;
 }
 
 export default function ProfileScreen() {
@@ -57,6 +58,7 @@ export default function ProfileScreen() {
                     year: data.studentYear,
                     faculty: data.faculty ?? "-",
                     photoUrl: data.userPhotoUrl ?? undefined,
+                    role: data.role,
                 });
             }
         } catch (error) {
@@ -166,15 +168,20 @@ export default function ProfileScreen() {
                             <Ionicons name="chevron-forward" size={18} color="#CCC" />
                         </TouchableOpacity>
 
-                        <Text style={styles.menuSectionTitle}>สำหรับนักสร้างสรรค์</Text>
+                        {/* --- เช็ค Role ก่อนแสดงผล --- */}
+                        {user?.role === "SELLER" && (
+                            <>
+                                <Text style={styles.menuSectionTitle}>สำหรับนักสร้างสรรค์</Text>
 
-                        <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/become-seller" as any)}>
-                            <View style={styles.menuItemLeft}>
-                                <Ionicons name="storefront-outline" size={20} color="#6C63FF" />
-                                <Text style={styles.menuItemText}>Seller Studio (จัดการร้านค้า)</Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={18} color="#CCC" />
-                        </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/become-seller" as any)}>
+                                    <View style={styles.menuItemLeft}>
+                                        <Ionicons name="storefront-outline" size={20} color="#6C63FF" />
+                                        <Text style={styles.menuItemText}>Seller Studio (จัดการร้านค้า)</Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={18} color="#CCC" />
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 </ScrollView>
             )}
