@@ -24,9 +24,9 @@ import SheetCard from "../../components/sheetcard";
 import { universityData as rawUniversityData } from "../../constants/universities";
 import { apiRequest } from "../../utils/api";
 
-const universityData: { label: string; value: number }[] = rawUniversityData.map((u) => ({
+const universityData = rawUniversityData.map((u) => ({
   label: u.label,
-  value: Number(u.value),
+  value: u.value,
 }));
 
 interface Category {
@@ -71,7 +71,7 @@ export default function MyLibraryScreen() {
 
   // ── Filter state ──
   const [selectedCategory, setSelectedCategory] = useState(0);          // 0 = ทั้งหมด
-  const [selectedUniId, setSelectedUniId] = useState<number | null>(null);
+  const [selectedUniId, setSelectedUniId] = useState<string | number | null>(null);
   const [showUniModal, setShowUniModal] = useState(false);
 
   // ── Report Modal state ──
@@ -183,7 +183,9 @@ export default function MyLibraryScreen() {
       result = result.filter(s => s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
     }
     if (selectedCategory !== 0) result = result.filter((s) => s.category?.id === selectedCategory);
-    if (selectedUniId !== null) result = result.filter((s) => s.university?.id === selectedUniId);
+    if (selectedUniId !== null && selectedUniId !== 'all' && selectedUniId !== 'ทั้งหมด') {
+      result = result.filter(s => s.university?.id === Number(selectedUniId));
+    }
     return result;
   }, [selectedCategory, selectedUniId, searchQuery]);
 
@@ -217,22 +219,16 @@ export default function MyLibraryScreen() {
     />
   );
 
-  // ── Loading ────────────────────────────────────────────
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.container}>
-        <HeaderBar navigation={navigation} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
-          <Text style={styles.loadingText}>กำลังโหลด...</Text>
-        </View>
-      </View>
-    );
-  }
-
   // ── Render ─────────────────────────────────────────────
   return (
     <View style={styles.container}>
+      {/* Loading Overlay */}
+      {loading && !refreshing && (
+        <View style={styles.absoluteCenterOverlay}>
+          <ActivityIndicator size="large" color="#6C63FF" />
+          <Text style={styles.loadingText}>กำลังโหลด...</Text>
+        </View>
+      )}
       <HeaderBar navigation={navigation} />
 
       {/* ── Search Bar ── */}
@@ -413,13 +409,13 @@ export default function MyLibraryScreen() {
             </TouchableOpacity>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {universityData.map((uni) => {
+              {universityData.map((uni, index) => {
                 const active = selectedUniId === uni.value;
                 return (
                   <TouchableOpacity
-                    key={uni.value}
+                    key={uni.value?.toString() || index.toString()}
                     style={[styles.uniRow, active && styles.uniRowActive]}
-                    onPress={() => { setSelectedUniId(Number(uni.value)); setShowUniModal(false); }}
+                    onPress={() => { console.log('🎯 SETTING selectedUniId to:', uni.value); setSelectedUniId(uni.value); setShowUniModal(false); }}
                   >
                     <Ionicons name="school-outline" size={16} color={active ? "#6C63FF" : "#94A3B8"} />
                     <Text style={[styles.uniRowText, active && styles.uniRowTextActive]} numberOfLines={1}>
@@ -461,7 +457,9 @@ function HeaderBar({ navigation }: { navigation: any }) {
 // ── Styles ─────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F1F5F9" },
-
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  absoluteCenterOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center", zIndex: 999 },
+  loadingText: { marginTop: 12, fontSize: 13, color: "#6C63FF" },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14,
@@ -564,8 +562,6 @@ const styles = StyleSheet.create({
   uniRowText: { fontSize: 14, color: "#475569", flex: 1 },
   uniRowTextActive: { color: "#4F46E5", fontWeight: "700" },
 
-  center: { padding: 24, alignItems: "center" },
-  loadingText: { marginTop: 10, color: "#64748B", fontSize: 14 },
   errorText: { color: "#B91C1C", fontSize: 14, marginBottom: 12, textAlign: "center" },
   retryBtn: { paddingVertical: 8, paddingHorizontal: 20, backgroundColor: "#B91C1C", borderRadius: 8 },
   retryText: { color: "#FFF", fontWeight: "bold", fontSize: 14 },

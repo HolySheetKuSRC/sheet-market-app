@@ -258,7 +258,8 @@ const SellerVerificationScreen = ({
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Section title="ข้อมูลผู้ขาย">
+          <View style={(styles as any).cardContainer}>
+            <Section title="ข้อมูลผู้ขาย">
             <Label text="นามปากกา" />
             <Input
               value={form.nickname}
@@ -275,7 +276,7 @@ const SellerVerificationScreen = ({
 
             <Label text="มหาวิทยาลัย" />
             <Dropdown
-              style={[styles.input, styles.dropdown]}
+              style={[styles.input, styles.dropdown, isUniversityFocus && (styles as any).inputFocused]}
               containerStyle={styles.dropdownContainer}
               placeholderStyle={styles.dropdownPlaceholder}
               selectedTextStyle={styles.dropdownSelectedText}
@@ -349,7 +350,7 @@ const SellerVerificationScreen = ({
 
           <Section title="ข้อมูลการรับเงิน">
             <Dropdown
-              style={[styles.input, styles.dropdown]}
+              style={[styles.input, styles.dropdown, isBankFocus && (styles as any).inputFocused]}
               containerStyle={styles.dropdownContainer}
               placeholderStyle={styles.dropdownPlaceholder}
               selectedTextStyle={styles.dropdownSelectedText}
@@ -402,6 +403,7 @@ const SellerVerificationScreen = ({
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitText}>ส่งข้อมูลเพื่อยืนยันตัวตน</Text>
           </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -444,9 +446,24 @@ const Section = ({ title, children }: SectionProps) => (
 const Label = ({ text }: { text: string }) => (
   <Text style={styles.label}>{text}</Text>
 );
-const Input = (props: TextInputProps) => (
-  <TextInput {...props} style={styles.input} placeholderTextColor="#B7B7D2" />
-);
+const Input = (props: TextInputProps) => {
+  const [isFocused, setIsFocused] = useState(false);
+  return (
+    <TextInput
+      {...props}
+      style={[styles.input, isFocused && (styles as any).inputFocused]}
+      placeholderTextColor="#94A3B8"
+      onFocus={(e) => {
+        setIsFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setIsFocused(false);
+        props.onBlur?.(e);
+      }}
+    />
+  );
+};
 
 const UploadBox = ({
   label,
@@ -477,8 +494,8 @@ const UploadBox = ({
         >
           {!image ? (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="cloud-upload-outline" size={22} color="#9AA1FF" />
-              <Text style={{ marginLeft: 8, color: "#9AA1FF" }}>
+              <Ionicons name="cloud-upload-outline" size={24} color="#6366F1" />
+              <Text style={{ marginLeft: 8, color: "#6366F1", fontWeight: "500", fontSize: 15 }}>
                 อัปโหลดรูปภาพ
               </Text>
             </View>

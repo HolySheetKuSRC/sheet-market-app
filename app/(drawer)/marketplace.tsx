@@ -7,7 +7,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
 import { useNavigation, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -49,9 +49,9 @@ const SORT_LABELS: Record<SortType, string> = {
   most_popular:   "ยอดนิยม",
 };
 
-const universityData: { label: string; value: number }[] = rawUniversityData.map((u) => ({
+const universityData = rawUniversityData.map((u) => ({
   label: u.label,
-  value: Number(u.value),
+  value: u.value,
 }));
 
 interface Product {
@@ -64,6 +64,7 @@ interface Product {
   seller: { name: string };
   tags: string[];
   updatedAt: string[];
+  university?: any;
 }
 
 export default function MarketplaceScreen() {
@@ -88,7 +89,8 @@ export default function MarketplaceScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedUniId, setSelectedUniId] = useState<number | null>(null);
+  const [submittedSearch, setSubmittedSearch] = useState("");
+  const [selectedUniId, setSelectedUniId] = useState<string | number | null>(null);
   const [showUniModal, setShowUniModal] = useState(false);
 
   const selectedUniLabel = selectedUniId
@@ -111,33 +113,54 @@ export default function MarketplaceScreen() {
     if (w > 0 && w !== listWidth) setListWidth(w);
   };
 
+  const parseDate = (dateVal: any) => {
+    if (!dateVal) return 0;
+    if (Array.isArray(dateVal)) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = dateVal;
+      return new Date(year, month - 1, day, hour, minute, second).getTime();
+    }
+    return new Date(dateVal).getTime() || 0;
+  };
+
   const sortByUpdatedAt = (list: Product[], type: SortType): Product[] => {
-    return [...list].sort((a, b) => {
+    if (!list || list.length === 0) return [];
+    const sortedList = [...list].sort((a, b) => {
       switch (type) {
         case "newest":
-          return new Date(b.updatedAt as any).getTime() - new Date(a.updatedAt as any).getTime();
+          return parseDate(b.updatedAt) - parseDate(a.updatedAt);
         case "oldest":
-          return new Date(a.updatedAt as any).getTime() - new Date(b.updatedAt as any).getTime();
+          return parseDate(a.updatedAt) - parseDate(b.updatedAt);
         case "price_high":
-          return b.price - a.price;
+          return (Number(b.price) || 0) - (Number(a.price) || 0);
         case "price_low":
-          return a.price - b.price;
+          return (Number(a.price) || 0) - (Number(b.price) || 0);
         case "highest_rating":
-          return (b.averageRating || 0) - (a.averageRating || 0);
+          return (Number(b.averageRating) || 0) - (Number(a.averageRating) || 0);
         case "lowest_rating":
-          return (a.averageRating || 0) - (b.averageRating || 0);
+          return (Number(a.averageRating) || 0) - (Number(b.averageRating) || 0);
         case "most_popular":
-          return (b.averageRating || 0) - (a.averageRating || 0);
+          return (Number(b.averageRating) || 0) - (Number(a.averageRating) || 0);
         default:
           return 0;
       }
     });
+    return sortedList;
   };
+
+  const sortedSheets = useMemo(() => {
+    let filteredList = sheets;
+
+    if (selectedUniId && selectedUniId !== 'all' && selectedUniId !== 'ทั้งหมด') {
+      filteredList = sheets.filter(sheet => sheet.university?.id === Number(selectedUniId));
+    }
+
+    return sortByUpdatedAt(filteredList, sortType);
+  }, [sheets, sortType, selectedUniId]);
 
   const fetchSheets = async (
     pageNum: number,
     isRefresh = false,
-    searchTxt = searchQuery,
+    searchTxt = submittedSearch,
   ) => {
     if ((isLastPage && !isRefresh) || (loadingMore && !isRefresh)) return;
 
@@ -145,29 +168,39 @@ export default function MarketplaceScreen() {
       if (pageNum > 0) setLoadingMore(true);
 
       const currentSize = pageNum === 0 ? 12 : 6;
-      const searchParam = searchTxt
-        ? `&search=${encodeURIComponent(searchTxt)}`
-        : "";
-      const uniParam = selectedUniId !== null ? `&universityId=${selectedUniId}` : "";
+
+      let url = "";
+      
+      if (searchTxt && searchTxt.trim() !== "") {
+        url = `/products/search?keyword=${encodeURIComponent(searchTxt.trim())}&page=${pageNum}&size=${currentSize}&isPublished=true`;
+      } else {
+        url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
+      }
 
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
-      const response = await apiRequest(
-        `/products?page=${pageNum}&size=${currentSize}&isPublished=true${searchParam}${uniParam}`,
-        { method: 'GET' }
-      );
+      const response = await apiRequest(url, { method: 'GET' });
 
       if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
       const data = await response.json();
 
       if (data && data.content) {
-        const sorted = sortByUpdatedAt(data.content, sortType);
-
-        setSheets((prev) => (isRefresh ? sorted : [...prev, ...sorted]));
+        setSheets((prev) => (isRefresh ? data.content : [...prev, ...data.content]));
         setIsLastPage(data.last);
         setPage(pageNum);
         setError(null);
+
+        // 🗺️ Diagnostic: Extract unique universities from API response
+        if (isRefresh || pageNum === 0) {
+          const uniMap = new Map<number, string>();
+          data.content.forEach((s: any) => {
+            if (s.university?.id != null) {
+              uniMap.set(s.university.id, s.university.name);
+            }
+          });
+          console.log('🗺️ DB UNIVERSITIES MAP:', JSON.stringify(Array.from(uniMap.entries()).map(([id, name]) => ({ id, name }))));
+        }
       }
     } catch (err) {
       console.error("Marketplace Fetch Error:", err);
@@ -183,27 +216,24 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     setLoading(true);
     setIsLastPage(false);
-    fetchSheets(0, true);
-  }, [selectedUniId]);
+    setSheets([]); // Force UI flush so user sees immediate feedback
+    fetchSheets(0, true, submittedSearch);
+  }, [submittedSearch]);
 
   const handleSearch = () => {
-    setLoading(true);
-    setIsLastPage(false);
-    fetchSheets(0, true, searchQuery);
+    setSubmittedSearch(searchQuery);
   };
 
   const clearSearch = () => {
     setSearchQuery("");
-    setLoading(true);
-    setIsLastPage(false);
-    fetchSheets(0, true, "");
+    setSubmittedSearch("");
   };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setIsLastPage(false);
-    fetchSheets(0, true, searchQuery);
-  }, [searchQuery]);
+    fetchSheets(0, true, submittedSearch);
+  }, [submittedSearch, selectedUniId]);
 
   const handleLoadMore = () => {
     if (!loadingMore && !isLastPage && !loading) {
@@ -231,7 +261,7 @@ export default function MarketplaceScreen() {
         <Text style={styles.resultsCount}>
           {searchQuery
             ? `ผลการค้นหา "${searchQuery}"`
-            : `แสดง ${sheets.length} รายการ`}
+            : `แสดง ${sortedSheets.length} รายการ`}
         </Text>
         <TouchableOpacity
           style={[styles.filterBtn, filterSidebarOpen && styles.filterBtnActive]}
@@ -287,7 +317,7 @@ export default function MarketplaceScreen() {
             <TouchableOpacity
               onPress={() => {
                 setSortType("newest");
-                setSheets((prev) => sortByUpdatedAt(prev, "newest"));
+                // ไม่ต้อง setSheets ตรงนี้ เพราะใช้ useMemo แล้ว
               }}
             >
               <Ionicons name="close-circle" size={13} color="#6366F1" />
@@ -336,7 +366,7 @@ export default function MarketplaceScreen() {
             style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
             onPress={() => {
               setSortType(value);
-              setSheets((prev) => sortByUpdatedAt(prev, value));
+              // ไม่ต้อง setSheets เพราะใช้ useMemo
             }}
           >
             <View style={[styles.sidebarIconWrap, isActive && styles.sidebarIconActive]}>
@@ -351,14 +381,6 @@ export default function MarketplaceScreen() {
       })}
     </View>
   );
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6366F1" />
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -407,11 +429,11 @@ export default function MarketplaceScreen() {
           <View style={styles.listArea} onLayout={handleListLayout}>
             <FlatList
               key={numColumns.toString()}
-              data={sheets}
+              data={sortedSheets}
               renderItem={({ item }) => (
                 <SheetCard item={item} cardWidth={cardWidth} />
               )}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => String(item.id)}
               numColumns={numColumns}
               columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD }}
               contentContainerStyle={styles.listContent}
@@ -434,13 +456,19 @@ export default function MarketplaceScreen() {
         </View>
       )}
 
+      {/* Font Check Overlay Container */}
+      {!fontsLoaded && (
+        <View style={styles.absoluteCenterOverlay}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      )}
+
       {/* Mobile filter popup */}
       <FilterPopup
         ref={filterRef}
         selected={sortType}
         onSelect={(value) => {
           setSortType(value);
-          setSheets((prev) => sortByUpdatedAt(prev, value));
         }}
       />
 
@@ -469,13 +497,13 @@ export default function MarketplaceScreen() {
             </TouchableOpacity>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {universityData.map((uni) => {
+              {universityData.map((uni, index) => {
                 const active = selectedUniId === uni.value;
                 return (
                   <TouchableOpacity
-                    key={uni.value}
+                    key={uni.value?.toString() || index.toString()}
                     style={[styles.uniRow, active && styles.uniRowActive]}
-                    onPress={() => { setSelectedUniId(Number(uni.value)); setShowUniModal(false); }}
+                    onPress={() => { console.log('🎯 SETTING selectedUniId to:', uni.value); setSelectedUniId(uni.value); setShowUniModal(false); }}
                   >
                     <Ionicons name="school-outline" size={16} color={active ? "#6C63FF" : "#94A3B8"} />
                     <Text style={[styles.uniRowText, active && styles.uniRowTextActive]} numberOfLines={1}>
@@ -496,6 +524,7 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5F5FF" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  absoluteCenterOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "#F5F5FF", justifyContent: "center", alignItems: "center", zIndex: 999 },
   loadingInfo: {
     marginTop: 12,
     color: "#6366F1",

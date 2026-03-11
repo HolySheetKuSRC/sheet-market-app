@@ -8,6 +8,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Pressable,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
@@ -72,9 +73,15 @@ const SheetCard: React.FC<SheetCardProps> = ({
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.card, { width: resolvedWidth as any, ...(explicitCardWidth ? { marginRight: 0 } : {}) }]}
-      activeOpacity={0.88}
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        {
+          width: resolvedWidth as any,
+          ...(explicitCardWidth ? { marginRight: 0 } : {}),
+          transform: [{ scale: pressed ? 0.97 : 1 }],
+        },
+      ]}
       onPress={handlePress}
     >
       {/* 📚 Purple stage — the "table" the book rests on */}
@@ -218,7 +225,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
           )}
         </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 

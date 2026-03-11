@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 export default StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FBFAFF",
+    backgroundColor: "#F8FAFC",
   },
 
   header: {
@@ -27,6 +27,20 @@ export default StyleSheet.create({
 
   content: {
     padding: 24,
+    alignItems: "center",
+  },
+
+  cardContainer: {
+    width: "100%",
+    maxWidth: 600,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
   sectionTitle: {
@@ -45,41 +59,52 @@ export default StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#E3E4FF",
-    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: "#000",
+    color: "#334155",
     marginBottom: 18,
   },
 
+  inputFocused: {
+    borderColor: "#6366F1",
+    backgroundColor: "#FFF",
+  },
+
   uploadBox: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: "#DADAF7",
+    height: 64,
+    borderWidth: 1.5,
+    borderColor: "#6366F1",
+    borderStyle: "dashed",
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     justifyContent: "center",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F8FF",
+    backgroundColor: "#EEF2FF",
     marginBottom: 16,
   },
 
   submitButton: {
     marginTop: 30,
-    backgroundColor: "#6C63FF",
+    backgroundColor: "#6366F1",
     paddingVertical: 16,
-    borderRadius: 30,
+    borderRadius: 12,
     alignItems: "center",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
   submitText: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
   },
 
   dropdown: {
