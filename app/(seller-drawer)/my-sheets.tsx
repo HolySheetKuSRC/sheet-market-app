@@ -106,6 +106,7 @@ export default function MySheetsScreen() {
   const router = useRouter();
   const [sheets, setSheets] = useState<SheetItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSheets, setLoadingSheets] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -113,6 +114,13 @@ export default function MySheetsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [totalElements, setTotalElements] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({
+    all: 0,
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+    suspended: 0,
+  });
 
   // ── Appeal Modal state ──
   const [appealModalVisible, setAppealModalVisible] = useState(false);
@@ -171,23 +179,62 @@ export default function MySheetsScreen() {
     []
   );
 
+  // ===== Fetch Status Counts from endpoints (parallel, size=1) =====
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const userId = await getUserIdFromSessionToken();
+      if (!userId) return;
+
+      const headers = { "X-USER-ID": userId };
+
+      const [allRes, approvedRes, pendingRes, rejectedRes, suspendedRes] =
+        await Promise.all([
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=APPROVED`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=PENDING`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=REJECTED`, { headers }),
+          apiRequest(`/products/seller/suspended-sheets?page=0&size=1`, { headers }),
+        ]);
+
+      const parse = async (res: Response) => {
+        if (res.ok) {
+          const data = await res.json();
+          return data.totalElements ?? 0;
+        }
+        return 0;
+      };
+
+      const [all, approved, pending, rejected, suspended] = await Promise.all([
+        parse(allRes),
+        parse(approvedRes),
+        parse(pendingRes),
+        parse(rejectedRes),
+        parse(suspendedRes),
+      ]);
+
+      setStatusCounts({ all, approved, pending, rejected, suspended });
+    } catch (err) {
+      console.error("Error fetching status counts:", err);
+    }
+  }, []);
+
   // ===== Initial Load =====
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await fetchSheets(0, activeFilter);
+      await Promise.all([fetchSheets(0, null), fetchStatusCounts()]);
       setLoading(false);
     };
     init();
-  }, [fetchSheets, activeFilter]);
+  }, [fetchSheets, fetchStatusCounts]);
 
   // ===== Pull-to-refresh =====
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setPage(0);
-    await fetchSheets(0, activeFilter);
+    await Promise.all([fetchSheets(0, activeFilter), fetchStatusCounts()]);
     setRefreshing(false);
-  }, [fetchSheets, activeFilter]);
+  }, [fetchSheets, activeFilter, fetchStatusCounts]);
 
   // ===== Load more =====
   const loadMore = useCallback(async () => {
@@ -200,26 +247,17 @@ export default function MySheetsScreen() {
   }, [hasMore, loadingMore, page, fetchSheets, activeFilter]);
 
   // ===== Switch filter =====
-  const handleFilterChange = (status: string | null) => {
+  const handleFilterChange = async (status: string | null) => {
+    if (activeFilter === status) return;
     setActiveFilter(status);
     setPage(0);
     setSheets([]);
-    setLoading(true);
+    setLoadingSheets(true);
+    await fetchSheets(0, status);
+    setLoadingSheets(false);
   };
 
-  // ===== Count by status =====
-  const approvedCount = sheets.filter(
-    (s) => s.status?.toUpperCase() === "APPROVED"
-  ).length;
-  const pendingCount = sheets.filter(
-    (s) => s.status?.toUpperCase() === "PENDING"
-  ).length;
-  const rejectedCount = sheets.filter(
-    (s) => s.status?.toUpperCase() === "REJECTED"
-  ).length;
-  const suspendedCount = sheets.filter(
-    (s) => s.status?.toUpperCase() === "SUSPENDED"
-  ).length;
+
 
   // ===== Render a single sheet card =====
   const renderSheetCard = ({ item }: { item: SheetItem }) => {
@@ -356,39 +394,37 @@ export default function MySheetsScreen() {
               <Text style={styles.pageTitle}>ชีทของฉัน</Text>
             </View>
 
-            {/* Stats Row (only when showing all) */}
-            {activeFilter === null && sheets.length > 0 && (
-              <View style={styles.statsRow}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statValue}>{totalElements}</Text>
-                  <Text style={styles.statLabel}>ทั้งหมด</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={[styles.statValue, { color: "#16A34A" }]}>
-                    {approvedCount}
-                  </Text>
-                  <Text style={styles.statLabel}>อนุมัติ</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={[styles.statValue, { color: "#CA8A04" }]}>
-                    {pendingCount}
-                  </Text>
-                  <Text style={styles.statLabel}>รออนุมัติ</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={[styles.statValue, { color: "#DC2626" }]}>
-                    {rejectedCount}
-                  </Text>
-                  <Text style={styles.statLabel}>ปฏิเสธ</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={[styles.statValue, { color: "#EF4444" }]}>
-                    {suspendedCount}
-                  </Text>
-                  <Text style={styles.statLabel}>ถูกระงับ</Text>
-                </View>
+            {/* Stats Row (always visible) */}
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{statusCounts.all}</Text>
+                <Text style={styles.statLabel}>ทั้งหมด</Text>
               </View>
-            )}
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: "#16A34A" }]}>
+                  {statusCounts.approved}
+                </Text>
+                <Text style={styles.statLabel}>อนุมัติ</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: "#CA8A04" }]}>
+                  {statusCounts.pending}
+                </Text>
+                <Text style={styles.statLabel}>รออนุมัติ</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: "#DC2626" }]}>
+                  {statusCounts.rejected}
+                </Text>
+                <Text style={styles.statLabel}>ปฏิเสธ</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: "#EF4444" }]}>
+                  {statusCounts.suspended}
+                </Text>
+                <Text style={styles.statLabel}>ถูกระงับ</Text>
+              </View>
+            </View>
 
             {/* Filter Tabs */}
             <View style={styles.filterContainer}>
@@ -437,7 +473,11 @@ export default function MySheetsScreen() {
           ) : null
         }
         ListEmptyComponent={
-          !loading ? (
+          loadingSheets ? (
+            <View style={{ paddingVertical: 40, alignItems: "center" }}>
+              <ActivityIndicator size="large" color="#6C63FF" />
+            </View>
+          ) : !loading ? (
             <View style={styles.emptyContainer}>
               <Ionicons
                 name="document-text-outline"
