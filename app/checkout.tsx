@@ -1,27 +1,25 @@
 import {
-  Mitr_400Regular,
-  Mitr_500Medium,
-  Mitr_600SemiBold,
-  useFonts,
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+    useFonts,
 } from '@expo-google-fonts/mitr';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { apiRequest } from '../utils/api';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 
 // ─── Progress Stepper ─────────────────────────────────────────────────────────
 

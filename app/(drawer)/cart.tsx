@@ -1,23 +1,23 @@
 import {
-  Mitr_400Regular,
-  Mitr_500Medium,
-  Mitr_600SemiBold,
-  useFonts,
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+    useFonts,
 } from '@expo-google-fonts/mitr';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 
 import { apiRequest } from '../../utils/api';
