@@ -173,7 +173,7 @@ export default function ProfileScreen() {
                             <>
                                 <Text style={styles.menuSectionTitle}>สำหรับนักสร้างสรรค์</Text>
 
-                                <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/become-seller" as any)}>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/(seller-drawer)/seller-dashboard" as any)}>
                                     <View style={styles.menuItemLeft}>
                                         <Ionicons name="storefront-outline" size={20} color="#6C63FF" />
                                         <Text style={styles.menuItemText}>Seller Studio (จัดการร้านค้า)</Text>
