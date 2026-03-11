@@ -6,7 +6,7 @@ import {
 } from "@expo-google-fonts/mitr";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
-import { useFocusEffect, useNavigation, useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
