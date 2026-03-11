@@ -2,15 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-  Dimensions,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
+
+// Cycling tag colours (indigo → violet → blue → emerald → amber → pink)
+const TAG_COLORS = ["#6366F1", "#8B5CF6", "#3B82F6", "#059669", "#D97706", "#EC4899"];
 
 interface SheetCardProps {
   item: {
@@ -23,6 +26,8 @@ interface SheetCardProps {
     seller: { name: string };
     tags: string[];
   };
+  /** Explicit px width from parent grid — overrides isThreeColumns when provided */
+  cardWidth?: number;
   isThreeColumns?: boolean;
   onPress?: () => void;
   isOwned?: boolean;
@@ -34,6 +39,7 @@ interface SheetCardProps {
 
 const SheetCard: React.FC<SheetCardProps> = ({
   item,
+  cardWidth: explicitCardWidth,
   isThreeColumns = false,
   onPress,
   isOwned = false,
@@ -45,7 +51,11 @@ const SheetCard: React.FC<SheetCardProps> = ({
   const router = useRouter();
   if (!item) return null;
 
-  const cardWidth = isThreeColumns ? (width - 48) / 3 : "48%";
+  const resolvedWidth: number | string = explicitCardWidth
+    ? explicitCardWidth
+    : isThreeColumns
+    ? (width - 48) / 3
+    : "48%";
 
   const handlePress = () => {
     if (onPress) {
@@ -60,36 +70,40 @@ const SheetCard: React.FC<SheetCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.card, { width: cardWidth }]}
-      activeOpacity={0.9}
+      style={[styles.card, { width: resolvedWidth, ...(explicitCardWidth ? { marginRight: 0 } : {}) }]}
+      activeOpacity={0.88}
       onPress={handlePress}
     >
-      {/* ⭐ Rating */}
-      <View style={styles.ratingBadge}>
-        <Ionicons name="star" size={11} color="#FBBF24" />
-        <Text style={styles.ratingText}>
-          {item.averageRating?.toFixed(1) || "0.0"}
-        </Text>
+      {/* 📚 Purple stage — the "table" the book rests on */}
+      <View style={styles.bookStage}>
+        {/* ⭐ Rating badge floats over stage */}
+        <View style={styles.ratingBadge}>
+          <Ionicons name="star" size={11} color="#FBBF24" />
+          <Text style={styles.ratingText}>
+            {item.averageRating?.toFixed(1) ?? "0.0"}
+          </Text>
+        </View>
+
+        {/* 🏷 OWNED Badge */}
+        {isOwned && (
+          <View style={styles.ownedBadge}>
+            <Text style={styles.ownedText}>OWNED</Text>
+          </View>
+        )}
+
+        {/* 📖 Physical book image — portrait aspect, centered, drop-shadowed */}
+        <Image
+          source={{ uri: item.image || "https://via.placeholder.com/300x400" }}
+          style={styles.bookImage}
+          resizeMode="cover"
+        />
       </View>
 
-      {/* 🏷 OWNED Badge */}
-      {isOwned && (
-        <View style={styles.ownedBadge}>
-          <Text style={styles.ownedText}>OWNED</Text>
-        </View>
-      )}
-
-      {/* 🖼 Image */}
-      <Image
-        source={{ uri: item.image || "https://via.placeholder.com/150" }}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
-
-      {/* 👤 Seller */}
-      <View style={styles.sellerBadge}>
+      {/* 👤 Seller row */}
+      <View style={styles.sellerRow}>
+        <Ionicons name="person-circle-outline" size={13} color="#6366F1" />
         <Text style={styles.sellerText} numberOfLines={1}>
-          โดย {item.seller?.name || "ไม่ระบุผู้ขาย"}
+          {item.seller?.name || "ไม่ระบุผู้ขาย"}
         </Text>
       </View>
 
@@ -99,20 +113,25 @@ const SheetCard: React.FC<SheetCardProps> = ({
           {item.title}
         </Text>
 
-        <Text style={styles.descriptionText} numberOfLines={1}>
+        <Text style={styles.descriptionText} numberOfLines={2}>
           {item.description}
         </Text>
 
         {/* 🏷 Tags */}
-        <View style={styles.tagWrapper}>
-          {item.tags?.slice(0, 3).map((tag, index) => (
-            <View key={index} style={styles.tagPill}>
-              <Text style={styles.tagText} numberOfLines={1}>
-                #{tag}
-              </Text>
-            </View>
-          ))}
-        </View>
+        {item.tags && item.tags.length > 0 && (
+          <View style={styles.tagWrapper}>
+            {item.tags.slice(0, 2).map((tag, index) => (
+              <View
+                key={index}
+                style={[styles.tagPill, { backgroundColor: TAG_COLORS[index % TAG_COLORS.length] }]}
+              >
+                <Text style={styles.tagText} numberOfLines={1}>
+                  {tag}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* 💰 Price หรือ Download + Like */}
         <View style={styles.bottomSection}>
@@ -173,51 +192,70 @@ const SheetCard: React.FC<SheetCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFF",
-    borderRadius: 14,
-    marginBottom: 12,
+    borderRadius: 16,
+    marginBottom: 14,
     marginRight: 8,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#EEF2FF",
-    height: 230,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    overflow: "visible",
+    shadowColor: "#4338CA",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 10,
+    elevation: 4,
   },
 
-  cardImage: {
+  // ── Square light-purple stage ─────────────────────────────────────────────
+  bookStage: {
     width: "100%",
-    height: 100,
-    backgroundColor: "#F8FAFC",
+    aspectRatio: 1,           // square container
+    backgroundColor: "#EEF2FF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // ── Portrait book image — centred, drop-shadowed ──────────────────────────
+  bookImage: {
+    width: "58%",
+    aspectRatio: 3 / 4,       // A4 portrait cover
+    borderRadius: 6,
+    backgroundColor: "#C7D2FE",
+    shadowColor: "#1E1B4B",
+    shadowOffset: { width: 3, height: 5 },
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 10,
   },
 
   ratingBadge: {
     position: "absolute",
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
     zIndex: 10,
-    borderWidth: 0.5,
-    borderColor: "#E2E8F0",
+    gap: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
 
   ratingText: {
-    fontSize: 11,
-    fontWeight: "bold",
-    marginLeft: 2,
+    fontSize: 12,
+    fontFamily: "Mitr_400Regular",
     color: "#1E293B",
   },
 
   ownedBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 8,
+    right: 8,
     backgroundColor: "#22C55E",
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -228,79 +266,75 @@ const styles = StyleSheet.create({
   ownedText: {
     color: "#fff",
     fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 1,
+    fontFamily: "Mitr_500Medium",
+    letterSpacing: 0.5,
   },
 
-  sellerBadge: {
-    position: "absolute",
-    top: 82,
-    right: 6,
-    backgroundColor: "#FFF",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    zIndex: 10,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
+  sellerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 2,
   },
 
   sellerText: {
-    fontSize: 10,
+    fontSize: 12,
+    fontFamily: "Mitr_400Regular",
     color: "#6366F1",
-    fontWeight: "700",
+    flex: 1,
   },
 
   cardContent: {
-    padding: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
     flex: 1,
   },
 
   cardTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#1E293B",
-    lineHeight: 14,
-    marginBottom: 2,
+    fontSize: 14,
+    fontFamily: "Mitr_400Regular",
+    color: "#292524",
+    lineHeight: 20,
+    marginBottom: 3,
   },
 
   descriptionText: {
     fontSize: 11,
-    color: "#64748B",
-    lineHeight: 12,
-    marginBottom: 4,
+    fontFamily: "Mitr_400Regular",
+    color: "#979FAF",
+    lineHeight: 16,
+    marginBottom: 6,
   },
 
   tagWrapper: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
-    marginBottom: 6,
-    maxHeight: 28,
-    overflow: "hidden",
+    marginBottom: 8,
   },
 
   tagPill: {
-    backgroundColor: "#DBEAFE",
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
   },
 
   tagText: {
-    color: "#2563EB",
+    color: "white",
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: "Mitr_400Regular",
   },
 
   bottomSection: {
-    marginTop: "auto",
+    marginTop: 2,
   },
 
   price: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#4F46E5",
+    fontSize: 17,
+    fontFamily: "Mitr_500Medium",
+    color: "#2740C2",
   },
 
   // ✅ Download + Like เคียงกัน
@@ -316,26 +350,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#4F46E5",
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 10,
     gap: 4,
-    shadowColor: "#4F46E5",
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
   },
 
   downloadText: {
     color: "#fff",
     fontSize: 11,
-    fontWeight: "800",
+    fontFamily: "Mitr_500Medium",
   },
 
-  // ❤️ Like button — outline เมื่อยังไม่ like, เติมสีเมื่อ like แล้ว
   likeButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
