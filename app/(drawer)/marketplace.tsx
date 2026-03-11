@@ -6,7 +6,7 @@ import {
 } from "@expo-google-fonts/mitr";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
-import { useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -29,6 +29,7 @@ import FilterPopup, {
   SortType,
 } from "../../components/FilterPopup";
 
+import CartIconWithBadge from "../../components/CartIconWithBadge";
 import SheetCard from "../../components/sheetcard";
 
 const SIDEBAR_W = 280;
@@ -342,12 +343,11 @@ export default function MarketplaceScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.cartBtn}
-          onPress={() => router.push("/cart" as any)}
-        >
-          <Ionicons name="cart-outline" size={22} color="#6366F1" />
-        </TouchableOpacity>
+        <CartIconWithBadge
+          iconSize={22}
+          iconColor="#6366F1"
+          containerStyle={styles.cartBtn}
+        />
       </View>
 
       {loading && !refreshing ? (
