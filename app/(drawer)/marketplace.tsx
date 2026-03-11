@@ -1,10 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
 import {
   Mitr_400Regular,
   Mitr_500Medium,
   Mitr_600SemiBold,
   useFonts,
 } from "@expo-google-fonts/mitr";
+import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
 import { useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";

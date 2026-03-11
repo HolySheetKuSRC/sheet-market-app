@@ -1,19 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, {
-  forwardRef,
-  useImperativeHandle,
-  useRef,
-  useState,
+    forwardRef,
+    useImperativeHandle,
+    useRef,
+    useState,
 } from "react";
 import {
-  Animated,
-  Dimensions,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-  ViewStyle,
+    Animated,
+    Dimensions,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+    ViewStyle,
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");
