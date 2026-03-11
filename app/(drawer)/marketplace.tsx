@@ -1,30 +1,49 @@
 import { Ionicons } from "@expo/vector-icons";
+import {
+  Mitr_400Regular,
+  Mitr_500Medium,
+  Mitr_600SemiBold,
+  useFonts,
+} from "@expo-google-fonts/mitr";
 import { DrawerActions } from "@react-navigation/native";
 import { useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
+  LayoutChangeEvent,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
-// ✅ 1. Import apiRequest ที่สร้างใหม่
 import { apiRequest } from "../../utils/api";
 
 import FilterPopup, {
   FilterPopupHandle,
+  SORT_OPTIONS,
   SortType,
 } from "../../components/FilterPopup";
 
 import SheetCard from "../../components/sheetcard";
 
-const { width } = Dimensions.get("window");
+const SIDEBAR_W = 280;
+const CARD_GAP = 10;
+const H_PAD = 14;
+
+const SORT_LABELS: Record<SortType, string> = {
+  newest:         "ใหม่ที่สุด",
+  oldest:         "เก่าที่สุด",
+  price_high:     "ราคา: สูง→ต่ำ",
+  price_low:      "ราคา: ต่ำ→สูง",
+  highest_rating: "คะแนนสูงสุด",
+  lowest_rating:  "คะแนนต่ำสุด",
+  most_popular:   "ยอดนิยม",
+};
 
 interface Product {
   id: string;
@@ -41,9 +60,15 @@ interface Product {
 export default function MarketplaceScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { width: screenWidth } = useWindowDimensions();
+  const isLargeScreen = screenWidth >= 768;
+
+  const [fontsLoaded] = useFonts({ Mitr_400Regular, Mitr_500Medium, Mitr_600SemiBold });
 
   const filterRef = useRef<FilterPopupHandle>(null);
   const [sortType, setSortType] = useState<SortType>("newest");
+  const [filterSidebarOpen, setFilterSidebarOpen] = useState(false);
+  const [listWidth, setListWidth] = useState(0);
 
   const [sheets, setSheets] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,11 +80,42 @@ export default function MarketplaceScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  const sortByUpdatedAt = (list: Product[], type: SortType) => {
+  const numColumns =
+    listWidth >= 1024 ? 5
+    : listWidth >= 768  ? 4
+    : listWidth >= 480  ? 3
+    : 2;
+
+  const cardWidth =
+    listWidth > 0
+      ? Math.floor((listWidth - H_PAD * 2 - CARD_GAP * (numColumns - 1)) / numColumns)
+      : 160;
+
+  const handleListLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== listWidth) setListWidth(w);
+  };
+
+  const sortByUpdatedAt = (list: Product[], type: SortType): Product[] => {
     return [...list].sort((a, b) => {
-      const timeA = new Date(a.updatedAt as any).getTime();
-      const timeB = new Date(b.updatedAt as any).getTime();
-      return type === "newest" ? timeB - timeA : timeA - timeB;
+      switch (type) {
+        case "newest":
+          return new Date(b.updatedAt as any).getTime() - new Date(a.updatedAt as any).getTime();
+        case "oldest":
+          return new Date(a.updatedAt as any).getTime() - new Date(b.updatedAt as any).getTime();
+        case "price_high":
+          return b.price - a.price;
+        case "price_low":
+          return a.price - b.price;
+        case "highest_rating":
+          return (b.averageRating || 0) - (a.averageRating || 0);
+        case "lowest_rating":
+          return (a.averageRating || 0) - (b.averageRating || 0);
+        case "most_popular":
+          return (b.averageRating || 0) - (a.averageRating || 0);
+        default:
+          return 0;
+      }
     });
   };
 
@@ -139,36 +195,65 @@ export default function MarketplaceScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
+      {/* Banner */}
       <View style={styles.banner}>
+        <View style={styles.bannerDecCircle1} />
+        <View style={styles.bannerDecCircle2} />
         <View>
-          <Text style={styles.bannerTitle}>Marketplace</Text>
-          <Text style={styles.bannerSubtitle}>
-            GrowthSheet ชีทสรุปจากรุ่นพี่
-          </Text>
+          <Text style={styles.bannerTitle}>ซื้อชีทสรุป</Text>
+          <Text style={styles.bannerSubtitle}>GrowthSheet — ชีทจากรุ่นพี่เพื่อเสริมความเข้าใจ</Text>
         </View>
-        <Ionicons name="flash" size={32} color="rgba(255,255,255,0.4)" />
+        <View style={styles.bannerIcon}>
+          <Ionicons name="book" size={24} color="#6366F1" />
+        </View>
       </View>
 
+      {/* Action row */}
       <View style={styles.topActionRow}>
         <Text style={styles.resultsCount}>
           {searchQuery
-            ? `ค้นหา: "${searchQuery}"`
+            ? `ผลการค้นหา "${searchQuery}"`
             : `แสดง ${sheets.length} รายการ`}
         </Text>
         <TouchableOpacity
-          style={styles.filterBtn}
-          onPress={() => filterRef.current?.show()}
+          style={[styles.filterBtn, filterSidebarOpen && styles.filterBtnActive]}
+          onPress={() => {
+            if (isLargeScreen) {
+              setFilterSidebarOpen((v) => !v);
+            } else {
+              filterRef.current?.show();
+            }
+          }}
         >
-          <Ionicons name="options-outline" size={18} color="#6C63FF" />
-          <Text style={styles.filterText}>ตัวกรอง</Text>
+          <Ionicons name="options-outline" size={15} color={filterSidebarOpen ? "#fff" : "#6366F1"} />
+          <Text style={[styles.filterBtnText, filterSidebarOpen && styles.filterBtnTextActive]}>
+            ตัวกรอง
+          </Text>
+          {sortType !== "newest" && !filterSidebarOpen && <View style={styles.activeDot} />}
         </TouchableOpacity>
       </View>
+
+      {/* Active sort chip */}
+      {sortType !== "newest" && (
+        <View style={styles.activeSortChip}>
+          <Ionicons name="swap-vertical-outline" size={12} color="#6366F1" />
+          <Text style={styles.activeSortText}>{SORT_LABELS[sortType]}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setSortType("newest");
+              setSheets((prev) => sortByUpdatedAt(prev, "newest"));
+            }}
+          >
+            <Ionicons name="close-circle" size={13} color="#6366F1" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {error && (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={onRefresh} style={styles.retryBtn}>
-            <Text style={styles.retryText}>ลองใหม่อีกครั้ง</Text>
+            <Text style={styles.retryText}>ลองใหม่</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -177,32 +262,74 @@ export default function MarketplaceScreen() {
 
   const renderFooter = () => {
     if (loadingMore)
-      return <ActivityIndicator style={{ margin: 20 }} color="#6C63FF" />;
+      return <ActivityIndicator style={{ margin: 20 }} color="#6366F1" />;
     if (isLastPage && sheets.length > 0) {
       return (
         <View style={styles.footer}>
-          <Text style={styles.footerText}>โหลดชีทครบแล้ว</Text>
+          <Text style={styles.footerText}>โหลดชีทครบแล้ว 🎉</Text>
         </View>
       );
     }
     return <View style={{ height: 80 }} />;
   };
 
+  const renderSidebar = () => (
+    <View style={styles.filterSidebar}>
+      <View style={styles.sidebarHeader}>
+        <Text style={styles.sidebarTitle}>เรียงลำดับ</Text>
+        <TouchableOpacity onPress={() => setFilterSidebarOpen(false)}>
+          <Ionicons name="close" size={20} color="#94A3B8" />
+        </TouchableOpacity>
+      </View>
+      {SORT_OPTIONS.map(({ label, value, icon }) => {
+        const isActive = sortType === value;
+        return (
+          <TouchableOpacity
+            key={value}
+            style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
+            onPress={() => {
+              setSortType(value);
+              setSheets((prev) => sortByUpdatedAt(prev, value));
+            }}
+          >
+            <View style={[styles.sidebarIconWrap, isActive && styles.sidebarIconActive]}>
+              <Ionicons name={icon} size={16} color={isActive ? "#6366F1" : "#94A3B8"} />
+            </View>
+            <Text style={[styles.sidebarItemText, isActive && styles.sidebarItemTextActive]}>
+              {label}
+            </Text>
+            {isActive && <Ionicons name="checkmark-circle" size={18} color="#6366F1" />}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
+      {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
+          style={styles.menuBtn}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
-          <Ionicons name="menu" size={26} color="#333" />
+          <Ionicons name="menu" size={24} color="#3730A3" />
         </TouchableOpacity>
 
         <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color="#999" />
+          <Ionicons name="search" size={15} color="#B2B3F4" />
           <TextInput
-            placeholder="ค้นหาชีทสรุป..."
+            placeholder="ค้นหาชื่อวิชา, ชื่อชีท, หรือรหัสวิชา"
             style={styles.searchInput}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor="#B2B3F4"
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
@@ -210,45 +337,58 @@ export default function MarketplaceScreen() {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={clearSearch}>
-              <Ionicons name="close-circle" size={18} color="#CCC" />
+              <Ionicons name="close-circle" size={17} color="#C7D2FE" />
             </TouchableOpacity>
           )}
         </View>
 
-        <TouchableOpacity onPress={() => router.push("/cart" as any)}>
-          <Ionicons name="cart-outline" size={24} color="#6C63FF" />
+        <TouchableOpacity
+          style={styles.cartBtn}
+          onPress={() => router.push("/cart" as any)}
+        >
+          <Ionicons name="cart-outline" size={22} color="#6366F1" />
         </TouchableOpacity>
       </View>
 
       {loading && !refreshing ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingInfo}>กำลังค้นหา...</Text>
         </View>
       ) : (
-        <FlatList
-          data={sheets}
-          renderItem={({ item }) => (
-            <SheetCard item={item} isThreeColumns={true} />
-          )}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          columnWrapperStyle={styles.columnWrapper}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={renderHeader}
-          ListFooterComponent={renderFooter}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.1}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#6C63FF"
+        <View style={styles.mainRow}>
+          {/* Grid area — flex:1 so sidebar pushes it */}
+          <View style={styles.listArea} onLayout={handleListLayout}>
+            <FlatList
+              key={numColumns.toString()}
+              data={sheets}
+              renderItem={({ item }) => (
+                <SheetCard item={item} cardWidth={cardWidth} />
+              )}
+              keyExtractor={(item) => item.id}
+              numColumns={numColumns}
+              columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD }}
+              contentContainerStyle={styles.listContent}
+              ListHeaderComponent={renderHeader}
+              ListFooterComponent={renderFooter}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.1}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#6366F1"
+                />
+              }
             />
-          }
-        />
+          </View>
+
+          {/* Sidebar push (large screen only) */}
+          {isLargeScreen && filterSidebarOpen && renderSidebar()}
+        </View>
       )}
 
+      {/* Mobile filter popup */}
       <FilterPopup
         ref={filterRef}
         selected={sortType}
@@ -262,86 +402,250 @@ export default function MarketplaceScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: "#F5F5FF" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingInfo: {
+    marginTop: 12,
+    color: "#6366F1",
+    fontSize: 13,
+    fontFamily: "Mitr_400Regular",
+  },
+
+  // Top bar
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 45,
-    paddingBottom: 20,
+    paddingTop: 48,
+    paddingBottom: 12,
     backgroundColor: "#FFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: "#EEF2FF",
+    gap: 10,
+  },
+  menuBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   searchBar: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    marginHorizontal: 10,
+    backgroundColor: "#F4F4FF",
+    borderRadius: 14,
     paddingHorizontal: 12,
+    height: 40,
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#E0E0FF",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Mitr_400Regular",
+    color: "#292524",
+  },
+  cartBtn: {
+    width: 38,
     height: 38,
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
     alignItems: "center",
   },
-  searchInput: { flex: 1, marginLeft: 6, fontSize: 13, color: "#1F2937" },
-  headerContainer: { paddingHorizontal: 16, paddingTop: 15 },
+
+  // Layout
+  mainRow: { flex: 1, flexDirection: "row" },
+  listArea: { flex: 1 },
+
+  // Header
+  headerContainer: { paddingHorizontal: H_PAD, paddingTop: 14, paddingBottom: 4 },
   banner: {
-    backgroundColor: "#6C63FF",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E0E7FF",
     padding: 18,
-    borderRadius: 16,
+    borderRadius: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 14,
+    overflow: "hidden",
+    shadowColor: "#6366F1",
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
-  bannerTitle: { color: "#FFF", fontSize: 20, fontWeight: "bold" },
-  bannerSubtitle: { color: "rgba(255,255,255,0.8)", fontSize: 11 },
+  bannerDecCircle1: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#EEF2FF",
+    top: -40,
+    right: 60,
+  },
+  bannerDecCircle2: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#E0E7FF",
+    bottom: -30,
+    right: -10,
+  },
+  bannerTitle: {
+    color: "#3730A3",
+    fontSize: 22,
+    fontFamily: "Mitr_600SemiBold",
+    lineHeight: 28,
+  },
+  bannerSubtitle: {
+    color: "#6366F1",
+    fontSize: 12,
+    fontFamily: "Mitr_400Regular",
+    marginTop: 2,
+  },
+  bannerIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   topActionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 8,
   },
-  resultsCount: { fontSize: 13, fontWeight: "600", color: "#64748B" },
+  resultsCount: {
+    fontSize: 13,
+    fontFamily: "Mitr_400Regular",
+    color: "#292524",
+  },
   filterBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    gap: 5,
   },
-  filterText: {
+  filterBtnActive: {
+    backgroundColor: "#6366F1",
+  },
+  filterBtnText: {
+    fontSize: 14,
+    fontFamily: "Mitr_500Medium",
+    color: "#6366F1",
+  },
+  filterBtnTextActive: {
+    color: "#FFF",
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F43F5E",
+  },
+  activeSortChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EEF2FF",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  activeSortText: {
     fontSize: 12,
-    fontWeight: "bold",
-    color: "#6C63FF",
-    marginLeft: 4,
+    fontFamily: "Mitr_400Regular",
+    color: "#6366F1",
   },
+
   errorBox: {
     marginTop: 10,
-    padding: 15,
+    padding: 14,
     backgroundColor: "#FEE2E2",
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
   },
-  errorText: { color: "#B91C1C", fontSize: 13, marginBottom: 10 },
+  errorText: { color: "#B91C1C", fontSize: 13, fontFamily: "Mitr_400Regular" },
   retryBtn: {
+    marginTop: 8,
     paddingVertical: 6,
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     backgroundColor: "#B91C1C",
-    borderRadius: 5,
+    borderRadius: 20,
   },
-  retryText: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
-  listContent: { paddingHorizontal: 8, paddingBottom: 20 },
-  columnWrapper: { justifyContent: "flex-start" },
+  retryText: { color: "#FFF", fontFamily: "Mitr_500Medium", fontSize: 12 },
+
+  listContent: { paddingBottom: 20 },
   footer: { padding: 40, alignItems: "center" },
-  footerText: { color: "#94A3B8", fontSize: 12, fontWeight: "500" },
-  loadingInfo: { marginTop: 12, color: "#64748B", fontSize: 12 },
+  footerText: {
+    color: "#6366F1",
+    fontSize: 13,
+    fontFamily: "Mitr_400Regular",
+  },
+
+  // Filter push sidebar
+  filterSidebar: {
+    width: SIDEBAR_W,
+    backgroundColor: "#FFF",
+    borderLeftWidth: 1,
+    borderLeftColor: "#EEF2FF",
+    paddingTop: 20,
+    paddingHorizontal: 16,
+  },
+  sidebarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  sidebarTitle: {
+    fontSize: 16,
+    fontFamily: "Mitr_600SemiBold",
+    color: "#3730A3",
+  },
+  sidebarItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    gap: 10,
+    marginBottom: 4,
+  },
+  sidebarItemActive: { backgroundColor: "#EEF2FF" },
+  sidebarIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  sidebarIconActive: { backgroundColor: "#E0E7FF" },
+  sidebarItemText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Mitr_400Regular",
+    color: "#475569",
+  },
+  sidebarItemTextActive: {
+    color: "#6366F1",
+    fontFamily: "Mitr_500Medium",
+  },
 });
