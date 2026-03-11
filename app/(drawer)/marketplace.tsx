@@ -7,7 +7,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
 import { useNavigation, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -64,6 +64,7 @@ interface Product {
   seller: { name: string };
   tags: string[];
   updatedAt: string[];
+  university?: any;
 }
 
 export default function MarketplaceScreen() {
@@ -122,6 +123,7 @@ export default function MarketplaceScreen() {
   };
 
   const sortByUpdatedAt = (list: Product[], type: SortType): Product[] => {
+    if (!list || list.length === 0) return [];
     const sortedList = [...list].sort((a, b) => {
       switch (type) {
         case "newest":
@@ -145,6 +147,16 @@ export default function MarketplaceScreen() {
     return sortedList;
   };
 
+  const sortedSheets = useMemo(() => {
+    let filteredList = sheets;
+
+    if (selectedUniId && selectedUniId !== 'all' && selectedUniId !== 'ทั้งหมด') {
+      filteredList = sheets.filter(sheet => sheet.university?.id === Number(selectedUniId));
+    }
+
+    return sortByUpdatedAt(filteredList, sortType);
+  }, [sheets, sortType, selectedUniId]);
+
   const fetchSheets = async (
     pageNum: number,
     isRefresh = false,
@@ -164,12 +176,6 @@ export default function MarketplaceScreen() {
       } else {
         url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
       }
-      
-      if (selectedUniId && selectedUniId !== "all" && selectedUniId !== "") {
-        url += `&university=${encodeURIComponent(selectedUniId as string)}`;
-      }
-
-      console.log('Fetching API URL:', url);
 
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
@@ -180,11 +186,21 @@ export default function MarketplaceScreen() {
       const data = await response.json();
 
       if (data && data.content) {
-        const sorted = sortByUpdatedAt(data.content, sortType);
-        setSheets((prev) => (isRefresh ? sorted : sortByUpdatedAt([...prev, ...data.content], sortType)));
+        setSheets((prev) => (isRefresh ? data.content : [...prev, ...data.content]));
         setIsLastPage(data.last);
         setPage(pageNum);
         setError(null);
+
+        // 🗺️ Diagnostic: Extract unique universities from API response
+        if (isRefresh || pageNum === 0) {
+          const uniMap = new Map<number, string>();
+          data.content.forEach((s: any) => {
+            if (s.university?.id != null) {
+              uniMap.set(s.university.id, s.university.name);
+            }
+          });
+          console.log('🗺️ DB UNIVERSITIES MAP:', JSON.stringify(Array.from(uniMap.entries()).map(([id, name]) => ({ id, name }))));
+        }
       }
     } catch (err) {
       console.error("Marketplace Fetch Error:", err);
@@ -200,8 +216,9 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     setLoading(true);
     setIsLastPage(false);
+    setSheets([]); // Force UI flush so user sees immediate feedback
     fetchSheets(0, true, submittedSearch);
-  }, [selectedUniId, submittedSearch]);
+  }, [submittedSearch]);
 
   const handleSearch = () => {
     setSubmittedSearch(searchQuery);
@@ -244,7 +261,7 @@ export default function MarketplaceScreen() {
         <Text style={styles.resultsCount}>
           {searchQuery
             ? `ผลการค้นหา "${searchQuery}"`
-            : `แสดง ${sheets.length} รายการ`}
+            : `แสดง ${sortedSheets.length} รายการ`}
         </Text>
         <TouchableOpacity
           style={[styles.filterBtn, filterSidebarOpen && styles.filterBtnActive]}
@@ -300,7 +317,7 @@ export default function MarketplaceScreen() {
             <TouchableOpacity
               onPress={() => {
                 setSortType("newest");
-                setSheets((prev) => sortByUpdatedAt(prev, "newest"));
+                // ไม่ต้อง setSheets ตรงนี้ เพราะใช้ useMemo แล้ว
               }}
             >
               <Ionicons name="close-circle" size={13} color="#6366F1" />
@@ -349,7 +366,7 @@ export default function MarketplaceScreen() {
             style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
             onPress={() => {
               setSortType(value);
-              setSheets((prev) => sortByUpdatedAt(prev, value));
+              // ไม่ต้อง setSheets เพราะใช้ useMemo
             }}
           >
             <View style={[styles.sidebarIconWrap, isActive && styles.sidebarIconActive]}>
@@ -412,11 +429,11 @@ export default function MarketplaceScreen() {
           <View style={styles.listArea} onLayout={handleListLayout}>
             <FlatList
               key={numColumns.toString()}
-              data={sheets}
+              data={sortedSheets}
               renderItem={({ item }) => (
                 <SheetCard item={item} cardWidth={cardWidth} />
               )}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => String(item.id)}
               numColumns={numColumns}
               columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD }}
               contentContainerStyle={styles.listContent}
@@ -452,7 +469,6 @@ export default function MarketplaceScreen() {
         selected={sortType}
         onSelect={(value) => {
           setSortType(value);
-          setSheets((prev) => sortByUpdatedAt(prev, value));
         }}
       />
 
@@ -482,14 +498,12 @@ export default function MarketplaceScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {universityData.map((uni, index) => {
-                const isAll = uni.value === 'all';
-                const safeValue = isAll ? null : (isNaN(Number(uni.value)) ? uni.value : Number(uni.value));
-                const active = selectedUniId === safeValue;
+                const active = selectedUniId === uni.value;
                 return (
                   <TouchableOpacity
                     key={uni.value?.toString() || index.toString()}
                     style={[styles.uniRow, active && styles.uniRowActive]}
-                    onPress={() => { setSelectedUniId(safeValue); setShowUniModal(false); }}
+                    onPress={() => { console.log('🎯 SETTING selectedUniId to:', uni.value); setSelectedUniId(uni.value); setShowUniModal(false); }}
                   >
                     <Ionicons name="school-outline" size={16} color={active ? "#6C63FF" : "#94A3B8"} />
                     <Text style={[styles.uniRowText, active && styles.uniRowTextActive]} numberOfLines={1}>

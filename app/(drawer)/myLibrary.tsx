@@ -183,7 +183,9 @@ export default function MyLibraryScreen() {
       result = result.filter(s => s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
     }
     if (selectedCategory !== 0) result = result.filter((s) => s.category?.id === selectedCategory);
-    if (selectedUniId !== null) result = result.filter((s) => s.university?.name === selectedUniId);
+    if (selectedUniId !== null && selectedUniId !== 'all' && selectedUniId !== 'ทั้งหมด') {
+      result = result.filter(s => s.university?.id === Number(selectedUniId));
+    }
     return result;
   }, [selectedCategory, selectedUniId, searchQuery]);
 
@@ -408,14 +410,12 @@ export default function MyLibraryScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {universityData.map((uni, index) => {
-                const isAll = uni.value === 'all';
-                const safeValue = isAll ? null : (isNaN(Number(uni.value)) ? uni.value : Number(uni.value));
-                const active = selectedUniId === safeValue;
+                const active = selectedUniId === uni.value;
                 return (
                   <TouchableOpacity
                     key={uni.value?.toString() || index.toString()}
                     style={[styles.uniRow, active && styles.uniRowActive]}
-                    onPress={() => { setSelectedUniId(safeValue); setShowUniModal(false); }}
+                    onPress={() => { console.log('🎯 SETTING selectedUniId to:', uni.value); setSelectedUniId(uni.value); setShowUniModal(false); }}
                   >
                     <Ionicons name="school-outline" size={16} color={active ? "#6C63FF" : "#94A3B8"} />
                     <Text style={[styles.uniRowText, active && styles.uniRowTextActive]} numberOfLines={1}>
