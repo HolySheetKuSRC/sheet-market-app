@@ -261,7 +261,7 @@ export default function OrderScreen() {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'PAID': return { text: 'ชำระแล้ว', color: '#10B981', bg: '#D1FAE5', icon: 'checkmark-circle-outline' };
-      case 'PENDING': return { text: 'รอชำระเงิน', color: '#F59E0B', bg: '#FEF3C7', icon: 'time-outline' };
+      case 'PENDING': return { text: 'รอชำระเงิน', color: '#D97706', bg: '#FEF9C3', icon: 'time-outline' };
       case 'CANCELLED': return { text: 'ยกเลิกแล้ว', color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle-outline' };
       case 'FAILED': return { text: 'ล้มเหลว', color: '#64748B', bg: '#F1F5F9', icon: 'alert-circle-outline' };
       default: return { text: status, color: '#64748B', bg: '#F1F5F9', icon: 'help-circle-outline' };
@@ -276,105 +276,110 @@ export default function OrderScreen() {
     const canRefund = isRefundable(item.createdAt);
 
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.orderIdRow}>
-            <Ionicons name="receipt-outline" size={16} color="#94A3B8" />
-            <Text style={styles.orderIdText}>#{item.orderId.substring(0, 8).toUpperCase()}</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
-            <Ionicons name={statusInfo.icon as any} size={12} color={statusInfo.color} />
-            <Text style={[styles.statusText, { color: statusInfo.color }]}>
-              {statusInfo.text}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        {item.items && item.items.length > 0 ? (
-          item.items.map((sheet, index) => {
-            const itemId = sheet.id || sheet.orderItemId || sheet.sheetId;
-            return (
-              <View key={`${item.orderId}-${index}`} style={styles.sheetRowContainer}>
-                <View style={styles.sheetRow}>
-                  <Ionicons name="document-text-outline" size={15} color="#94A3B8" />
-                  <Text style={styles.sheetName} numberOfLines={1}>{sheet.sheetName}</Text>
-                  <Text style={styles.sheetPrice}>฿{Number(sheet.price).toLocaleString()}</Text>
-                </View>
-                {isPaid && (
-                  <View style={styles.refundRow}>
-                     {sheet.refundStatus === 'PENDING' ? (
-                        <Text style={styles.refundedText}>กำลังตรวจสอบการขอคืนเงิน</Text>
-                      ) : sheet.refundStatus === 'REFUNDED' || sheet.isRefunded ? (
-                        <Text style={[styles.refundedText, { color: '#10B981' }]}>คืนเงินสำเร็จแล้ว</Text>
-                      ) : sheet.refundStatus === 'REJECTED' ? (
-                         <Text style={[styles.refundedText, { color: '#EF4444' }]}>การขอคืนเงินถูกปฏิเสธ</Text>
-                      ) : canRefund ? (
-                        <TouchableOpacity
-                          style={styles.refundBtn}
-                          onPress={() => openRefundModal(item.orderId, itemId, sheet.sheetName)}
-                        >
-                          <Text style={styles.refundBtnText}>ขอคืนเงิน</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <Text style={styles.expiredRefundText}>หมดเขตขอคืนเงิน</Text>
-                      )}
-                  </View>
-                )}
-              </View>
-            );
-          })
-        ) : (
-          <Text style={styles.noItemText}>ไม่มีรายการสินค้า</Text>
-        )}
-
-        <View style={styles.cardFooter}>
-          <Text style={styles.totalLabel}>ยอดสุทธิ</Text>
-          <Text style={styles.totalAmount}>฿{Number(item.totalPrice).toLocaleString()}</Text>
-        </View>
-
-        {isPending && item.totalPrice > 0 && (
-          <View style={styles.actionRow}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.cancelButton,
-                isCancelling && styles.disabledButton,
-                pressed && { opacity: 0.7 }
-              ]}
-              onPress={() => handleCancelOrder(item.orderId)}
-              disabled={isCancelling}
-            >
-              <Ionicons name="close-outline" size={16} color={isCancelling ? '#CBD5E1' : '#EF4444'} />
-              <Text style={[styles.cancelText, isCancelling && { color: '#CBD5E1' }]}>
-                {isCancelling ? 'กำลังยกเลิก...' : 'ยกเลิก'}
+      <View style={styles.cardContainer}>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.orderIdRow}>
+              <Text style={styles.orderIdText}>#{item.orderId.substring(0, 8).toUpperCase()}</Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+              <Text style={[styles.statusText, { color: statusInfo.color }]}>
+                {statusInfo.text}
               </Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.payNowButton,
-                isCancelling && styles.disabledButton,
-                pressed && { opacity: 0.8 }
-              ]}
-              onPress={() =>
-                router.push({
-                  pathname: '/checkout',
-                  params: {
-                    orderId: item.orderId,
-                    price: item.totalPrice.toString(),
-                    type: 're-payment',
-                    itemsData: JSON.stringify(item.items),
-                  },
-                } as any)
-              }
-              disabled={isCancelling}
-            >
-              <Ionicons name="wallet-outline" size={16} color="#FFF" />
-              <Text style={styles.payNowText}>ชำระเงิน</Text>
-            </Pressable>
+            </View>
           </View>
-        )}
+
+          <View style={styles.divider} />
+
+          {item.items && item.items.length > 0 ? (
+            item.items.map((sheet, index) => {
+              const itemId = sheet.id || sheet.orderItemId || sheet.sheetId;
+              return (
+                <View key={`${item.orderId}-${index}`} style={styles.sheetRowContainer}>
+                  <View style={styles.sheetRow}>
+                    <View style={styles.sheetIconBox}>
+                      <Ionicons name="document-text" size={20} color="#6366F1" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sheetName} numberOfLines={1}>{sheet.sheetName}</Text>
+                      <Text style={styles.sellerName}>{sheet.sellerName}</Text>
+                    </View>
+                    <Text style={styles.sheetPrice}>฿{Number(sheet.price).toLocaleString()}</Text>
+                  </View>
+                  {isPaid && (
+                    <View style={styles.refundRow}>
+                       {sheet.refundStatus === 'PENDING' ? (
+                          <Text style={styles.refundedText}>กำลังตรวจสอบการขอคืนเงิน</Text>
+                        ) : sheet.refundStatus === 'REFUNDED' || sheet.isRefunded ? (
+                          <Text style={[styles.refundedText, { color: '#10B981' }]}>คืนเงินสำเร็จแล้ว</Text>
+                        ) : sheet.refundStatus === 'REJECTED' ? (
+                           <Text style={[styles.refundedText, { color: '#EF4444' }]}>การขอคืนเงินถูกปฏิเสธ</Text>
+                        ) : canRefund ? (
+                          <TouchableOpacity
+                            style={styles.refundBtn}
+                            onPress={() => openRefundModal(item.orderId, itemId, sheet.sheetName)}
+                          >
+                            <Text style={styles.refundBtnText}>ขอคืนเงิน</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.expiredRefundText}>หมดเขตขอคืนเงิน</Text>
+                        )}
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.noItemText}>ไม่มีรายการสินค้า</Text>
+          )}
+
+          <View style={styles.divider} />
+
+          <View style={styles.cardFooter}>
+            <Text style={styles.totalLabel}>ยอดสุทธิ</Text>
+            <Text style={styles.totalAmount}>฿{Number(item.totalPrice).toLocaleString()}</Text>
+          </View>
+
+          {isPending && item.totalPrice > 0 && (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.cancelButton,
+                  isCancelling && styles.disabledButton,
+                  { transform: [{ scale: pressed ? 0.97 : 1 }] }
+                ]}
+                onPress={() => handleCancelOrder(item.orderId)}
+                disabled={isCancelling}
+              >
+                <Text style={[styles.cancelText, isCancelling && { color: '#CBD5E1' }]}>
+                  {isCancelling ? 'กำลังยกเลิก...' : 'ยกเลิก'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.payNowButton,
+                  isCancelling && styles.disabledButton,
+                  { transform: [{ scale: pressed ? 0.97 : 1 }] }
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/checkout',
+                    params: {
+                      orderId: item.orderId,
+                      price: item.totalPrice.toString(),
+                      type: 're-payment',
+                      itemsData: JSON.stringify(item.items),
+                    },
+                  } as any)
+                }
+                disabled={isCancelling}
+              >
+                <Text style={styles.payNowText}>ชำระเงิน</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </View>
     );
   }, [cancellingId, handleCancelOrder]);
@@ -384,7 +389,7 @@ export default function OrderScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+          <Ionicons name="arrow-back" size={24} color="#292524" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>ประวัติการสั่งซื้อ</Text>
         <View style={{ width: 40 }} />
@@ -496,54 +501,248 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   listContent: { padding: 16, paddingBottom: 32 },
   emptyList: { flexGrow: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 15, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 16, 
+    paddingTop: 50, 
+    paddingBottom: 15, 
+    backgroundColor: '#FFF', 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#F1F5F9' 
+  },
   backButton: { padding: 8 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', flex: 1, textAlign: 'center' },
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 14, shadowColor: '#94A3B8', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  orderIdRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  orderIdText: { fontSize: 13, fontWeight: '600', color: '#64748B', letterSpacing: 0.5 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
-  statusText: { fontSize: 12, fontWeight: '700' },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 10 },
-  sheetRowContainer: { marginBottom: 12 },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sheetName: { fontSize: 14, color: '#334155', flex: 1 },
-  sheetPrice: { fontSize: 13, color: '#64748B', fontWeight: '500' },
-  noItemText: { color: '#94A3B8', fontSize: 13, marginVertical: 6 },
-  refundRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
-  refundBtn: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FECACA' },
-  refundBtnText: { color: '#EF4444', fontSize: 11, fontWeight: '600' },
-  refundedText: { color: '#F59E0B', fontSize: 11, fontWeight: '600', fontStyle: 'italic' },
-  expiredRefundText: { color: '#94A3B8', fontSize: 11, fontWeight: '500' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  totalLabel: { fontSize: 14, color: '#64748B' },
-  totalAmount: { fontSize: 20, fontWeight: 'bold', color: '#6C63FF' },
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  cancelButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#EF4444', backgroundColor: '#FFF5F5' },
-  cancelText: { color: '#EF4444', fontWeight: '700', fontSize: 14 },
-  payNowButton: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: '#6C63FF' },
-  payNowText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  disabledButton: { opacity: 0.45 },
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  emptyTitle: { marginTop: 14, fontSize: 17, fontWeight: '600', color: '#94A3B8' },
-  emptySubtitle: { marginTop: 4, fontSize: 13, color: '#CBD5E1' },
+  headerTitle: { 
+    fontSize: 18, 
+    fontFamily: 'Mitr', 
+    fontWeight: '600', 
+    color: '#292524', 
+    flex: 1, 
+    textAlign: 'center' 
+  },
+  cardContainer: {
+    maxWidth: 800,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  card: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 16, 
+    padding: 20, 
+    marginBottom: 16, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.05, 
+    shadowRadius: 10, 
+    shadowOffset: { width: 0, height: 4 }, 
+    elevation: 2 
+  },
+  cardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 0 
+  },
+  orderIdRow: { flexDirection: 'row', alignItems: 'center' },
+  orderIdText: { 
+    fontSize: 15, 
+    fontFamily: 'Mitr', 
+    fontWeight: '600', 
+    color: '#292524' 
+  },
+  statusBadge: { 
+    paddingHorizontal: 12, 
+    paddingVertical: 4, 
+    borderRadius: 99,
+  },
+  statusText: { 
+    fontSize: 12, 
+    fontFamily: 'Mitr', 
+    fontWeight: '600' 
+  },
+  divider: { 
+    height: 1, 
+    backgroundColor: '#F1F5F9', 
+    marginVertical: 16 
+  },
+  sheetRowContainer: { marginBottom: 16 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  sheetIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetName: { 
+    fontSize: 15, 
+    fontFamily: 'Mitr', 
+    fontWeight: '500', 
+    color: '#292524', 
+    flex: 1 
+  },
+  sellerName: {
+    fontSize: 12,
+    fontFamily: 'Mitr',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  sheetPrice: { 
+    fontSize: 15, 
+    fontFamily: 'Mitr', 
+    color: '#292524', 
+    fontWeight: '600' 
+  },
+  noItemText: { 
+    fontFamily: 'Mitr', 
+    color: '#94A3B8', 
+    fontSize: 14, 
+    marginVertical: 6,
+    textAlign: 'center'
+  },
+  refundRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'flex-end', 
+    marginTop: 8 
+  },
+  refundBtn: { 
+    paddingVertical: 6, 
+    paddingHorizontal: 12, 
+    borderRadius: 8, 
+    backgroundColor: '#FFF5F5', 
+    borderWidth: 1, 
+    borderColor: '#FECACA' 
+  },
+  refundBtnText: { 
+    color: '#EF4444', 
+    fontSize: 12, 
+    fontFamily: 'Mitr', 
+    fontWeight: '600' 
+  },
+  refundedText: { 
+    color: '#D97706', 
+    fontSize: 12, 
+    fontFamily: 'Mitr', 
+    fontWeight: '500',
+  },
+  expiredRefundText: { 
+    color: '#94A3B8', 
+    fontSize: 12, 
+    fontFamily: 'Mitr' 
+  },
+  cardFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+  },
+  totalLabel: { 
+    fontSize: 15, 
+    fontFamily: 'Mitr', 
+    color: '#64748B' 
+  },
+  totalAmount: { 
+    fontSize: 20, 
+    fontFamily: 'Mitr', 
+    fontWeight: '600', 
+    color: '#6366F1' 
+  },
+  actionRow: { 
+    flexDirection: 'row', 
+    gap: 12, 
+    marginTop: 20 
+  },
+  cancelButton: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 12, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: '#FECACA', 
+    backgroundColor: '#FFF' 
+  },
+  cancelText: { 
+    color: '#EF4444', 
+    fontFamily: 'Mitr', 
+    fontWeight: '600', 
+    fontSize: 15 
+  },
+  payNowButton: { 
+    flex: 1.5, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 12, 
+    borderRadius: 12, 
+    backgroundColor: '#6366F1' 
+  },
+  payNowText: { 
+    color: '#FFF', 
+    fontFamily: 'Mitr', 
+    fontWeight: '600', 
+    fontSize: 15 
+  },
+  disabledButton: { opacity: 0.5 },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
+  emptyTitle: { 
+    marginTop: 16, 
+    fontSize: 18, 
+    fontFamily: 'Mitr', 
+    fontWeight: '600', 
+    color: '#475569' 
+  },
+  emptySubtitle: { 
+    marginTop: 8, 
+    fontSize: 14, 
+    fontFamily: 'Mitr', 
+    color: '#94A3B8' 
+  },
 
   // ── Modal Styles ──
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  modalSubtitle: { fontSize: 13, color: '#64748B', marginBottom: 16 },
-  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, color: '#1E293B' },
-  submitRefundBtn: { backgroundColor: '#6C63FF', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 8 },
-  submitRefundText: { color: '#FFF', fontSize: 15, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { 
+    width: '100%', 
+    maxWidth: 500,
+    backgroundColor: '#FFF', 
+    borderRadius: 24, 
+    padding: 24, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.15, 
+    shadowRadius: 20, 
+    elevation: 5 
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 20, fontFamily: 'Mitr', fontWeight: '600', color: '#292524' },
+  modalSubtitle: { fontSize: 14, fontFamily: 'Mitr', color: '#64748B', marginBottom: 20 },
+  input: { 
+    backgroundColor: '#F8FAFC', 
+    borderWidth: 1, 
+    borderColor: '#E2E8F0', 
+    borderRadius: 12, 
+    padding: 14, 
+    marginBottom: 12, 
+    fontSize: 14, 
+    fontFamily: 'Mitr', 
+    color: '#292524' 
+  },
+  submitRefundBtn: { backgroundColor: '#6366F1', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  submitRefundText: { color: '#FFF', fontSize: 16, fontFamily: 'Mitr', fontWeight: '600' },
 
   // ── Image Picker Styles ──
-  imagePickerContainer: { marginBottom: 16 },
-  imagePickerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: '#EEF2FF', borderRadius: 10, borderWidth: 1, borderColor: '#C7D2FE', borderStyle: 'dashed' },
-  imagePickerText: { marginLeft: 8, color: '#6C63FF', fontWeight: '600', fontSize: 14 },
-  imagePreviewWrapper: { marginTop: 12, position: 'relative', alignSelf: 'center' },
-  imagePreview: { width: 120, height: 160, borderRadius: 12, backgroundColor: '#F1F5F9' },
-  removeImageBtn: { position: 'absolute', top: -10, right: -10, backgroundColor: '#FFF', borderRadius: 12 }
+  imagePickerContainer: { marginBottom: 12 },
+  imagePickerBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    padding: 14, 
+    backgroundColor: '#EEF2FF', 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: '#C7D2FE', 
+    borderStyle: 'dashed' 
+  },
+  imagePickerText: { marginLeft: 8, color: '#6366F1', fontFamily: 'Mitr', fontWeight: '500', fontSize: 14 },
+  imagePreviewWrapper: { marginTop: 16, position: 'relative', alignSelf: 'center' },
+  imagePreview: { width: 140, height: 180, borderRadius: 16, backgroundColor: '#F1F5F9' },
+  removeImageBtn: { position: 'absolute', top: -10, right: -10, backgroundColor: '#FFF', borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 }
 });
