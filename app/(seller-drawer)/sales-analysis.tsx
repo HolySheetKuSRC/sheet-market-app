@@ -7,36 +7,32 @@ import { apiRequest } from "../../utils/api";
 import { getUserIdFromSessionToken } from "../../utils/token";
 
 interface SheetPerformance {
-    id: number;
+    sheetId: string;
     title: string;
     salesVolume: number;
-    revenue: number;
 }
 
-interface DashboardSummary {
-    totalSalesVolume: number;
-    totalRevenue: number;
-    withdrawableAmount: number;
-    sheetPerformances: SheetPerformance[];
+interface FacultyDistribution {
+    faculty: string;
+    count: number;
 }
 
-// Mock Data for Demographics since API doesn't support it yet
-const DEMOGRAPHICS_MOCK = [
-    { faculty: "วิศวกรรมศาสตร์", percentage: 45, color: "#4CAF50" },
-    { faculty: "วิทยาการจัดการ", percentage: 20, color: "#FFCA28" },
-    { faculty: "อื่นๆ", percentage: 35, color: "#BDBDBD" },
-];
+interface SellerAnalytics {
+    totalSales: number;
+    topSheets: SheetPerformance[];
+    facultyDistribution: FacultyDistribution[];
+}
 
 export default function SalesAnalysisScreen() {
-    const [summary, setSummary] = useState<DashboardSummary | null>(null);
+    const [summary, setSummary] = useState<SellerAnalytics | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchDashboardSummary = useCallback(async () => {
+    const fetchAnalytics = useCallback(async () => {
         try {
             const userId = await getUserIdFromSessionToken();
             if (!userId) return;
 
-            const response = await apiRequest("/payments/seller/dashboard/summary", {
+            const response = await apiRequest("/products/analytics/summary", {
                 headers: { "X-USER-ID": userId },
             });
 
@@ -45,15 +41,15 @@ export default function SalesAnalysisScreen() {
                 setSummary(data);
             }
         } catch (err) {
-            console.error("Error fetching dashboard summary:", err);
+            console.error("Error fetching analytics:", err);
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchDashboardSummary();
-    }, [fetchDashboardSummary]);
+        fetchAnalytics();
+    }, [fetchAnalytics]);
 
     if (loading) {
         return (
@@ -79,7 +75,9 @@ export default function SalesAnalysisScreen() {
                 <View style={styles.chartCard}>
                     <View style={styles.chartHeader}>
                         <Text style={styles.chartTitle}>ยอดขายรวม</Text>
-                        <Text style={styles.chartValue}>฿{(summary?.totalRevenue ?? 0).toLocaleString()}</Text>
+                        <Text style={styles.chartValue}>
+                            {summary?.totalSales ?? 0} ฉบับ
+                        </Text>
                     </View>
 
                     {/* Mock Bar Chart matching design */}
@@ -113,17 +111,21 @@ export default function SalesAnalysisScreen() {
                             <Text>🏆</Text>
                         </View>
 
-                        {summary?.sheetPerformances && summary.sheetPerformances.length > 0 ? (
-                            summary.sheetPerformances.slice(0, 3).map((item, index) => (
-                                <View key={item.id} style={styles.rankingItem}>
-                                    <View style={[styles.rankBadgeWrapper, { backgroundColor: index === 0 ? "#E0E0E0" : index === 1 ? "#E0E0E0" : "#E0E0E0" }]}>
+                        {summary?.topSheets && summary.topSheets.length > 0 ? (
+                            summary.topSheets.map((item, index) => (
+                                <View key={item.sheetId} style={styles.rankingItem}>
+                                    <View style={styles.rankBadgeWrapper}>
                                         <Text style={styles.rankBadgeText}>{index + 1}</Text>
                                     </View>
+
                                     <View style={styles.rankInfo}>
-                                        <Text style={styles.rankTitle} numberOfLines={1}>{item.title}</Text>
-                                        <Text style={styles.rankSubtitle}>{item.salesVolume} ฉบับ</Text>
+                                        <Text style={styles.rankTitle} numberOfLines={1}>
+                                            {item.title}
+                                        </Text>
+                                        <Text style={styles.rankSubtitle}>
+                                            {item.salesVolume} ฉบับ
+                                        </Text>
                                     </View>
-                                    <Text style={styles.rankValue}>฿{item.revenue.toLocaleString()}</Text>
                                 </View>
                             ))
                         ) : (
@@ -135,22 +137,31 @@ export default function SalesAnalysisScreen() {
                     <View style={styles.demoCard}>
                         <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>ลูกค้าของคุณมาจากคณะอะไร?</Text>
 
-                        {DEMOGRAPHICS_MOCK.map((item, index) => (
-                            <View key={index} style={styles.demoItem}>
-                                <View style={styles.demoLabelRow}>
-                                    <Text style={styles.demoFaculty}>{item.faculty}</Text>
-                                    <Text style={styles.demoPercent}>{item.percentage}%</Text>
+                        {summary?.facultyDistribution?.map((item, index) => {
+                            const total =
+                                summary.facultyDistribution.reduce((sum, f) => sum + f.count, 0);
+
+                            const percentage =
+                                total > 0 ? Math.round((item.count / total) * 100) : 0;
+
+                            return (
+                                <View key={index} style={styles.demoItem}>
+                                    <View style={styles.demoLabelRow}>
+                                        <Text style={styles.demoFaculty}>{item.faculty}</Text>
+                                        <Text style={styles.demoPercent}>{percentage}%</Text>
+                                    </View>
+
+                                    <View style={styles.progressBarTrack}>
+                                        <View
+                                            style={[
+                                                styles.progressBarFill,
+                                                { width: `${percentage}%` }
+                                            ]}
+                                        />
+                                    </View>
                                 </View>
-                                <View style={styles.progressBarTrack}>
-                                    <View
-                                        style={[
-                                            styles.progressBarFill,
-                                            { width: `${item.percentage}%`, backgroundColor: item.color }
-                                        ]}
-                                    />
-                                </View>
-                            </View>
-                        ))}
+                            );
+                        })}
                     </View>
 
                 </View>
