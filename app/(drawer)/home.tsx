@@ -96,9 +96,28 @@ export default function HomeScreen() {
   const [newSheets, setNewSheets] = useState<any[]>([]);
   const [loadingTrending, setLoadingTrending] = useState(true);
   const [loadingNew, setLoadingNew] = useState(true);
+  const [ownedSheetIds, setOwnedSheetIds] = useState<Set<string>>(new Set());
 
   // ── Card sizing for horizontal lists — fixed width, not grid math ─────────
   // horizontal lists — SheetCard uses its own internal fixed width
+
+  const fetchOwnedSheets = async () => {
+    try {
+      const res = await apiRequest('/products/purchased?page=0&size=500', { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        const ids = new Set<string>((data.content ?? []).map((s: any) => String(s.id)));
+        setOwnedSheetIds(ids);
+      }
+    } catch {
+      // Not logged in or network error — silently skip owned-sheet detection
+    }
+  };
+
+  // Fetch owned sheet IDs once on mount so we can mark owned cards in the grid
+  useEffect(() => {
+    fetchOwnedSheets();
+  }, []);
 
   // ── greeting based on local time ──────────────────────────────────────────
   const greeting = (() => {
@@ -376,7 +395,7 @@ export default function HomeScreen() {
             data={trendingSheets}
             keyExtractor={item => item.id?.toString()}
             renderItem={({ item }) => (
-              <SheetCard item={item} />
+              <SheetCard item={item} isOwned={ownedSheetIds.has(String(item.id))} />
             )}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
@@ -397,7 +416,7 @@ export default function HomeScreen() {
             data={newSheets}
             keyExtractor={item => item.id?.toString()}
             renderItem={({ item }) => (
-              <SheetCard item={item} />
+              <SheetCard item={item} isOwned={ownedSheetIds.has(String(item.id))} />
             )}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
