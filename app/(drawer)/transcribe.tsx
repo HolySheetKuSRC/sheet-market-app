@@ -1,24 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Mitr_400Regular, Mitr_500Medium, Mitr_600SemiBold, useFonts } from '@expo-google-fonts/mitr';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import { useNavigation, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     KeyboardAvoidingView,
+    Modal,
+    PanResponder,
     Platform,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    useWindowDimensions,
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { getSessionToken } from '../../utils/token';
 import { useNotification } from '../_layout';
 
@@ -44,22 +51,88 @@ const decodeJWT = (token: string): object => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const THEME = {
-    primary: "#6C63FF", // Matches home.tsx
-    primaryDark: "#5A52D5",
+    primary: "#6366F1",
+    primaryDark: "#4F46E5",
     secondary: "#10B981",
-    danger: "#FF69B4",    // Matches home.tsx pink
-    bg: "#F8FAFC",
+    accent1: "#C084FC",
+    accent2: "#8484FC",
+    danger: "#EF4444",
+    bg: "#F8F9FE",
     surface: "#FFFFFF",
-    textMain: "#333333",
-    textSub: "#666666",
-    border: "#EEEEEE",
+    textMain: "#292524",
+    textSub: "#626B7F",
+    textMuted: "#979FAF",
+    border: "#E5E7EB",
     inputBg: "#FFFFFF",
 };
+
+const TOS_TEXT = `นโยบายการใช้ AI เพื่อบันทึกเสียงและประมวลผลในเชิงพาณิชย์ (สำหรับ Marketplace/EdTech Platform)
+
+1. ขออนุญาตอาจารย์หรือเจ้าของเนื้อหาก่อนบันทึกเสียง
+ผู้ใช้ต้องได้รับความยินยอมจากอาจารย์หรือเจ้าของเนื้อหาก่อนเริ่มบันทึกเสียงหรือใช้ AI เพื่อประมวลผลเนื้อหาในคาบเรียนหรือกิจกรรมการเรียนการสอน
+
+2. บทบาทของแพลตฟอร์ม
+แพลตฟอร์มเป็นเพียงตัวกลางในการให้บริการบันทึกและประมวลผลเสียง หากเกิดปัญหาทางกฎหมายหรือข้อพิพาทใด ๆ ระหว่างผู้ใช้และบุคคลที่สาม แพลตฟอร์มจะไม่รับผิดชอบใด ๆ ทั้งสิ้น
+
+3. การจัดการข้อมูลเสียง
+หลังจากประมวลผลด้วย AI เสร็จสิ้น ไฟล์เสียงต้นฉบับจะถูกลบออกจากระบบภายใน 24 ชั่วโมง เพื่อป้องกันการละเมิดสิทธิส่วนบุคคลและความเป็นส่วนตัว
+
+4. การใช้ข้อมูลเพื่อเชิงพาณิชย์
+ข้อมูลเสียงและผลลัพธ์ที่ได้จาก AI สามารถนำไปใช้ในเชิงพาณิชย์ เช่น การขายสรุปเนื้อหา การสร้างผลิตภัณฑ์ดิจิทัล หรือบริการอื่น ๆ ได้ โดยต้องไม่ละเมิดลิขสิทธิ์หรือสิทธิของบุคคลที่สาม
+ผู้ใช้ต้องรับผิดชอบต่อการใช้ข้อมูลในเชิงพาณิชย์และต้องปฏิบัติตามกฎหมายลิขสิทธิ์และกฎหมายที่เกี่ยวข้อง
+
+5. ความเป็นส่วนตัวและการคุ้มครองข้อมูล
+แพลตฟอร์มจะปฏิบัติตามกฎหมายคุ้มครองข้อมูลส่วนบุคคล (PDPA) และกฎหมายที่เกี่ยวข้อง
+ผู้ใช้ต้องไม่บันทึกเสียงหรือข้อมูลส่วนบุคคลของผู้อื่นโดยไม่ได้รับอนุญาต
+
+6. ข้อควรระวังเพิ่มเติม
+หากมีการละเมิดนโยบายนี้ ผู้ใช้จะถูกระงับสิทธิ์การใช้งานและอาจถูกดำเนินคดีตามกฎหมาย
+ห้ามใช้ AI เพื่อสร้างหรือเผยแพร่เนื้อหาที่ผิดกฎหมาย ละเมิดลิขสิทธิ์ หรือขัดต่อจริยธรรม`;
 
 export default function TranscribeScreen() {
     const navigation = useNavigation();
     const router = useRouter();
     const notify = useNotification();
+    const [fontsLoaded] = useFonts({ Mitr_400Regular, Mitr_500Medium, Mitr_600SemiBold });
+
+    // Responsive layout
+    const { width } = useWindowDimensions();
+    const isLargeScreen = width >= 768;
+
+    // Sidebar width state for draggable resizer
+    const [rightWidth, setRightWidth] = useState(340);
+    const rightWidthRef = useRef(340); // snapshot at drag-start to avoid cumulative dx jump
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: () => {
+                rightWidthRef.current = rightWidth; // capture once on touch-down
+            },
+            onPanResponderMove: (_, gestureState) => {
+                // dx is cumulative from touch-start, so use snapshot
+                let newWidth = rightWidthRef.current - gestureState.dx;
+                if (newWidth < 250) newWidth = 250;
+                if (newWidth > width * 0.6) newWidth = width * 0.6;
+                setRightWidth(newWidth);
+            },
+        })
+    ).current;
+
+    // ToS state
+    const [isTosAccepted, setIsTosAccepted] = useState(false);
+    const [showTosModal, setShowTosModal] = useState(false);
+
+    // Glow animation
+    const glowAnim = useRef(new Animated.Value(0.6)).current;
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+                Animated.timing(glowAnim, { toValue: 0.6, duration: 1200, useNativeDriver: true }),
+            ])
+        ).start();
+    }, []);
 
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [audioUri, setAudioUri] = useState<string | null>(null);
@@ -72,6 +145,8 @@ export default function TranscribeScreen() {
     const [jobId, setJobId] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'recording' | 'uploading' | 'processing' | 'completed' | 'failed'>('idle');
     const [resultText, setResultText] = useState<string>('');
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [isSaving, setIsSaving] = useState<boolean>(false);
 
     const [loadingMessage, setLoadingMessage] = useState<string>('');
 
@@ -184,13 +259,55 @@ export default function TranscribeScreen() {
         }
     };
 
+    const handleSave = async () => {
+        if (!jobId) {
+            // No job context (e.g. user loaded from history) — just exit edit mode
+            setIsEditing(false);
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const rawToken = await getSessionToken();
+            const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+            if (!token) {
+                Alert.alert('Auth Error', 'No valid session token. Please log in again.');
+                return;
+            }
+
+            const response = await fetch(`${AI_API_URL}/api/audio/jobs/${jobId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ result_text: resultText }),
+            });
+
+            if (response.ok) {
+                setIsEditing(false);
+                Alert.alert('สำเร็จ', 'บันทึกการแก้ไขเรียบร้อยแล้ว');
+                loadHistory(); // refresh sidebar to reflect any changes
+            } else {
+                const errText = await response.text();
+                Alert.alert('Error', `บันทึกไม่สำเร็จ (${response.status}): ${errText}`);
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            Alert.alert('Error', 'เกิดข้อผิดพลาดในการบันทึก');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleSelectHistory = async (item: HistoryItem) => {
+        setIsEditing(false);
         if (item.status !== 'completed') {
             Alert.alert('Info', `This transcription is "${item.status}" and has no text yet.`);
             return;
         }
         // If the list already includes the text, load it immediately
         if (item.result_text && typeof item.result_text === 'string') {
+            setJobId(item.job_id ?? item.id);
             setResultText(item.result_text);
             setStatus('completed');
             return;
@@ -203,8 +320,9 @@ export default function TranscribeScreen() {
                 Alert.alert('Auth Error', 'No valid session token. Please log in again.');
                 return;
             }
-            const jobId = item.job_id ?? item.id;
-            const detailResponse = await fetch(`${AI_API_URL}/sheets/jobs/${jobId}`, {
+            const selectedJobId = item.job_id ?? item.id;
+            setJobId(selectedJobId);
+            const detailResponse = await fetch(`${AI_API_URL}/sheets/jobs/${selectedJobId}`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (detailResponse.ok) {
@@ -574,18 +692,14 @@ export default function TranscribeScreen() {
     // UI Rendering
     return (
         <View style={styles.container}>
-            {/* Top Bar matching home.tsx layout */}
+            {/* Top Bar */}
             <View style={styles.topBar}>
                 <TouchableOpacity onPress={() => router.push('/(drawer)/home')}>
-                    <Ionicons name="chevron-back" size={28} color="#333" />
+                    <Ionicons name="chevron-back" size={28} color={THEME.textMain} />
                 </TouchableOpacity>
-
-                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333', flex: 1, textAlign: 'center' }}>
-                    ถอดเสียง AI
-                </Text>
-
+                <Text style={styles.topBarTitle}>ถอดเสียง AI</Text>
                 <TouchableOpacity onPress={() => notify("ฟีเจอร์นี้ให้ AI ถอดเสียงพร้อมสรุปเนื้อหาทันที! 🎤")}>
-                    <Ionicons name="information-circle-outline" size={24} color="#333" />
+                    <Ionicons name="information-circle-outline" size={24} color={THEME.textMain} />
                 </TouchableOpacity>
             </View>
 
@@ -593,39 +707,73 @@ export default function TranscribeScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.flex1}
             >
-                <View style={styles.layoutWrapper}>
+                <View style={[styles.layoutWrapper, { flexDirection: isLargeScreen ? 'row' : 'column' }]}>
                     {/* LEFT / CENTER COLUMN */}
                     <ScrollView
                         contentContainerStyle={styles.scrollContent}
                         keyboardShouldPersistTaps="handled"
+                        style={{ flex: 1 }}
                     >
-                        {/* Header Greeting */}
+                        {/* Header */}
                         <View style={styles.headerSection}>
-                            <Text style={styles.greetingTitle}>ถอดเสียงเลคเชอร์</Text>
-                            <Text style={styles.greetingSubtitle}>อัดเสียงหรืออัปโหลดไฟล์ให้ AI ช่วยสรุปให้!</Text>
+                            <Text style={styles.greetingTitle}>เริ่มเลกเชอร์ใหม่</Text>
+                            <Text style={styles.greetingSubtitle}>แตะเพื่อเริ่มอัด แล้วให้ AI ช่วยจดให้เอง</Text>
                         </View>
 
                         {/* Dashboard Content */}
                         <View style={styles.dashboardCard}>
 
-                            {/* STATUS INDICATORS */}
+                            {/* STATUS: UPLOADING / PROCESSING */}
                             {(status === 'uploading' || status === 'processing') ? (
                                 <View style={styles.loadingContainer}>
-                                    <ActivityIndicator size="large" color={THEME.primary} />
+                                    <Animated.View style={{ opacity: glowAnim }}>
+                                        <LinearGradient
+                                            colors={[THEME.accent1, THEME.accent2]}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                            style={{ width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' }}
+                                        >
+                                            <ActivityIndicator size="large" color="#FFF" />
+                                        </LinearGradient>
+                                    </Animated.View>
                                     <Text style={styles.loadingText}>{loadingMessage}</Text>
-                                    <Text style={styles.subLoadingText}>This may take a few minutes. Please wait...</Text>
+                                    <Text style={styles.subLoadingText}>อาจใช้เวลาสักครู่ กรุณารอสักครู่...</Text>
                                 </View>
                             ) : status === 'completed' ? (
                                 <View style={styles.editorContainer}>
-                                    <Text style={styles.inputLabel}>Transcription Result</Text>
-                                    <TextInput
-                                        style={styles.textArea}
-                                        multiline
-                                        value={resultText}
-                                        onChangeText={setResultText}
-                                        placeholder="Transcription result will appear here..."
-                                        textAlignVertical="top"
-                                    />
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                        <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Transcription Result</Text>
+                                        <TouchableOpacity
+                                            onPress={isEditing ? handleSave : () => setIsEditing(true)}
+                                            disabled={isSaving}
+                                            style={{ flexDirection: 'row', alignItems: 'center', opacity: isSaving ? 0.5 : 1 }}
+                                        >
+                                            {isSaving ? (
+                                                <ActivityIndicator size="small" color={THEME.primary} />
+                                            ) : (
+                                                <Ionicons name={isEditing ? "checkmark-circle" : "pencil"} size={18} color={THEME.primary} />
+                                            )}
+                                            <Text style={{ marginLeft: 4, color: THEME.primary, fontWeight: '600', fontFamily: 'Mitr_500Medium' }}>
+                                                {isSaving ? 'Saving...' : isEditing ? 'Save' : 'Edit'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {isEditing ? (
+                                        <TextInput
+                                            style={[styles.markdownWrapper, { fontSize: 16, textAlignVertical: 'top', color: THEME.textMain, fontFamily: 'Mitr_400Regular' }]}
+                                            multiline
+                                            value={resultText}
+                                            onChangeText={setResultText}
+                                            placeholder="Transcription result will appear here..."
+                                        />
+                                    ) : (
+                                        <ScrollView style={styles.markdownWrapper}>
+                                            <Markdown style={markdownStyles}>
+                                                {resultText || 'Transcription result will appear here...'}
+                                            </Markdown>
+                                        </ScrollView>
+                                    )}
 
                                     <View style={styles.buttonRow}>
                                         <TouchableOpacity
@@ -642,6 +790,7 @@ export default function TranscribeScreen() {
                                                 setResultText('');
                                                 setAudioUri(null);
                                                 setJobId(null);
+                                                setIsEditing(false);
                                             }}
                                         >
                                             <Text style={styles.mainButtonText}>New Transcription</Text>
@@ -654,21 +803,24 @@ export default function TranscribeScreen() {
 
                                     {audioUri ? (
                                         <View style={styles.audioReadyContainer}>
-                                            <View style={styles.audioIconWrapper}>
-                                                <Ionicons name="document-text" size={40} color={THEME.primary} />
-                                            </View>
+                                            <LinearGradient
+                                                colors={[THEME.accent1, THEME.primary]}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 1 }}
+                                                style={styles.audioIconWrapper}
+                                            >
+                                                <Ionicons name="document-text" size={40} color="#FFF" />
+                                            </LinearGradient>
                                             <Text style={styles.audioReadyText}>ไฟล์เสียงพร้อมแล้ว</Text>
 
-                                            {/* --- CUSTOM LECTURE TITLE INPUT --- */}
                                             <TextInput
                                                 style={styles.titleInput}
                                                 placeholder="ตั้งชื่อเลกเชอร์ (เช่น Lecture 1: AI)..."
-                                                placeholderTextColor={THEME.textSub}
+                                                placeholderTextColor={THEME.textMuted}
                                                 value={customTitle}
                                                 onChangeText={setCustomTitle}
                                             />
 
-                                            {/* --- PREVIEW AUDIO PLAYBACK --- */}
                                             <TouchableOpacity
                                                 style={styles.playButtonRow}
                                                 onPress={playAudio}
@@ -702,36 +854,95 @@ export default function TranscribeScreen() {
                                         </View>
                                     ) : (
                                         <>
+                                            {/* Animated wave bars */}
+                                            <View style={styles.waveContainer}>
+                                                {[0.4, 0.7, 1, 0.7, 0.4].map((h, i) => (
+                                                    <Animated.View
+                                                        key={i}
+                                                        style={[
+                                                            styles.waveBar,
+                                                            {
+                                                                height: 20 * h * (status === 'recording' ? 2 : 1),
+                                                                opacity: status === 'recording' ? glowAnim : 0.35,
+                                                            },
+                                                        ]}
+                                                    />
+                                                ))}
+                                            </View>
+
                                             {/* Record Button */}
                                             <TouchableOpacity
-                                                style={[
-                                                    styles.recordButton,
-                                                    status === 'recording' && styles.recordingActive
-                                                ]}
-                                                onPress={status === 'recording' ? stopRecording : startRecording}
+                                                style={[styles.recordButton, status === 'recording' && styles.recordingActive]}
+                                                onPress={() => {
+                                                    if (!isTosAccepted) {
+                                                        Alert.alert('กรุณายอมรับเงื่อนไข', 'กรุณายอมรับเงื่อนไขก่อนใช้งาน');
+                                                        return;
+                                                    }
+                                                    status === 'recording' ? stopRecording() : startRecording();
+                                                }}
+                                                disabled={!isTosAccepted && status !== 'recording'}
                                             >
-                                                <View style={[
-                                                    styles.recordInner,
-                                                    status === 'recording' && styles.recordInnerActive
-                                                ]} />
+                                                <Animated.View style={{ opacity: status === 'recording' ? glowAnim : 1 }}>
+                                                    <LinearGradient
+                                                        colors={status === 'recording' ? [THEME.danger, '#FF8A80'] : [THEME.accent1, THEME.primary]}
+                                                        start={{ x: 0, y: 0 }}
+                                                        end={{ x: 1, y: 1 }}
+                                                        style={[
+                                                            styles.recordInner,
+                                                            status === 'recording' && styles.recordInnerActive
+                                                        ]}
+                                                    />
+                                                </Animated.View>
                                             </TouchableOpacity>
                                             <Text style={styles.controlLabel}>
-                                                {status === 'recording' ? 'Tap to Stop Recording' : 'Tap to Start Recording'}
+                                                {status === 'recording' ? 'แตะเพื่อหยุดบันทึก' : 'แตะเพื่อเริ่มบันทึก'}
                                             </Text>
 
                                             <View style={styles.divider}>
                                                 <View style={styles.dividerLine} />
-                                                <Text style={styles.dividerText}>OR</Text>
+                                                <Text style={styles.dividerText}>หรือ</Text>
                                                 <View style={styles.dividerLine} />
                                             </View>
 
                                             {/* Upload Button */}
                                             <TouchableOpacity
-                                                style={[styles.mainButton, { width: '100%', backgroundColor: THEME.surface, borderWidth: 1, borderColor: THEME.border }]}
-                                                onPress={pickAudioFile}
+                                                style={styles.uploadButton}
+                                                onPress={() => {
+                                                    if (!isTosAccepted) {
+                                                        Alert.alert('กรุณายอมรับเงื่อนไข', 'กรุณายอมรับเงื่อนไขก่อนใช้งาน');
+                                                        return;
+                                                    }
+                                                    pickAudioFile();
+                                                }}
+                                                disabled={!isTosAccepted}
                                             >
-                                                <Text style={[styles.mainButtonText, { color: THEME.textMain }]}>Select Audio File</Text>
+                                                <Ionicons name="cloud-upload-outline" size={20} color={THEME.primary} style={{ marginRight: 8 }} />
+                                                <Text style={styles.uploadButtonText}>Audio Upload</Text>
                                             </TouchableOpacity>
+
+                                            {/* ToS Checkbox */}
+                                            <View style={styles.tosContainer}>
+                                                <TouchableOpacity
+                                                    onPress={() => setIsTosAccepted(!isTosAccepted)}
+                                                    style={styles.tosCheckbox}
+                                                >
+                                                    <Ionicons
+                                                        name={isTosAccepted ? "checkbox" : "square-outline"}
+                                                        size={22}
+                                                        color={isTosAccepted ? THEME.primary : THEME.textMuted}
+                                                    />
+                                                </TouchableOpacity>
+                                                <Text style={styles.tosText}>
+                                                    ฉันได้อ่านและยอมรับ{' '}
+                                                    <Text
+                                                        style={styles.tosLink}
+                                                        onPress={() => setShowTosModal(true)}
+                                                    >
+                                                        ข้อกำหนดและเงื่อนไขการใช้งาน (Terms of Service)
+                                                    </Text>
+                                                    {' '}แล้ว
+                                                </Text>
+                                            </View>
                                         </>
                                     )}
                                 </View>
@@ -740,12 +951,22 @@ export default function TranscribeScreen() {
                         <View style={{ height: 40 }} />
                     </ScrollView>
 
+                    {/* Draggable Resizer — only on large screens */}
+                    {isLargeScreen && (
+                        <View
+                            {...panResponder.panHandlers}
+                            style={styles.resizerHitArea}
+                        >
+                            <View style={styles.resizerLine} />
+                        </View>
+                    )}
+
                     {/* RIGHT COLUMN: RECORD HISTORY */}
-                    <View style={styles.sidebarColumn}>
-                        <Text style={styles.sidebarTitle}>ประวัติการถอดเสียง</Text>
+                    <View style={[styles.sidebarColumn, isLargeScreen ? { width: rightWidth } : { width: '100%' }]}>
+                        <Text style={styles.sidebarTitle}>Record History</Text>
                         <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                             {historyList.length === 0 && (
-                                <Text style={{ color: THEME.textSub, fontSize: 13, textAlign: 'center', marginTop: 20 }}>ยังไม่มีประวัติการถอดเสียง</Text>
+                                <Text style={{ color: THEME.textMuted, fontSize: 13, textAlign: 'center', marginTop: 20, fontFamily: 'Mitr_400Regular' }}>ยังไม่มีประวัติการถอดเสียง</Text>
                             )}
                             {historyList.map(item => (
                                 <TouchableOpacity
@@ -756,14 +977,26 @@ export default function TranscribeScreen() {
                                     <View style={styles.historyHeader}>
                                         <Text style={styles.historyItemTitle} numberOfLines={1}>{item.filename}</Text>
                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                            <View style={[
-                                                styles.historyBadge,
-                                                item.status === 'completed' ? styles.badgeSuccess :
-                                                    (item.status === 'processing' || item.status === 'pending') ? styles.badgeProcessing : styles.badgeDanger
-                                            ]}>
-                                                <Text style={styles.historyBadgeText}>{item.status}</Text>
-                                            </View>
-                                            <TouchableOpacity 
+                                            {/* Status Badge */}
+                                            {(item.status === 'processing' || item.status === 'pending') ? (
+                                                <LinearGradient
+                                                    colors={[THEME.accent1, THEME.accent2]}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 0 }}
+                                                    style={styles.historyBadge}
+                                                >
+                                                    <Text style={styles.historyBadgeText}>{item.status}</Text>
+                                                </LinearGradient>
+                                            ) : (
+                                                <View style={[
+                                                    styles.historyBadge,
+                                                    item.status === 'completed' ? styles.badgeSuccess : styles.badgeDanger
+                                                ]}>
+                                                    <Text style={styles.historyBadgeText}>{item.status}</Text>
+                                                </View>
+                                            )}
+                                            {/* Delete button */}
+                                            <TouchableOpacity
                                                 style={{ marginLeft: 8, padding: 4 }}
                                                 onPress={(e) => {
                                                     e.stopPropagation?.();
@@ -773,15 +1006,15 @@ export default function TranscribeScreen() {
                                                 disabled={deletingJobId === (item.job_id || item.id)}
                                             >
                                                 {deletingJobId === (item.job_id || item.id) ? (
-                                                    <ActivityIndicator size="small" color="#EF4444" />
+                                                    <ActivityIndicator size="small" color={THEME.danger} />
                                                 ) : (
-                                                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                                                    <Ionicons name="trash-outline" size={18} color={THEME.danger} />
                                                 )}
                                             </TouchableOpacity>
                                         </View>
                                     </View>
                                     <View style={styles.historyFooter}>
-                                        <Ionicons name="time-outline" size={14} color={THEME.textSub} />
+                                        <Ionicons name="time-outline" size={14} color={THEME.textMuted} />
                                         <Text style={styles.historyDateText}>{formatDate(item.created_at)}</Text>
                                     </View>
                                 </TouchableOpacity>
@@ -790,6 +1023,37 @@ export default function TranscribeScreen() {
                     </View>
                 </View>
             </KeyboardAvoidingView>
+
+            {/* ToS Modal */}
+            <Modal visible={showTosModal} transparent animationType="slide" onRequestClose={() => setShowTosModal(false)}>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+                    <View style={{ backgroundColor: '#FFF', borderRadius: 16, maxHeight: '85%', flexShrink: 1, overflow: 'hidden' }}>
+                        {/* Header */}
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>ข้อกำหนดและเงื่อนไขการใช้งาน</Text>
+                            <TouchableOpacity onPress={() => setShowTosModal(false)}>
+                                <Ionicons name="close-circle" size={28} color={THEME.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                        {/* Body — flexGrow so ScrollView expands on iPad */}
+                        <ScrollView
+                            style={{ flexGrow: 1 }}
+                            contentContainerStyle={{ padding: 20, paddingBottom: 8 }}
+                        >
+                            <Text style={{ fontSize: 15, lineHeight: 24, color: '#000', fontFamily: 'Mitr_400Regular' }}>
+                                {TOS_TEXT}
+                            </Text>
+                        </ScrollView>
+                        {/* Accept button */}
+                        <TouchableOpacity
+                            style={[styles.mainButton, { margin: 16 }]}
+                            onPress={() => { setIsTosAccepted(true); setShowTosModal(false); }}
+                        >
+                            <Text style={styles.mainButtonText}>ยอมรับเงื่อนไข</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -798,29 +1062,46 @@ const styles = StyleSheet.create({
     flex1: { flex: 1 },
     layoutWrapper: {
         flex: 1,
-        flexDirection: Platform.OS === 'web' ? 'row' : 'column',
     },
     sidebarColumn: {
-        width: Platform.OS === 'web' ? 320 : '100%',
         backgroundColor: '#FFF',
-        borderLeftWidth: Platform.OS === 'web' ? 1 : 0,
-        borderTopWidth: Platform.OS === 'web' ? 0 : 1,
+        borderLeftWidth: 1,
+        borderTopWidth: 1,
         borderColor: THEME.border,
         padding: 20,
     },
+    resizerHitArea: {
+        width: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+        backgroundColor: 'transparent',
+        ...(Platform.OS === 'web' ? { cursor: 'col-resize' } as any : {}),
+    },
+    resizerLine: {
+        width: 3,
+        height: '100%',
+        backgroundColor: THEME.border,
+        borderRadius: 2,
+    },
     sidebarTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: THEME.textMain,
+        fontSize: 20,
+        fontWeight: '600',
+        color: 'black',
         marginBottom: 16,
+        fontFamily: 'Mitr_600SemiBold',
     },
     historyCard: {
-        backgroundColor: THEME.bg,
-        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
         borderColor: THEME.border,
+        ...Platform.select({
+            web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.04)' },
+            default: { elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+        }),
     },
     historyHeader: {
         flexDirection: 'row',
@@ -829,24 +1110,25 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     historyItemTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: THEME.textMain,
+        fontSize: 17,
+        fontWeight: '500',
+        color: 'black',
         flex: 1,
         marginRight: 8,
+        fontFamily: 'Mitr_500Medium',
     },
     historyBadge: {
-        paddingHorizontal: 8,
+        paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
     },
-    badgeSuccess: { backgroundColor: THEME.secondary + '20' },
-    badgeProcessing: { backgroundColor: '#A78BFA20' },
-    badgeDanger: { backgroundColor: THEME.danger + '20' },
+    badgeSuccess: { backgroundColor: THEME.secondary },
+    badgeDanger: { backgroundColor: THEME.danger },
     historyBadgeText: {
         fontSize: 10,
         fontWeight: '700',
-        color: THEME.textMain,
+        color: '#FFFFFF',
+        fontFamily: 'Mitr_500Medium',
     },
     historyFooter: {
         flexDirection: 'row',
@@ -854,31 +1136,58 @@ const styles = StyleSheet.create({
     },
     historyDateText: {
         fontSize: 12,
-        color: THEME.textSub,
+        color: THEME.textMuted,
         marginLeft: 4,
+        fontFamily: 'Mitr_400Regular',
     },
-    container: { flex: 1, backgroundColor: '#F8FAFC' },
-    topBar: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', paddingTop: 45, paddingBottom: 20, justifyContent: 'space-between' },
+    container: { flex: 1, backgroundColor: THEME.bg },
+    topBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: '#FFF',
+        paddingTop: 45,
+        paddingBottom: 20,
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: THEME.border,
+    },
+    topBarTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: THEME.textMain,
+        flex: 1,
+        textAlign: 'center',
+        fontFamily: 'Mitr_600SemiBold',
+    },
     scrollContent: { padding: 20, paddingBottom: 40, flexGrow: 1, flex: Platform.OS === 'web' ? 1 : undefined },
     headerSection: { marginBottom: 20 },
-    greetingTitle: { fontSize: 28, fontWeight: '900', color: '#6C63FF' },
-    greetingSubtitle: { color: '#64748B', fontSize: 14, marginTop: 4 },
+    greetingTitle: {
+        fontSize: 29,
+        fontWeight: '600',
+        color: THEME.textMain,
+        fontFamily: 'Mitr_600SemiBold',
+    },
+    greetingSubtitle: {
+        color: THEME.textSub,
+        fontSize: 17,
+        marginTop: 4,
+        fontFamily: 'Mitr_400Regular',
+    },
     dashboardCard: {
+        flex: 1,
         backgroundColor: THEME.surface,
         borderRadius: 20,
         padding: 24,
         width: "100%",
-        minHeight: 400,
         marginTop: 10,
         ...Platform.select({
-            web: {
-                boxShadow: "0px 4px 12px -2px rgba(0,0,0,0.05)",
-            },
+            web: { boxShadow: "0px 4px 20px -2px rgba(99, 102, 241, 0.08)" },
             default: {
-                elevation: 2,
-                shadowColor: "#000",
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
+                elevation: 3,
+                shadowColor: THEME.primary,
+                shadowOpacity: 0.08,
+                shadowRadius: 12,
                 shadowOffset: { width: 0, height: 4 },
             },
         }),
@@ -889,10 +1198,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 20,
     },
+    // Wave animation
+    waveContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        height: 40,
+        marginBottom: 20,
+        gap: 4,
+    },
+    waveBar: {
+        width: 4,
+        borderRadius: 2,
+        backgroundColor: THEME.primary,
+    },
+    // Record button
     recordButton: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 90,
+        height: 90,
+        borderRadius: 45,
         borderWidth: 4,
         borderColor: THEME.border,
         alignItems: 'center',
@@ -900,30 +1224,29 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     recordingActive: {
-        borderColor: THEME.danger + '40', // light red border
+        borderColor: THEME.danger + '40',
     },
     recordInner: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: THEME.primary,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
     },
     recordInnerActive: {
-        backgroundColor: THEME.danger,
-        borderRadius: 8, // Square shape for stop
-        width: 32,
-        height: 32,
+        borderRadius: 10,
+        width: 36,
+        height: 36,
     },
     controlLabel: {
         fontSize: 15,
         fontWeight: '600',
         color: THEME.textSub,
+        fontFamily: 'Mitr_400Regular',
     },
     divider: {
         flexDirection: 'row',
         alignItems: 'center',
         width: '100%',
-        marginVertical: 30,
+        marginVertical: 24,
     },
     dividerLine: {
         flex: 1,
@@ -932,21 +1255,64 @@ const styles = StyleSheet.create({
     },
     dividerText: {
         marginHorizontal: 14,
-        color: THEME.textSub,
+        color: THEME.textMuted,
         fontWeight: '600',
         fontSize: 13,
+        fontFamily: 'Mitr_500Medium',
     },
+    // Upload button — outline style
+    uploadButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 2,
+        borderColor: THEME.primary,
+        backgroundColor: 'transparent',
+    },
+    uploadButtonText: {
+        fontWeight: 'bold',
+        fontSize: 16,
+        color: THEME.primary,
+        fontFamily: 'Mitr_500Medium',
+    },
+    // ToS
+    tosContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginTop: 20,
+        paddingHorizontal: 4,
+    },
+    tosCheckbox: {
+        marginRight: 8,
+        marginTop: 2,
+    },
+    tosText: {
+        flex: 1,
+        fontSize: 13,
+        color: THEME.textSub,
+        lineHeight: 20,
+        fontFamily: 'Mitr_400Regular',
+    },
+    tosLink: {
+        color: THEME.primary,
+        textDecorationLine: 'underline',
+        fontFamily: 'Mitr_500Medium',
+    },
+    // Main button
     mainButton: {
         backgroundColor: THEME.primary,
         padding: 16,
         borderRadius: 16,
         alignItems: "center",
         ...Platform.select({
-            web: { boxShadow: "0px 10px 15px -3px rgba(79, 70, 229, 0.2)" },
+            web: { boxShadow: "0px 10px 15px -3px rgba(99, 102, 241, 0.25)" },
             default: {
                 elevation: 4,
                 shadowColor: THEME.primary,
-                shadowOpacity: 0.2,
+                shadowOpacity: 0.25,
                 shadowRadius: 8,
                 shadowOffset: { width: 0, height: 4 },
             },
@@ -956,6 +1322,7 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 16,
         color: "#FFF",
+        fontFamily: 'Mitr_500Medium',
     },
     secondaryButton: {
         padding: 16,
@@ -967,6 +1334,7 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 16,
         color: THEME.textSub,
+        fontFamily: 'Mitr_400Regular',
     },
     audioReadyContainer: {
         flex: 1,
@@ -978,7 +1346,6 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: '#EEF2FF',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
@@ -988,6 +1355,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: THEME.textMain,
         marginBottom: 10,
+        fontFamily: 'Mitr_600SemiBold',
     },
     titleInput: {
         width: '100%',
@@ -1000,6 +1368,7 @@ const styles = StyleSheet.create({
         backgroundColor: THEME.inputBg,
         fontSize: 15,
         color: THEME.textMain,
+        fontFamily: 'Mitr_400Regular',
     },
     playButtonRow: {
         flexDirection: 'row',
@@ -1011,6 +1380,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: THEME.primary,
         marginLeft: 8,
+        fontFamily: 'Mitr_400Regular',
     },
     loadingContainer: {
         flex: 1,
@@ -1023,11 +1393,13 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: THEME.textMain,
+        fontFamily: 'Mitr_500Medium',
     },
     subLoadingText: {
         marginTop: 8,
         fontSize: 14,
         color: THEME.textSub,
+        fontFamily: 'Mitr_400Regular',
     },
     editorContainer: {
         flex: 1,
@@ -1038,16 +1410,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: THEME.textMain,
         marginLeft: 4,
+        fontFamily: 'Mitr_500Medium',
     },
-    textArea: {
+    markdownWrapper: {
+        flex: 1,
         backgroundColor: THEME.bg,
         borderWidth: 1,
         borderColor: THEME.border,
         borderRadius: 14,
         padding: 16,
-        fontSize: 16,
-        minHeight: 250,
-        color: THEME.textMain,
         marginBottom: 20,
     },
     buttonRow: {
@@ -1058,5 +1429,50 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: THEME.secondary,
         shadowColor: THEME.secondary,
-    }
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalSheet: {
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        width: '90%',
+        maxWidth: 500,
+        maxHeight: '80%',
+        overflow: 'hidden',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: THEME.border,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: THEME.textMain,
+        flex: 1,
+        fontFamily: 'Mitr_600SemiBold',
+    },
+    tosModalBody: {
+        fontSize: 15,
+        lineHeight: 24,
+        color: THEME.textSub,
+        paddingVertical: 16,
+        fontFamily: 'Mitr_400Regular',
+    },
+});
+
+const markdownStyles = StyleSheet.create({
+    body: { fontSize: 16, lineHeight: 28, color: THEME.textMain, fontFamily: 'Mitr_400Regular' },
+    heading1: { fontSize: 24, fontWeight: 'bold', marginVertical: 10, color: THEME.primary, fontFamily: 'Mitr_600SemiBold' },
+    heading2: { fontSize: 20, fontWeight: 'bold', marginVertical: 8, color: THEME.primaryDark, fontFamily: 'Mitr_600SemiBold' },
+    strong: { fontWeight: 'bold', color: '#11181C' },
+    blockquote: { borderLeftWidth: 4, borderLeftColor: '#ccc', paddingLeft: 10, opacity: 0.8 },
 });
