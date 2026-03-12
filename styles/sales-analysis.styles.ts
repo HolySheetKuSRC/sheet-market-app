@@ -3,217 +3,172 @@ import { StyleSheet } from "react-native";
 export const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F8F9FC", // Light background matching dashboard
+        backgroundColor: "#F8F9FC",
     },
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: 16,
         paddingBottom: 40,
     },
-
-    // Section Header
-    sectionHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 16,
-    },
     sectionTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: "bold",
         color: "#333",
     },
     dateFilterButton: {
         backgroundColor: "#fff",
         paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
         borderColor: "#E5E7EB",
         flexDirection: "row",
         alignItems: "center",
-        gap: 4,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        gap: 6,
     },
     dateFilterText: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "600",
         color: "#333",
     },
-
-    // Chart Card
     chartCard: {
         backgroundColor: "#fff",
         borderRadius: 16,
         padding: 20,
         marginBottom: 20,
+        elevation: 2,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
-        elevation: 2,
     },
     chartHeader: {
-        marginBottom: 24,
+        marginBottom: 20,
     },
     chartTitle: {
         fontSize: 14,
         fontWeight: "600",
         color: "#888",
-        marginBottom: 4,
     },
     chartValue: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: "bold",
-        color: "#6C63FF", // Purple that matches the design
+        color: "#6C63FF",
     },
-
-    // Mock Bar Chart
     barChartContainer: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "flex-end",
-        height: 180, // Fixed height for area
-        paddingTop: 20,
+        alignItems: "stretch", // ทำให้ barColumn ยืดเต็มความสูง container
+        height: 200,
     },
     barColumn: {
-        alignItems: "center",
         flex: 1,
+        alignItems: 'center',
     },
     barWrapper: {
         flex: 1,
-        justifyContent: "flex-end",
-        width: "100%",
-        alignItems: "center",
+        width: '100%',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    barValueLabel: {
+        fontSize: 10,
+        fontWeight: "bold",
+        color: "#6C63FF",
+        marginBottom: 4,
     },
     bar: {
-        width: "80%",
-        backgroundColor: "#7A82FF",
-        borderTopLeftRadius: 4,
-        borderTopRightRadius: 4,
+        width: 18,
+        backgroundColor: '#6C63FF',
+        borderTopLeftRadius: 6,
+        borderTopRightRadius: 6,
     },
     barLabel: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#333",
-        marginTop: 8,
+        fontSize: 10,
+        color: "#666",
+        textAlign: 'center',
     },
-
-    // Bottom Row Layout
     bottomRow: {
         flexDirection: "row",
-        gap: 16,
+        gap: 12,
     },
-
-    // Ranking Card (Left)
     rankingCard: {
         flex: 1.2,
         backgroundColor: "#fff",
         borderRadius: 16,
-        padding: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        padding: 16,
     },
     rankingHeader: {
         flexDirection: "row",
-        alignItems: "center",
+        justifyContent: "space-between",
         marginBottom: 16,
-        gap: 8,
     },
     rankingItem: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 16,
+        marginBottom: 12,
     },
     rankBadgeWrapper: {
-        width: 32,
-        height: 32,
-        backgroundColor: "#E2E5FF", // Fallback color
-        borderRadius: 8,
+        width: 28,
+        height: 28,
+        backgroundColor: "#F0F2FF",
+        borderRadius: 6,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 12,
+        marginRight: 10,
     },
     rankBadgeText: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: "bold",
-        color: "#333",
     },
     rankInfo: {
         flex: 1,
-        justifyContent: "center",
     },
     rankTitle: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "bold",
-        color: "#333",
-        marginBottom: 2,
     },
     rankSubtitle: {
-        fontSize: 12,
+        fontSize: 11,
         color: "#888",
     },
-    rankValue: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#333",
-    },
-
-    // Demographics Card (Right)
     demoCard: {
         flex: 1,
         backgroundColor: "#fff",
         borderRadius: 16,
-        padding: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        padding: 16,
     },
     demoItem: {
-        marginBottom: 16,
+        marginBottom: 12,
     },
     demoLabelRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 6,
+        marginBottom: 4,
     },
     demoFaculty: {
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: "bold",
-        color: "#333",
+        flex: 1,
     },
     demoPercent: {
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: "bold",
-        color: "#333",
     },
     progressBarTrack: {
-        height: 8,
+        height: 6,
         backgroundColor: "#F0F0F0",
-        borderRadius: 4,
-        width: "100%",
+        borderRadius: 3,
         overflow: "hidden",
     },
     progressBarFill: {
         height: "100%",
-        borderRadius: 4,
     },
-
-    // Empty State
     emptyText: {
-        textAlign: "center",
-        color: "#999",
-        marginTop: 20,
-        fontSize: 14,
+        fontSize: 12,
+        color: "#ccc",
+        textAlign: 'center',
+        marginTop: 10,
     }
 });
