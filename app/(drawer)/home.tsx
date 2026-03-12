@@ -97,7 +97,13 @@ export default function HomeScreen() {
   const [loadingTrending, setLoadingTrending] = useState(true);
   const [loadingNew, setLoadingNew] = useState(true);
 
-  const CARD_WIDTH = width >= 768 ? 200 : 165;
+  // ── Card sizing — identical formula to Marketplace ────────────────────────
+  const CARD_GAP = 10;
+  const H_PAD = 14;
+  const numCols = width >= 1024 ? 5 : width >= 768 ? 4 : width >= 480 ? 3 : 2;
+  const CARD_WIDTH = width > 0
+    ? Math.floor((width - H_PAD * 2 - CARD_GAP * (numCols - 1)) / numCols)
+    : 160;
 
   // ── greeting based on local time ──────────────────────────────────────────
   const greeting = (() => {
@@ -130,8 +136,12 @@ export default function HomeScreen() {
 
   // ── load trending & new arrivals ─────────────────────────────────────────
   useEffect(() => {
-    getProducts({ sort: 'most_popular', size: 5 })
-      .then(data => setTrendingSheets(data?.content ?? (Array.isArray(data) ? data : [])))
+    getProducts({ size: 10 })
+      .then(data => {
+        const items: any[] = data?.content ?? (Array.isArray(data) ? data : []);
+        const sorted = [...items].sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0));
+        setTrendingSheets(sorted.slice(0, 5));
+      })
       .catch(() => {})
       .finally(() => setLoadingTrending(false));
 
@@ -370,12 +380,10 @@ export default function HomeScreen() {
             data={trendingSheets}
             keyExtractor={item => item.id?.toString()}
             renderItem={({ item }) => (
-              <View style={{ marginRight: 12 }}>
-                <SheetCard item={item} cardWidth={CARD_WIDTH} />
-              </View>
+              <SheetCard item={item} cardWidth={CARD_WIDTH} />
             )}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 8 }}
+            contentContainerStyle={{ gap: CARD_GAP, paddingBottom: 8 }}
             ListEmptyComponent={<Text style={styles.emptyText}>ยังไม่มีข้อมูล</Text>}
           />
         )}
@@ -393,12 +401,10 @@ export default function HomeScreen() {
             data={newSheets}
             keyExtractor={item => item.id?.toString()}
             renderItem={({ item }) => (
-              <View style={{ marginRight: 12 }}>
-                <SheetCard item={item} cardWidth={CARD_WIDTH} />
-              </View>
+              <SheetCard item={item} cardWidth={CARD_WIDTH} />
             )}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 8 }}
+            contentContainerStyle={{ gap: CARD_GAP, paddingBottom: 8 }}
             ListEmptyComponent={<Text style={styles.emptyText}>ยังไม่มีข้อมูล</Text>}
           />
         )}

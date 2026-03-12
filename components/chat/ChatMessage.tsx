@@ -3,23 +3,39 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 const aiAvatarUrl = 'https://cdn-icons-png.flaticon.com/512/4712/4712035.png';
 
+/**
+ * Module-level Set — survives component unmounts and re-mounts.
+ * Once a message key is in here, its typewriter will never replay.
+ */
+const animatedMessageIds = new Set<string>();
+
 interface ChatMessageProps {
+  /** Optional unique ID for this message — used as the animation dedup key */
+  id?: string;
   text: string;
   sender: 'user' | 'ai';
   /** When true, reveals text character-by-character (typewriter effect) */
   animate?: boolean;
+  /** Called once when the typewriter animation finishes */
+  onAnimationComplete?: () => void;
 }
 
-export const ChatMessage = ({ text, sender, animate = false }: ChatMessageProps) => {
+export const ChatMessage = ({ id, text, sender, animate = false, onAnimationComplete }: ChatMessageProps) => {
   const isAI = sender === 'ai';
-  const [displayed, setDisplayed] = useState(animate ? '' : text);
+  // Use id if available, fall back to text — either way guaranteed unique per AI turn
+  const messageKey = id ?? text;
+  const shouldAnimate = animate && isAI && !animatedMessageIds.has(messageKey);
+
+  const [displayed, setDisplayed] = useState(shouldAnimate ? '' : text);
   const indexRef = useRef(0);
 
   useEffect(() => {
-    if (!animate || !isAI) {
+    if (!shouldAnimate) {
       setDisplayed(text);
       return;
     }
+    // Immediately mark as animate-started so a rapid remount won't double-play
+    animatedMessageIds.add(messageKey);
     // Typewriter: reveal 2 characters per ~16 ms frame (~60fps)
     indexRef.current = 0;
     setDisplayed('');
@@ -28,12 +44,14 @@ export const ChatMessage = ({ text, sender, animate = false }: ChatMessageProps)
       if (indexRef.current >= text.length) {
         setDisplayed(text);
         clearInterval(id);
+        onAnimationComplete?.();
       } else {
         setDisplayed(text.slice(0, indexRef.current));
       }
     }, 16);
     return () => clearInterval(id);
-  }, [text, animate, isAI]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run exactly once on mount
 
   return (
     <View style={[styles.messageRow, isAI ? styles.aiRow : styles.userRow]}>

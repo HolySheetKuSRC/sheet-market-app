@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -22,6 +23,8 @@ interface Message {
   text: string;
   sender: 'user' | 'ai';
   animate?: boolean;
+  /** Set to true once the typewriter animation has finished — survives re-opens */
+  hasFinishedTyping?: boolean;
 }
 
 // ── Thinking animation: 3 bouncing dots ────────────────────────────────────
@@ -106,6 +109,12 @@ export const FloatingChat = () => {
   const [visible, setVisible] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(() => Math.random().toString(36).substring(2, 10));
+
+  const resetChat = () => {
+    setMessages([]);
+    setSessionId(Math.random().toString(36).substring(2, 10));
+  };
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -193,7 +202,7 @@ export const FloatingChat = () => {
     setLoading(true);
 
     try {
-      const res = await sendMessageToAI('home_session', text, '');
+      const res = await sendMessageToAI(sessionId, text, null as any);
       if (res?.message) {
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
@@ -267,6 +276,9 @@ export const FloatingChat = () => {
             </View>
             <View style={styles.headerRight}>
               <Text style={styles.onlineLabel}>ออนไลน์</Text>
+              <TouchableOpacity onPress={resetChat} style={styles.closeBtn}>
+                <Ionicons name="refresh" size={15} color="white" />
+              </TouchableOpacity>
               <TouchableOpacity onPress={closeChat} style={styles.closeBtn}>
                 <Text style={styles.closeBtnText}>✕</Text>
               </TouchableOpacity>
@@ -285,9 +297,17 @@ export const FloatingChat = () => {
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
                 <ChatMessage
+                  id={item.id}
                   text={item.text}
                   sender={item.sender}
-                  animate={item.animate === true}
+                  animate={item.animate === true && !item.hasFinishedTyping}
+                  onAnimationComplete={() => {
+                    setMessages(prev =>
+                      prev.map(m =>
+                        m.id === item.id ? { ...m, hasFinishedTyping: true } : m
+                      )
+                    );
+                  }}
                 />
               )}
               contentContainerStyle={styles.listContent}

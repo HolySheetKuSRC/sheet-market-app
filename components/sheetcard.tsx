@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     Dimensions,
     Image,
     StyleSheet,
@@ -10,6 +12,8 @@ import {
     View,
     Pressable,
 } from "react-native";
+
+import { apiRequest } from "../utils/api";
 
 const { width } = Dimensions.get("window");
 
@@ -54,6 +58,45 @@ const SheetCard: React.FC<SheetCardProps> = ({
 }) => {
   const router = useRouter();
   if (!item) return null;
+
+  const [addingToCart, setAddingToCart] = useState(false);
+
+  const handleAddToCart = async () => {
+    try {
+      setAddingToCart(true);
+      const res = await apiRequest('/cart/add', {
+        method: 'POST',
+        body: JSON.stringify({ sheetId: String(item.id) }),
+      });
+      if (res.ok) {
+        Alert.alert('สำเร็จ', 'เพิ่มลงในตะกร้าแล้ว', [
+          { text: 'เลือกซื้อต่อ', style: 'cancel' },
+          { text: 'ไปที่ตะกร้า', onPress: () => router.push('/cart' as any) },
+        ]);
+      } else if (res.status === 401) {
+        router.push('/login' as any);
+      } else {
+        Alert.alert('ผิดพลาด', 'ไม่สามารถเพิ่มลงตะกร้าได้');
+      }
+    } catch {
+      Alert.alert('ผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = () => {
+    router.push({
+      pathname: '/checkout',
+      params: {
+        sheetId: String(item.id),
+        title: item.title,
+        price: String(item.price),
+        sellerName: item.seller?.name ?? '',
+        type: 'direct',
+      },
+    } as any);
+  };
 
   const resolvedWidth: number | string = explicitCardWidth
     ? explicitCardWidth
@@ -125,44 +168,48 @@ const SheetCard: React.FC<SheetCardProps> = ({
 
       {/* 📦 Content */}
       <View style={styles.cardContent}>
-        <Text
-          style={[
-            styles.cardTitle,
-            variant === "library" && { color: "#292524", fontSize: 17, fontFamily: "Mitr_400Regular" },
-          ]}
-          numberOfLines={2}
-        >
-          {item.title}
-        </Text>
 
-        <Text
-          style={[
-            styles.descriptionText,
-            variant === "library" && { color: "#979FAF", fontSize: 12 },
-          ]}
-          numberOfLines={2}
-        >
-          {item.description}
-        </Text>
+        {/* ── Flexible text area — absorbs all extra vertical space ────────────── */}
+        <View style={styles.cardTextArea}>
+          <Text
+            style={[
+              styles.cardTitle,
+              variant === "library" && { color: "#292524", fontSize: 17, fontFamily: "Mitr_400Regular" },
+            ]}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Text>
 
-        {/* 🏷 Tags */}
-        {item.tags && item.tags.length > 0 && (
-          <View style={styles.tagWrapper}>
-            {item.tags.slice(0, 2).map((tag, index) => (
-              <View
-                key={index}
-                style={[styles.tagPill, { backgroundColor: TAG_COLORS[index % TAG_COLORS.length] }]}
-              >
-                <Text style={styles.tagText} numberOfLines={1}>
-                  {tag}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
+          <Text
+            style={[
+              styles.descriptionText,
+              variant === "library" && { color: "#979FAF", fontSize: 12 },
+            ]}
+            numberOfLines={2}
+          >
+            {item.description}
+          </Text>
 
-        {/* 💰 Price หรือ Download + Like */}
-        <View style={styles.bottomSection}>
+          {/* 🏷 Tags */}
+          {item.tags && item.tags.length > 0 && (
+            <View style={styles.tagWrapper}>
+              {item.tags.slice(0, 2).map((tag, index) => (
+                <View
+                  key={index}
+                  style={[styles.tagPill, { backgroundColor: TAG_COLORS[index % TAG_COLORS.length] }]}
+                >
+                  <Text style={styles.tagText} numberOfLines={1}>
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* ── Footer: always pinned to bottom of card ─────────────────────── */}
+        <View style={styles.cardFooter}>
           {isOwned ? (
             <View style={styles.ownedActions}>
               {/* ⬇️ Download */}
@@ -206,7 +253,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
                 />
               </TouchableOpacity>
 
-              {/* 🚩 Report (อุทธรณ์/รายงาน) */}
+              {/* 🚩 Report */}
               {onReportPress && (
                 <TouchableOpacity
                   style={styles.reportButton}
@@ -221,9 +268,43 @@ const SheetCard: React.FC<SheetCardProps> = ({
               )}
             </View>
           ) : variant === "library" ? null : (
-            <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
+            <>
+              <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
+              {/* ── Action row: Cart icon + Buy Now ───────────────────────────── */}
+              <View style={styles.actionRow}>
+                {/* 🛒 Add to Cart */}
+                <TouchableOpacity
+                  style={styles.cartButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleAddToCart();
+                  }}
+                  activeOpacity={0.8}
+                  disabled={addingToCart}
+                >
+                  {addingToCart ? (
+                    <ActivityIndicator size="small" color="#6366F1" />
+                  ) : (
+                    <Ionicons name="cart-outline" size={16} color="#6366F1" />
+                  )}
+                </TouchableOpacity>
+
+                {/* ⚡ Buy Now */}
+                <TouchableOpacity
+                  style={styles.buyButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleBuyNow();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.buyText}>ซื้อเลย</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
         </View>
+
       </View>
     </Pressable>
   );
@@ -243,10 +324,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  // ── Square light-purple stage ─────────────────────────────────────────────
+  // ── Portrait light-purple stage — scales with card width ──────────────────
   bookStage: {
     width: "100%",
-    aspectRatio: 1,           // square container
+    aspectRatio: 3 / 4,       // portrait A4 proportion — taller than wide on all screens
     backgroundColor: "#EEF2FF",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
@@ -258,7 +339,7 @@ const styles = StyleSheet.create({
   // ── Portrait book image — centred, drop-shadowed ──────────────────────────
   bookImage: {
     width: "58%",
-    aspectRatio: 3 / 4,       // A4 portrait cover
+    aspectRatio: 3 / 4,       // matches stage proportion — no distortion
     borderRadius: 6,
     backgroundColor: "#C7D2FE",
     shadowColor: "#1E1B4B",
@@ -329,7 +410,20 @@ const styles = StyleSheet.create({
   cardContent: {
     paddingHorizontal: 10,
     paddingBottom: 10,
+    paddingTop: 4,
     flex: 1,
+    // ── space-between pushes cardFooter to the absolute bottom of the card ─
+    justifyContent: 'space-between',
+  },
+
+  // Text/tags grow area — absorbs all spare vertical space
+  cardTextArea: {
+    flex: 1,
+  },
+
+  // Footer: price + action buttons always pinned to card bottom
+  cardFooter: {
+    paddingTop: 8,
   },
 
   cardTitle: {
@@ -368,13 +462,52 @@ const styles = StyleSheet.create({
   },
 
   bottomSection: {
-    marginTop: 2,
+    // kept for library/owned variant compatibility — no extra margin needed
   },
 
   price: {
     fontSize: 17,
     fontFamily: "Mitr_500Medium",
     color: "#2740C2",
+  },
+
+  // ── Buy / Cart action row ──────────────────────────────────────────
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+
+  cartButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#6366F1",
+    backgroundColor: "#F5F3FF",
+  },
+
+  buyButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+
+  buyText: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "Mitr_500Medium",
   },
 
   // ✅ Download + Like เคียงกัน
