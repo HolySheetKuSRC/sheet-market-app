@@ -3,7 +3,7 @@ const CHAT_API_URL = process.env.EXPO_PUBLIC_CHAT_AI_URL;
 export const sendMessageToAI = async (
   sessionId: string,
   message: string,
-  sheetId: string = ""
+  sheetId: string | null = null
 ) => {
   try {
     if (!CHAT_API_URL) {
@@ -14,7 +14,7 @@ export const sendMessageToAI = async (
     const payload = {
       session_id: sessionId,
       message: message,
-      sheet_id: sheetId,
+      sheet_id: sheetId === "" ? null : sheetId,
     };
 
     console.log("🚀 Sending to AI API");
