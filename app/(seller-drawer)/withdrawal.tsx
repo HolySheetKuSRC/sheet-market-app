@@ -29,7 +29,7 @@ interface SellerBalanceResponse {
 interface WithdrawalHistoryItem {
   id: string;
   amount: number;
-  status: string; 
+  status: string;
   createdAt: string;
 }
 
@@ -115,7 +115,7 @@ export default function WithdrawalScreen() {
           const json = await response.json();
           // สำหรับ Page<T> ของ Spring ข้อมูลจะอยู่ที่ json.content
           const items: WithdrawalHistoryItem[] = json.content || [];
-          
+
           if (append) {
             setHistory((prev) => [...prev, ...items]);
           } else {
