@@ -85,10 +85,58 @@ export default function TranscribeScreen() {
         result_text?: string;
     };
     const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
+    const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
     useEffect(() => {
         loadHistory();
     }, []);
+
+    const handleDelete = async (jobIdToDelete: string) => {
+        const proceedDelete = async () => {
+            setDeletingJobId(jobIdToDelete);
+            try {
+                const rawToken = await getSessionToken();
+                const token = rawToken ? rawToken.replace(/^"|"$/g, '').trim() : null;
+                if (!token) {
+                    Alert.alert('Auth Error', 'No valid session token. Please log in again.');
+                    setDeletingJobId(null);
+                    return;
+                }
+
+                const response = await fetch(`${AI_API_URL}/api/audio/jobs/${jobIdToDelete}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+
+                if (response.ok) {
+                    setHistoryList(prev => prev.filter(item => (item.job_id || item.id) !== jobIdToDelete));
+                    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                } else {
+                    Alert.alert('Error', `ลบไม่สำเร็จ (${response.status})`);
+                }
+            } catch (error) {
+                console.error("Delete error:", error);
+                Alert.alert('Error', 'เกิดข้อผิดพลาดในการลบประวัติ');
+            } finally {
+                setDeletingJobId(null);
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประวัตินี้?")) {
+                proceedDelete();
+            }
+        } else {
+            Alert.alert(
+                "ยืนยันการลบ",
+                "คุณแน่ใจหรือไม่ว่าต้องการลบประวัตินี้?",
+                [
+                    { text: "ยกเลิก", style: "cancel" },
+                    { text: "ลบ", style: "destructive", onPress: proceedDelete }
+                ]
+            );
+        }
+    };
 
     const loadHistory = async () => {
         if (!AI_API_URL) return;
@@ -707,12 +755,29 @@ export default function TranscribeScreen() {
                                 >
                                     <View style={styles.historyHeader}>
                                         <Text style={styles.historyItemTitle} numberOfLines={1}>{item.filename}</Text>
-                                        <View style={[
-                                            styles.historyBadge,
-                                            item.status === 'completed' ? styles.badgeSuccess :
-                                                (item.status === 'processing' || item.status === 'pending') ? styles.badgeProcessing : styles.badgeDanger
-                                        ]}>
-                                            <Text style={styles.historyBadgeText}>{item.status}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <View style={[
+                                                styles.historyBadge,
+                                                item.status === 'completed' ? styles.badgeSuccess :
+                                                    (item.status === 'processing' || item.status === 'pending') ? styles.badgeProcessing : styles.badgeDanger
+                                            ]}>
+                                                <Text style={styles.historyBadgeText}>{item.status}</Text>
+                                            </View>
+                                            <TouchableOpacity 
+                                                style={{ marginLeft: 8, padding: 4 }}
+                                                onPress={(e) => {
+                                                    e.stopPropagation?.();
+                                                    const idToDelete = item.job_id || item.id;
+                                                    if (idToDelete) handleDelete(idToDelete);
+                                                }}
+                                                disabled={deletingJobId === (item.job_id || item.id)}
+                                            >
+                                                {deletingJobId === (item.job_id || item.id) ? (
+                                                    <ActivityIndicator size="small" color="#EF4444" />
+                                                ) : (
+                                                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                                                )}
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
                                     <View style={styles.historyFooter}>
