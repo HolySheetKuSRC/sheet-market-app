@@ -5,8 +5,8 @@ import {
     useFonts,
 } from '@expo-google-fonts/mitr';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -20,7 +20,7 @@ import {
     View,
 } from 'react-native';
 
-import { apiRequest } from '../../utils/api';
+import { useCart } from '../../context/CartContext';
 
 interface CartItem {
   id: string;
@@ -109,69 +109,35 @@ export default function CartScreen() {
 
   const [fontsLoaded] = useFonts({ Mitr_400Regular, Mitr_500Medium, Mitr_600SemiBold });
 
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const { cartItems, loading, removeFromCart, fetchCart } = useCart();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [promoCode, setPromoCode] = useState('');
 
   // ── Data Fetching ──────────────────────────────────────────────────────────
 
-  const fetchCartData = async () => {
-    try {
-      setLoading(true);
-      const response = await apiRequest('/cart/user', { method: 'GET' });
-
-      if (response.status === 429) {
-        console.warn('Too many requests, retry later');
-        return;
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        const items: CartItem[] = (data.items || []).map((item: any) => ({
-          id: String(item.id),
-          sheetName: item.sheetName ?? 'ไม่ระบุชื่อสินค้า',
-          price: String(item.price ?? '0'),
-          sellerName: item.sellerName ?? '-',
-        }));
-        setCartItems(items);
-        setSelectedIds(items.map((i) => i.id));
-      } else {
-        console.error('Fetch failed status:', response.status);
-      }
-    } catch (err) {
-      console.error('Fetch cart error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Auto-select items. Use cartCount (cartItems.length) as dependency so we don't override 
+  // user's manual selections when re-rendering for other reasons.
   useEffect(() => {
-    fetchCartData();
-  }, []);
+    setSelectedIds(cartItems.map((i) => i.id));
+  }, [cartItems.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCart();
+    }, [fetchCart])
+  );
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleRemoveItem = async (cartItemId: string) => {
     console.log('Delete button pressed. cartItemId:', cartItemId);
-    try {
-      const response = await apiRequest('/cart', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cartItemIds: [cartItemId] }),
-      });
-
-      if (response.ok) {
-        console.log('Delete success:', cartItemId);
-        setCartItems((prev) => prev.filter((item) => item.id !== cartItemId));
-        setSelectedIds((prev) => prev.filter((id) => id !== cartItemId));
-      } else {
-        console.log('Delete failed. status:', response.status);
-        Alert.alert('ผิดพลาด', 'ลบสินค้าไม่สำเร็จ');
-      }
-    } catch (error) {
-      console.log('Delete error:', error);
-      Alert.alert('Error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    const success = await removeFromCart(cartItemId);
+    if (success) {
+      console.log('Delete success:', cartItemId);
+      setSelectedIds((prev) => prev.filter((id) => id !== cartItemId));
+    } else {
+      console.log('Delete failed');
+      Alert.alert('ผิดพลาด', 'ลบสินค้าไม่สำเร็จ');
     }
   };
 

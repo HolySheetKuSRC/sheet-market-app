@@ -10,6 +10,7 @@ import Notification, { NotificationHandle } from "../components/notification";
 import { getAccessToken } from "../utils/token";
 
 import { registerForPushNotificationsAsync } from "@/utils/pushNotification";
+import { CartProvider } from "../context/CartContext";
 
 
 type NotiFunc = (msg?: string) => void;
@@ -93,21 +94,23 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <NotificationContext.Provider value={notify}>
-        <View style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="login" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="(drawer)" />
-            <Stack.Screen
-              name="sheet/[id]"
-              options={{ presentation: "card" }}
-            />
-          </Stack>
+        <CartProvider>
+          <View style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+              <Stack.Screen name="(drawer)" />
+              <Stack.Screen
+                name="sheet/[id]"
+                options={{ presentation: "card" }}
+              />
+            </Stack>
 
-          <StatusBar style="dark" />
+            <StatusBar style="dark" />
 
-          {/* 🔔 Global Notification */}
-          <Notification ref={notificationRef} />
-        </View>
+            {/* 🔔 Global Notification */}
+            <Notification ref={notificationRef} />
+          </View>
+        </CartProvider>
       </NotificationContext.Provider>
     </SafeAreaProvider>
   );

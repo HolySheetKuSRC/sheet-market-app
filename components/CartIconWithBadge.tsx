@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { apiRequest } from '../utils/api';
+import { useCart } from '../context/CartContext';
 
 interface Props {
   iconSize?: number;
@@ -16,25 +16,7 @@ export default function CartIconWithBadge({
   containerStyle,
 }: Props) {
   const router = useRouter();
-  const [cartCount, setCartCount] = useState(0);
-
-  const fetchCartCount = useCallback(async () => {
-    try {
-      const res = await apiRequest('/cart/user', { method: 'GET' });
-      if (res.ok) {
-        const data = await res.json();
-        setCartCount((data.items || []).length);
-      }
-    } catch {
-      // non-critical — badge stays at previous value
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchCartCount();
-    }, [fetchCartCount])
-  );
+  const { cartCount } = useCart();
 
   return (
     <TouchableOpacity
