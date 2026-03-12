@@ -327,10 +327,6 @@ export default function SheetDetail() {
                 <Image source={{ uri: sheet.imageUrl }} style={styles.mainImage} resizeMode="contain" />
                 <View style={styles.mainImageBottomFade} />
               </View>
-              <TouchableOpacity style={styles.previewBadge}>
-                <Ionicons name="eye-outline" size={14} color="#FFF" />
-                <Text style={styles.previewText}>ดูตัวอย่างไฟล์ PDF</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Right Column: Details & Actions */}
@@ -411,11 +407,18 @@ export default function SheetDetail() {
             <View style={styles.aiContainer}>
               <Text style={styles.aiSummaryTitle}>✨ AI Summary</Text>
               <Text style={styles.aiSummaryText}>{aiData.summary}</Text>
-              {aiData.tags && aiData.tags.length > 0 && (
+              {aiData?.assessment && aiData.assessment.length > 0 && (
+                <View style={{ marginTop: 8 }}>
+                  {aiData.assessment.map((item: string, i: number) => (
+                    <Text key={i} style={{ fontFamily: 'Mitr', color: '#374151', marginBottom: 4 }}>• {item}</Text>
+                  ))}
+                </View>
+              )}
+              {aiData?.tags && aiData.tags.length > 0 && (
                 <View style={styles.aiTagsRow}>
                   {aiData.tags.map((tag: string, i: number) => (
                     <View key={i} style={styles.aiTagPill}>
-                      <Text style={styles.aiTagText}>#{tag}</Text>
+                      <Text style={styles.aiTagText}>{tag}</Text>
                     </View>
                   ))}
                 </View>
