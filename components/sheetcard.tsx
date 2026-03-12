@@ -2,19 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { useCart } from "../context/CartContext";
-import { apiRequest } from "../utils/api";
 
 const { width } = Dimensions.get("window");
 
@@ -36,7 +35,8 @@ interface SheetCardProps {
   cardWidth?: number;
   isThreeColumns?: boolean;
   onPress?: () => void;
-  isOwned?: boolean;
+  isOwned?: boolean; // หมายถึง "ผู้ใช้คนนี้เคยซื้อชีทนี้ไปแล้ว"
+  isOwner?: boolean; // ✅ เพิ่มอันนี้: หมายถึง "ผู้ใช้คนนี้เป็นคนขายชีทนี้เอง"
   onDownloadPress?: () => void;
   isLiked?: boolean;
   onLikePress?: () => void;
@@ -51,6 +51,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
   isThreeColumns = false,
   onPress,
   isOwned = false,
+  isOwner = false, // ✅ รับค่า prop isOwner เข้ามา (ค่าเริ่มต้นคือ false)
   onDownloadPress,
   isLiked = false,
   onLikePress,
@@ -284,42 +285,54 @@ const SheetCard: React.FC<SheetCardProps> = ({
             </View>
           ) : variant === "library" ? null : (
             <>
-              <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
-              {/* ── Action row: Cart icon + Buy Now ───────────────────────────── */}
-              <View style={styles.actionRow}>
-                {/* 🛒 Add to Cart */}
-                <TouchableOpacity
-                  style={[styles.cartButton, isAlreadyInCart && { opacity: 0.6, backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    if (!isAlreadyInCart) {
-                      handleAddToCart();
-                    }
-                  }}
-                  activeOpacity={0.8}
-                  disabled={addingToCart || isAlreadyInCart}
-                >
-                  {addingToCart ? (
-                    <ActivityIndicator size="small" color="#6366F1" />
-                  ) : isAlreadyInCart ? (
-                    <Ionicons name="checkmark" size={16} color="#6366F1" />
-                  ) : (
-                    <Ionicons name="cart-outline" size={16} color="#6366F1" />
-                  )}
-                </TouchableOpacity>
+              {/* ✅ ตรวจสอบว่าเป็นเจ้าของ (isOwner) หรือไม่ */}
+              {isOwner ? (
+                 <View style={styles.mpOwnedRow}>
+                   <View style={styles.ownedBadgeLabel}>
+                     <Ionicons name="shield-checkmark" size={15} color="#22C55E" />
+                     <Text style={styles.ownedBadgeLabelText}>ชีทของคุณเอง</Text>
+                   </View>
+                 </View>
+              ) : (
+                <>
+                  <Text style={styles.price}>฿{item.price.toLocaleString()}</Text>
+                  {/* ── Action row: Cart icon + Buy Now ───────────────────────────── */}
+                  <View style={styles.actionRow}>
+                    {/* 🛒 Add to Cart */}
+                    <TouchableOpacity
+                      style={[styles.cartButton, isAlreadyInCart && { opacity: 0.6, backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (!isAlreadyInCart) {
+                          handleAddToCart();
+                        }
+                      }}
+                      activeOpacity={0.8}
+                      disabled={addingToCart || isAlreadyInCart}
+                    >
+                      {addingToCart ? (
+                        <ActivityIndicator size="small" color="#6366F1" />
+                      ) : isAlreadyInCart ? (
+                        <Ionicons name="checkmark" size={16} color="#6366F1" />
+                      ) : (
+                        <Ionicons name="cart-outline" size={16} color="#6366F1" />
+                      )}
+                    </TouchableOpacity>
 
-                {/* ⚡ Buy Now */}
-                <TouchableOpacity
-                  style={styles.buyButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleBuyNow();
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.buyText}>ซื้อเลย</Text>
-                </TouchableOpacity>
-              </View>
+                    {/* ⚡ Buy Now */}
+                    <TouchableOpacity
+                      style={styles.buyButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleBuyNow();
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.buyText}>ซื้อเลย</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </>
           )}
         </View>

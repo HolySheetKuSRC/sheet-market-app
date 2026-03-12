@@ -2,14 +2,14 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import SheetCard from '../../components/sheetcard';
 import { apiRequest } from '../../utils/api';
@@ -54,7 +54,10 @@ export default function SellerProfilePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
 
-  // ── Initial Load (Promise.all 3 APIs) ─────────────────
+  // ✅ State สำหรับเก็บ ID ของผู้ใช้ปัจจุบัน
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // ── Initial Load (Promise.all) ─────────────────
   useEffect(() => {
     if (!sellerId) return;
     loadAll();
@@ -63,13 +66,15 @@ export default function SellerProfilePage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [profileRes, salesRes, sheetsRes] = await Promise.all([
+      const [profileRes, salesRes, sheetsRes, userRes] = await Promise.all([
         apiRequest(`/users/${sellerId}`, { method: 'GET' }),
         apiRequest(`/payments/sellers/${sellerId}/sales-volume`, { method: 'GET' }),
         apiRequest(
           `/products/sellers/${sellerId}/sheets?isPublished=true&page=0&size=10`,
           { method: 'GET' }
         ),
+        // ✅ ดึงข้อมูล User ปัจจุบันเพื่อมาเช็คว่าเป็นเจ้าของหน้านี้หรือไม่
+        apiRequest('/users/me', { method: 'GET' }).catch(() => null)
       ]);
 
       if (profileRes.ok) {
@@ -88,6 +93,13 @@ export default function SellerProfilePage() {
         setTotalPages(pageData.totalPages);
         setCurrentPage(0);
       }
+
+      // ✅ เซ็ตค่า currentUserId
+      if (userRes && userRes.ok) {
+        const userData = await userRes.json();
+        setCurrentUserId(String(userData.id));
+      }
+
     } catch (e) {
       console.error('SellerProfile loadAll Error:', e);
     } finally {
@@ -217,6 +229,9 @@ export default function SellerProfilePage() {
       </View>
     ) : null;
 
+  // ✅ เช็คว่าเป็นเจ้าของร้านนี้หรือไม่
+  const isOwner = Boolean(currentUserId && sellerId && currentUserId === sellerId);
+
   // ─── Render ───────────────────────────────────────────
   if (loading) {
     return (
@@ -251,7 +266,8 @@ export default function SellerProfilePage() {
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <SheetCard item={item} />
+          // ✅ ส่ง isOwner ไปให้ SheetCard จัดการซ่อนปุ่ม
+          <SheetCard item={item} isOwner={isOwner} />
         )}
       />
     </View>

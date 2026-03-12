@@ -2,14 +2,14 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import CartIconWithBadge from '../../components/CartIconWithBadge';
 import SheetCard from '../../components/sheetcard';
@@ -74,6 +74,10 @@ export default function SheetDetail() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [aiData, setAiData] = useState<any>(null);
 
+  // ✅ State สำหรับเช็คการเป็นเจ้าของและการซื้อแล้ว
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [hasPurchased, setHasPurchased] = useState(false);
+
   // ✅ คำนวณค่าจาก Reviews State โดยตรง (Derived Values)
   const reviewCount = reviews.length;
   const reviewAverage = reviewCount > 0 
@@ -133,6 +137,20 @@ export default function SheetDetail() {
       }
     } catch (error) {
       console.error("Check Cart Error:", error);
+    }
+  };
+
+  // ✅ ฟังก์ชันตรวจสอบสถานะการสั่งซื้อและ User ID
+  const checkPurchaseStatus = async () => {
+    try {
+      const response = await apiRequest(`/products/${id}/purchase-status`, { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        setHasPurchased(data.hasPurchased);
+        setCurrentUserId(data.userId); 
+      }
+    } catch (error) {
+      console.error("Check Purchase Status Error:", error);
     }
   };
 
@@ -204,6 +222,7 @@ export default function SheetDetail() {
     useCallback(() => {
       if (id) {
         checkCartStatus();
+        checkPurchaseStatus(); // เรียกตรวจสอบสถานะการซื้อเมื่อหน้าจอถูกโฟกัส
       }
     }, [id])
   );
@@ -297,6 +316,10 @@ export default function SheetDetail() {
     <View style={styles.center}><ActivityIndicator size="large" color="#6C63FF" /></View>
   );
 
+  // ✅ เงื่อนไขตรวจสอบการซื้อหรือความเป็นเจ้าของ
+  const isOwner = Boolean(currentUserId && sheet.seller?.id && String(sheet.seller.id) === String(currentUserId));
+  const canBuy = !isOwner && !hasPurchased;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -382,21 +405,30 @@ export default function SheetDetail() {
                   <Text style={styles.priceValue}>฿{sheet.price?.toFixed(0)}</Text>
                 </View>
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={[styles.cartBtn, addingToCart && { opacity: 0.6 }, isInCart && { backgroundColor: '#6C63FF' }]}
-                    onPress={handleToggleCart}
-                    disabled={addingToCart}
-                  >
-                    {addingToCart ? (
-                      <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
-                    ) : (
-                      <Ionicons name={isInCart ? "cart" : "cart-outline"} size={24} color={isInCart ? "#FFF" : "#6C63FF"} />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
-                    <Text style={styles.buyText}>ซื้อชีทนี้</Text>
-                    <Ionicons name="flash" size={18} color="#FFF" />
-                  </TouchableOpacity>
+                  {canBuy ? (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.cartBtn, addingToCart && { opacity: 0.6 }, isInCart && { backgroundColor: '#6C63FF' }]}
+                        onPress={handleToggleCart}
+                        disabled={addingToCart}
+                      >
+                        {addingToCart ? (
+                          <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
+                        ) : (
+                          <Ionicons name={isInCart ? "cart" : "cart-outline"} size={24} color={isInCart ? "#FFF" : "#6C63FF"} />
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
+                        <Text style={styles.buyText}>ซื้อชีทนี้</Text>
+                        <Ionicons name="flash" size={18} color="#FFF" />
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity style={[styles.buyBtn, { backgroundColor: '#10B981', flex: 1 }]} disabled>
+                      <Text style={styles.buyText}>{isOwner ? 'ชีทของคุณ' : 'ซื้อแล้ว'}</Text>
+                      <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </View>
@@ -511,21 +543,30 @@ export default function SheetDetail() {
           <Text style={styles.priceValue}>฿{sheet.price?.toFixed(0)}</Text>
         </View>
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.cartBtn, addingToCart && { opacity: 0.6 }, isInCart && { backgroundColor: '#6C63FF' }]}
-            onPress={handleToggleCart}
-            disabled={addingToCart}
-          >
-            {addingToCart ? (
-              <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
-            ) : (
-              <Ionicons name={isInCart ? "cart" : "cart-outline"} size={24} color={isInCart ? "#FFF" : "#6C63FF"} />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
-            <Text style={styles.buyText}>ซื้อชีทนี้</Text>
-            <Ionicons name="flash" size={18} color="#FFF" />
-          </TouchableOpacity>
+          {canBuy ? (
+            <>
+              <TouchableOpacity
+                style={[styles.cartBtn, addingToCart && { opacity: 0.6 }, isInCart && { backgroundColor: '#6C63FF' }]}
+                onPress={handleToggleCart}
+                disabled={addingToCart}
+              >
+                {addingToCart ? (
+                  <ActivityIndicator color={isInCart ? "#FFF" : "#6C63FF"} size="small" />
+                ) : (
+                  <Ionicons name={isInCart ? "cart" : "cart-outline"} size={24} color={isInCart ? "#FFF" : "#6C63FF"} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.buyBtn} onPress={handleBuyNow}>
+                <Text style={styles.buyText}>ซื้อชีทนี้</Text>
+                <Ionicons name="flash" size={18} color="#FFF" />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={[styles.buyBtn, { backgroundColor: '#10B981', flex: 1 }]} disabled>
+              <Text style={styles.buyText}>{isOwner ? 'ชีทของคุณ' : 'ซื้อแล้ว'}</Text>
+              <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
