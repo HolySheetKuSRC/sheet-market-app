@@ -13,6 +13,7 @@ import {
     View,
 } from "react-native";
 
+import { useCart } from "../context/CartContext";
 import { apiRequest } from "../utils/api";
 
 const { width } = Dimensions.get("window");
@@ -59,30 +60,25 @@ const SheetCard: React.FC<SheetCardProps> = ({
   const router = useRouter();
   if (!item) return null;
 
+  const { addToCart, cartSheetIds } = useCart();
   const [addingToCart, setAddingToCart] = useState(false);
 
+  const isAlreadyInCart = cartSheetIds.includes(String(item.id));
+
   const handleAddToCart = async () => {
-    try {
-      setAddingToCart(true);
-      const res = await apiRequest('/cart/add', {
-        method: 'POST',
-        body: JSON.stringify({ sheetId: String(item.id) }),
-      });
-      if (res.ok) {
-        Alert.alert('สำเร็จ', 'เพิ่มลงในตะกร้าแล้ว', [
-          { text: 'เลือกซื้อต่อ', style: 'cancel' },
-          { text: 'ไปที่ตะกร้า', onPress: () => router.push('/cart' as any) },
-        ]);
-      } else if (res.status === 401) {
-        router.push('/login' as any);
-      } else {
-        Alert.alert('ผิดพลาด', 'ไม่สามารถเพิ่มลงตะกร้าได้');
-      }
-    } catch {
-      Alert.alert('ผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์');
-    } finally {
-      setAddingToCart(false);
+    if (isAlreadyInCart) return;
+    
+    setAddingToCart(true);
+    const success = await addToCart(String(item.id));
+    setAddingToCart(false);
+
+    if (success) {
+      Alert.alert('สำเร็จ', 'เพิ่มลงในตะกร้าแล้ว', [
+        { text: 'เลือกซื้อต่อ', style: 'cancel' },
+        { text: 'ไปที่ตะกร้า', onPress: () => router.push('/cart' as any) },
+      ]);
     }
+    // Note: Error alerts (like already in cart or failed to add) are handled inside the addToCart context function if needed.
   };
 
   const handleBuyNow = () => {
@@ -293,16 +289,20 @@ const SheetCard: React.FC<SheetCardProps> = ({
               <View style={styles.actionRow}>
                 {/* 🛒 Add to Cart */}
                 <TouchableOpacity
-                  style={styles.cartButton}
+                  style={[styles.cartButton, isAlreadyInCart && { opacity: 0.6, backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}
                   onPress={(e) => {
                     e.stopPropagation();
-                    handleAddToCart();
+                    if (!isAlreadyInCart) {
+                      handleAddToCart();
+                    }
                   }}
                   activeOpacity={0.8}
-                  disabled={addingToCart}
+                  disabled={addingToCart || isAlreadyInCart}
                 >
                   {addingToCart ? (
                     <ActivityIndicator size="small" color="#6366F1" />
+                  ) : isAlreadyInCart ? (
+                    <Ionicons name="checkmark" size={16} color="#6366F1" />
                   ) : (
                     <Ionicons name="cart-outline" size={16} color="#6366F1" />
                   )}
