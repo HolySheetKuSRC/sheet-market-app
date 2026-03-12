@@ -209,7 +209,23 @@ const SheetCard: React.FC<SheetCardProps> = ({
 
         {/* ── Footer: price+buttons (marketplace) or download+like (library) ── */}
         <View style={styles.cardFooter}>
-          {isOwned ? (
+          {isOwned && variant === "marketplace" ? (
+            /* ✅ Marketplace — user already owns this sheet */
+            <View style={styles.mpOwnedRow}>
+              <Ionicons name="checkmark-circle" size={15} color="#22C55E" />
+              <Text style={styles.mpOwnedText}>ซื้อแล้ว</Text>
+              <TouchableOpacity
+                style={styles.viewLibraryBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  router.push('/(drawer)/myLibrary' as any);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.viewLibraryBtnText}>ดูในคลัง</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isOwned ? (
             <View style={styles.ownedActions}>
               {/* ⬇️ Download — proper visible style in both variants */}
               <TouchableOpacity
@@ -572,6 +588,38 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#FEE2E2", // Light red background
+  },
+
+  // ✅ Marketplace owned row: checkmark + "ซื้อแล้ว" + "ดูในคลัง" button
+  mpOwnedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+
+  mpOwnedText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Mitr_500Medium",
+    color: "#16A34A",
+  },
+
+  viewLibraryBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  viewLibraryBtnText: {
+    fontSize: 11,
+    fontFamily: "Mitr_500Medium",
+    color: "#16A34A",
   },
 });
 
