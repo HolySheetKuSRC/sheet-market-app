@@ -1,35 +1,35 @@
 import {
-  Mitr_400Regular,
-  Mitr_500Medium,
-  Mitr_600SemiBold,
-  useFonts,
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+    useFonts,
 } from "@expo-google-fonts/mitr";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
-import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  LayoutChangeEvent,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-  Modal,
+    ActivityIndicator,
+    FlatList,
+    LayoutChangeEvent,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 import { universityData as rawUniversityData } from "../../constants/universities";
 import { apiRequest } from "../../utils/api";
 
 import FilterPopup, {
-  FilterPopupHandle,
-  SORT_OPTIONS,
-  SortType,
+    FilterPopupHandle,
+    SORT_OPTIONS,
+    SortType,
 } from "../../components/FilterPopup";
 
 import CartIconWithBadge from "../../components/CartIconWithBadge";
