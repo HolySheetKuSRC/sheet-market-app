@@ -1,23 +1,23 @@
 import {
-  Mitr_400Regular,
-  Mitr_500Medium,
-  Mitr_600SemiBold,
-  useFonts,
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+    useFonts,
 } from '@expo-google-fonts/mitr';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { apiRequest } from '../utils/api';
 
@@ -134,7 +134,13 @@ export default function CheckoutScreen() {
 
     try {
       setLoading(true);
-      let finalOrderId = Array.isArray(paramOrderId) ? paramOrderId[0] : paramOrderId;
+      let finalOrderId: string | undefined = Array.isArray(paramOrderId)
+        ? paramOrderId[0]
+        : (paramOrderId as string | undefined);
+
+      // Expo Router stringifies undefined route params as the literal "undefined" string.
+      // Treat those as absent so the order-creation branch runs correctly.
+      if (finalOrderId === 'undefined' || finalOrderId === '') finalOrderId = undefined;
 
       // ===== สร้าง Order (เหมือนเดิม) =====
       if (!finalOrderId) {
@@ -185,7 +191,14 @@ export default function CheckoutScreen() {
           throw new Error(orderData.message || "ไม่สามารถสร้างรายการสั่งซื้อได้ (กรุณาลองใหม่)");
         }
 
-        finalOrderId = orderData.orderId;
+        const orderIdFromRes = orderData.orderId || orderData.id || orderData.data?.orderId || orderData.data?.id;
+        finalOrderId = orderIdFromRes;
+      }
+
+      // Safety guard — prevent firing the request with a missing/undefined order ID
+      if (!finalOrderId) {
+        console.error("Missing Order ID");
+        throw new Error("ไม่พบ Order ID กรุณาลองใหม่");
       }
 
       console.log("Create Stripe Checkout for:", finalOrderId);
