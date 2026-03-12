@@ -85,6 +85,8 @@ export default function MarketplaceScreen() {
   const [page, setPage] = useState(0);
   const [isLastPage, setIsLastPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ownedSheetIds, setOwnedSheetIds] = useState<Set<string>>(new Set());
+  const [hideOwned, setHideOwned] = useState(false);
 
   const { search: searchParam } = useLocalSearchParams<{ search?: string }>();
 
@@ -154,8 +156,12 @@ export default function MarketplaceScreen() {
       filteredList = filteredList.filter(sheet => sheet.university?.id === Number(selectedUniId));
     }
 
+    if (hideOwned && ownedSheetIds.size > 0) {
+      filteredList = filteredList.filter(sheet => !ownedSheetIds.has(String(sheet.id)));
+    }
+
     return sortByUpdatedAt(filteredList, sortType);
-  }, [sheets, sortType, selectedUniId, submittedSearch]);
+  }, [sheets, sortType, selectedUniId, submittedSearch, hideOwned, ownedSheetIds]);
 
   const fetchSheets = async (
     pageNum: number,
@@ -207,6 +213,24 @@ export default function MarketplaceScreen() {
       setLoadingMore(false);
     }
   };
+
+  const fetchOwnedSheets = async () => {
+    try {
+      const res = await apiRequest('/products/purchased?page=0&size=500', { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        const ids = new Set<string>((data.content ?? []).map((s: any) => String(s.id)));
+        setOwnedSheetIds(ids);
+      }
+    } catch {
+      // Not logged in or network error — silently skip owned-sheet detection
+    }
+  };
+
+  // Fetch owned sheet IDs once on mount so we can mark owned cards in the grid
+  useEffect(() => {
+    fetchOwnedSheets();
+  }, []);
 
   // Apply search keyword passed via navigation params (e.g. from Home screen)
   useEffect(() => {
@@ -311,6 +335,25 @@ export default function MarketplaceScreen() {
             <Ionicons name="close-circle" size={16} color="#F43F5E" />
           </TouchableOpacity>
         )}
+
+        {/* Hide-owned toggle chip */}
+        <TouchableOpacity
+          style={[styles.hideOwnedChip, hideOwned && styles.hideOwnedChipActive]}
+          onPress={() => setHideOwned((v) => !v)}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={hideOwned ? "eye-off" : "eye-off-outline"}
+            size={13}
+            color={hideOwned ? "#fff" : "#6C63FF"}
+          />
+          <Text style={[styles.hideOwnedText, hideOwned && styles.hideOwnedTextActive]}>
+            ซ่อนที่ซื้อแล้ว
+          </Text>
+          {hideOwned && (
+            <View style={styles.hideOwnedDot} />
+          )}
+        </TouchableOpacity>
 
         {/* Active sort chip */}
         {sortType !== "newest" && (
@@ -434,7 +477,7 @@ export default function MarketplaceScreen() {
               key={numColumns.toString()}
               data={sortedSheets}
               renderItem={({ item }) => (
-                <SheetCard item={item} />
+                <SheetCard item={item} isOwned={ownedSheetIds.has(String(item.id))} />
               )}
               keyExtractor={(item) => String(item.id)}
               numColumns={numColumns}
@@ -717,6 +760,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Mitr_400Regular",
     color: "#6366F1",
+  },
+
+  hideOwnedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#EEF2FF",
+  },
+  hideOwnedChipActive: {
+    backgroundColor: "#6C63FF",
+    borderColor: "#6C63FF",
+  },
+  hideOwnedText: {
+    fontSize: 13,
+    fontFamily: "Mitr_500Medium",
+    color: "#6C63FF",
+  },
+  hideOwnedTextActive: {
+    color: "#fff",
+  },
+  hideOwnedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.7)",
   },
 
   errorBox: {

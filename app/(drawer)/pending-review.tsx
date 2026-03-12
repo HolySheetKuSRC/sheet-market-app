@@ -1,20 +1,22 @@
+import { apiRequest } from "@/utils/api";
+import { Ionicons } from "@expo/vector-icons";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  Animated,
-  Easing,
-  Alert
+    Alert,
+    Animated,
+    Easing,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { apiRequest } from "@/utils/api";
-import { useNavigation, DrawerActions } from "@react-navigation/native";
 
 export interface PendingReviewResponse {
   sheetId: string;
@@ -239,8 +241,13 @@ export default function PendingReviewScreen() {
 
       {/* REVIEW MODAL */}
       <Modal visible={modalVisible} transparent animationType="none">
-        <Animated.View style={[styles.overlay, { opacity: modalOpacity }]}>
-          <Animated.View style={[styles.modalCard, { transform: [{ scale: modalScale }], opacity: modalOpacity }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+        >
+          <Animated.View style={[styles.overlay, { opacity: modalOpacity }]}> 
+            <Animated.View style={[styles.modalCard, { transform: [{ scale: modalScale }], opacity: modalOpacity }]}>
             {/* MODAL HEADER */}
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleWrap}>
@@ -297,8 +304,9 @@ export default function PendingReviewScreen() {
                 <Text style={styles.submitText}>ส่งรีวิว</Text>
               </TouchableOpacity>
             </View>
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

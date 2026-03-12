@@ -209,7 +209,25 @@ const SheetCard: React.FC<SheetCardProps> = ({
 
         {/* ── Footer: price+buttons (marketplace) or download+like (library) ── */}
         <View style={styles.cardFooter}>
-          {isOwned ? (
+          {isOwned && variant === "marketplace" ? (
+            /* ✅ Marketplace — user already owns this sheet */
+            <View style={styles.mpOwnedRow}>
+              <View style={styles.ownedBadgeLabel}>
+                <Ionicons name="checkmark-circle" size={15} color="#22C55E" />
+                <Text style={styles.ownedBadgeLabelText}>ซื้อแล้ว</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.viewLibraryBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  router.push('/(drawer)/myLibrary' as any);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.viewLibraryBtnText}>ดูในคลัง</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isOwned ? (
             <View style={styles.ownedActions}>
               {/* ⬇️ Download — proper visible style in both variants */}
               <TouchableOpacity
@@ -572,6 +590,51 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#FEE2E2", // Light red background
+  },
+
+  // ✅ Marketplace owned row: checkmark + "ซื้อแล้ว" + "ดูในคลัง" button
+  mpOwnedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 28,  // Extra space to align with where price + actionRow would be
+  },
+
+  ownedBadgeLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    height: 36,
+    backgroundColor: "#DCFCE7",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+
+  ownedBadgeLabelText: {
+    fontSize: 13,
+    fontFamily: "Mitr_500Medium",
+    color: "#16A34A",
+  },
+
+  viewLibraryBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#22C55E",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  viewLibraryBtnText: {
+    fontSize: 13,
+    fontFamily: "Mitr_500Medium",
+    color: "#fff",
   },
 });
 
