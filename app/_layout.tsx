@@ -76,6 +76,7 @@ export default function RootLayout() {
           <View style={{ flex: 1 }}>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+              
               <Stack.Screen name="(drawer)" />
               <Stack.Screen
                 name="sheet/[id]"
