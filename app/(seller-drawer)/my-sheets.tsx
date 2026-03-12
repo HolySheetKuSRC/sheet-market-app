@@ -214,7 +214,7 @@ export default function MySheetsScreen() {
           apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=PENDING&isDeleted=false`, { headers }),
           apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=REJECTED&isDeleted=false`, { headers }),
           apiRequest(`/products/seller/suspended-sheets?page=0&size=1`, { headers }),
-          apiRequest(`/products/seller/deleted-sheets?page=0&size=1`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&isDeleted=true`, { headers }),
         ]);
 
       const parse = async (res: Response) => {
