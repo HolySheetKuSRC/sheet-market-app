@@ -15,7 +15,7 @@ import SheetCard from '../../components/sheetcard';
 import { apiRequest } from '../../utils/api';
 
 const { width } = Dimensions.get('window');
-const NUM_COLUMNS = 2;
+const NUM_COLUMNS = 5;
 
 // ─── Types ───────────────────────────────────────────────
 interface SellerProfile {
@@ -251,9 +251,7 @@ export default function SellerProfilePage() {
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <View style={styles.cardWrapper}>
-            <SheetCard item={item} isThreeColumns={false} />
-          </View>
+          <SheetCard item={item} />
         )}
       />
     </View>
@@ -286,7 +284,7 @@ function StatBox({
 }
 
 // ─── Styles ───────────────────────────────────────────────
-const CARD_WIDTH = (width - 48) / NUM_COLUMNS;
+const CARD_WIDTH_UNUSED = 0; // placeholder kept for StyleSheet ordering — remove with next refactor
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
@@ -444,8 +442,8 @@ const styles = StyleSheet.create({
 
   // FlatList
   flatListContent: { paddingBottom: 40 },
-  columnWrapper: { paddingHorizontal: 16, gap: 10 },
-  cardWrapper: { width: CARD_WIDTH, marginBottom: 12 },
+  columnWrapper: { paddingHorizontal: 16, gap: 10, justifyContent: 'center' },
+  cardWrapper: { marginBottom: 12 },
 
   // Pagination loader
   loadingMore: { paddingVertical: 20, alignItems: 'center' },

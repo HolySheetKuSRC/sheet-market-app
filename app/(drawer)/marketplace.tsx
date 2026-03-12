@@ -11,7 +11,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
     ActivityIndicator,
     FlatList,
-    LayoutChangeEvent,
     Modal,
     RefreshControl,
     ScrollView,
@@ -78,7 +77,6 @@ export default function MarketplaceScreen() {
   const filterRef = useRef<FilterPopupHandle>(null);
   const [sortType, setSortType] = useState<SortType>("newest");
   const [filterSidebarOpen, setFilterSidebarOpen] = useState(false);
-  const [listWidth, setListWidth] = useState(0);
 
   const [sheets, setSheets] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,21 +97,14 @@ export default function MarketplaceScreen() {
     ? universityData.find((u) => u.value === selectedUniId)?.label ?? "มหาวิทยาลัย"
     : null;
 
+  // Derive effective list width from screenWidth, accounting for the sidebar when open.
+  const effectiveWidth = isLargeScreen && filterSidebarOpen ? screenWidth - SIDEBAR_W : screenWidth;
+
   const numColumns =
-    listWidth >= 1024 ? 5
-    : listWidth >= 768  ? 4
-    : listWidth >= 480  ? 3
+    effectiveWidth >= 1280 ? 5
+    : effectiveWidth >= 1024 ? 4
+    : effectiveWidth >= 768  ? 3
     : 2;
-
-  const cardWidth =
-    listWidth > 0
-      ? Math.floor((listWidth - H_PAD * 2 - CARD_GAP * (numColumns - 1)) / numColumns)
-      : 160;
-
-  const handleListLayout = (e: LayoutChangeEvent) => {
-    const w = e.nativeEvent.layout.width;
-    if (w > 0 && w !== listWidth) setListWidth(w);
-  };
 
   const parseDate = (dateVal: any) => {
     if (!dateVal) return 0;
@@ -438,16 +429,16 @@ export default function MarketplaceScreen() {
       ) : (
         <View style={styles.mainRow}>
           {/* Grid area — flex:1 so sidebar pushes it */}
-          <View style={styles.listArea} onLayout={handleListLayout}>
+          <View style={styles.listArea}>
             <FlatList
               key={numColumns.toString()}
               data={sortedSheets}
               renderItem={({ item }) => (
-                <SheetCard item={item} cardWidth={cardWidth} />
+                <SheetCard item={item} />
               )}
               keyExtractor={(item) => String(item.id)}
               numColumns={numColumns}
-              columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD }}
+              columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD, justifyContent: 'center' }}
               contentContainerStyle={styles.listContent}
               ListHeaderComponent={renderHeader}
               ListFooterComponent={renderFooter}
