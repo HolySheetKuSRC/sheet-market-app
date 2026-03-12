@@ -2,18 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  FlatList,
-  Keyboard,
-  KeyboardEvent,
-  PanResponder,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
+    Animated,
+    FlatList,
+    Keyboard,
+    KeyboardEvent,
+    PanResponder,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    useWindowDimensions,
 } from 'react-native';
 import { sendMessageToAI } from '../utils/chatService';
 import { ChatInput } from './chat/ChatInput';
