@@ -6,7 +6,7 @@ import {
 } from "@expo-google-fonts/mitr";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
-import { useNavigation, useRouter } from "expo-router";
+import { useNavigation, useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   ActivityIndicator,
@@ -88,6 +88,8 @@ export default function MarketplaceScreen() {
   const [isLastPage, setIsLastPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { search: searchParam } = useLocalSearchParams<{ search?: string }>();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
   const [selectedUniId, setSelectedUniId] = useState<string | number | null>(null);
@@ -150,12 +152,19 @@ export default function MarketplaceScreen() {
   const sortedSheets = useMemo(() => {
     let filteredList = sheets;
 
+    if (submittedSearch && submittedSearch.trim() !== "") {
+      const kw = submittedSearch.trim().toLowerCase();
+      filteredList = filteredList.filter(sheet =>
+        sheet.title?.toLowerCase().includes(kw)
+      );
+    }
+
     if (selectedUniId && selectedUniId !== 'all' && selectedUniId !== 'ทั้งหมด') {
-      filteredList = sheets.filter(sheet => sheet.university?.id === Number(selectedUniId));
+      filteredList = filteredList.filter(sheet => sheet.university?.id === Number(selectedUniId));
     }
 
     return sortByUpdatedAt(filteredList, sortType);
-  }, [sheets, sortType, selectedUniId]);
+  }, [sheets, sortType, selectedUniId, submittedSearch]);
 
   const fetchSheets = async (
     pageNum: number,
@@ -169,13 +178,8 @@ export default function MarketplaceScreen() {
 
       const currentSize = pageNum === 0 ? 12 : 6;
 
-      let url = "";
-      
-      if (searchTxt && searchTxt.trim() !== "") {
-        url = `/products/search?keyword=${encodeURIComponent(searchTxt.trim())}&page=${pageNum}&size=${currentSize}&isPublished=true`;
-      } else {
-        url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
-      }
+      // The backend has no /search endpoint; title filtering is done client-side.
+      const url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
 
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
@@ -212,6 +216,14 @@ export default function MarketplaceScreen() {
       setLoadingMore(false);
     }
   };
+
+  // Apply search keyword passed via navigation params (e.g. from Home screen)
+  useEffect(() => {
+    if (searchParam) {
+      setSearchQuery(searchParam);
+      setSubmittedSearch(searchParam);
+    }
+  }, [searchParam]);
 
   useEffect(() => {
     setLoading(true);

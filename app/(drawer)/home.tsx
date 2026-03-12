@@ -259,8 +259,9 @@ export default function HomeScreen() {
     if (searchText.trim()) {
       router.push({
         pathname: '/marketplace',
-        params: { query: searchText.trim() },
+        params: { search: searchText.trim() },
       } as any);
+      setSearchText('');
     }
   };
 
