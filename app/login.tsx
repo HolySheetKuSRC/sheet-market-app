@@ -11,7 +11,6 @@ import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -26,10 +25,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { saveTokens } from "../utils/token";
+import Toast from "react-native-toast-message";
 
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
+import { saveTokens } from "../utils/token";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -38,7 +38,6 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const GOOGLE_CLIENT_ID =
   "657352686440-of813ues4uubhm85i56rp73c7b68ammr.apps.googleusercontent.com";
 
-/* ── Brand palette (matches reference design) ── */
 const B = {
   primary: "#3E4CD2",
   bg: "#EEEEF8",
@@ -67,7 +66,6 @@ export default function AuthScreen() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [username, setUsername] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -76,44 +74,34 @@ export default function AuthScreen() {
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
 
   /* ---------------- GOOGLE AUTH ---------------- */
 
-  // TODO: สร้าง iOS Client ID จาก Google Cloud Console แล้วใส่ที่นี่
   const GOOGLE_IOS_CLIENT_ID = "";
-
   const isGoogleSupported = Platform.OS !== "ios" || !!GOOGLE_IOS_CLIENT_ID;
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID || GOOGLE_CLIENT_ID, // fallback เพื่อไม่ให้ crash
+    iosClientId: GOOGLE_IOS_CLIENT_ID || GOOGLE_CLIENT_ID,
     scopes: ["profile", "email"],
     responseType: "id_token",
   });
 
   useEffect(() => {
     if (response?.type === "success") {
-
       const idToken = response.params?.id_token;
-
-      console.log("ID TOKEN:", idToken);
-
       if (idToken) {
         handleGoogleBackend(idToken);
       } else {
-        Alert.alert("Google login failed");
+        Toast.show({
+          type: "error",
+          text1: "Google Login ล้มเหลว",
+          text2: "ไม่ได้รับ ID Token",
+        });
       }
     }
   }, [response]);
@@ -121,23 +109,22 @@ export default function AuthScreen() {
   const handleGoogleBackend = async (idToken: string) => {
     try {
       setGoogleLoading(true);
+      const res = await axios.post(`${API_URL}/auth/google-login`, { idToken });
 
-      const res = await axios.post(`${API_URL}/auth/google-login`, {
-        idToken,
-      });
-
-      const accessToken = res.data.access_token;
-      const refreshToken = res.data.refresh_token;
-      const sessionToken = res.data.session_token;
-
-      await saveTokens(accessToken, refreshToken, sessionToken);
+      await saveTokens(
+        res.data.access_token,
+        res.data.refresh_token,
+        res.data.session_token
+      );
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
       router.replace("/(drawer)/home" as any);
     } catch (error) {
-      console.error(error);
-      Alert.alert("Google login failed");
+      Toast.show({
+        type: "error",
+        text1: "Google Login ล้มเหลว",
+        text2: "กรุณาลองใหม่อีกครั้ง",
+      });
     } finally {
       setGoogleLoading(false);
     }
@@ -146,31 +133,37 @@ export default function AuthScreen() {
   const handleGoogleLogin = async () => {
     try {
       if (!request) return;
-
       setGoogleLoading(true);
-
-      const result = await promptAsync({
-      });
-
-      console.log("Google result:", result);
+      await promptAsync();
     } catch (error) {
-      console.error(error);
-      Alert.alert("Google login error");
+      Toast.show({
+        type: "error",
+        text1: "Google Login Error",
+        text2: "กรุณาลองใหม่อีกครั้ง",
+      });
     } finally {
       setGoogleLoading(false);
     }
   };
 
-  /* ---------------- EMAIL LOGIN ---------------- */
+  /* ---------------- EMAIL LOGIN / REGISTER ---------------- */
 
   const handleAuthAction = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill all fields");
+      Toast.show({
+        type: "error",
+        text1: "กรุณากรอกข้อมูลให้ครบ",
+        text2: "อีเมลและรหัสผ่านห้ามว่าง",
+      });
       return;
     }
 
     if (!API_URL) {
-      Alert.alert("Config Error", "API URL missing");
+      Toast.show({
+        type: "error",
+        text1: "Config Error",
+        text2: "API URL missing",
+      });
       return;
     }
 
@@ -178,21 +171,26 @@ export default function AuthScreen() {
 
     try {
       if (isLogin) {
-        const res = await axios.post(`${API_URL}/auth/login`, {
-          email,
-          password,
-        });
+        // ── LOGIN ──
+        const res = await axios.post(`${API_URL}/auth/login`, { email, password });
 
-        const accessToken = res.data.access_token;
-        const refreshToken = res.data.refresh_token;
-        const sessionToken = res.data.session_token;
+        await saveTokens(
+          res.data.access_token,
+          res.data.refresh_token,
+          res.data.session_token
+        );
 
-        await saveTokens(accessToken, refreshToken, sessionToken);
-
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace("/(drawer)/home" as any);
+
       } else {
+        // ── REGISTER ──
         if (password !== confirmPassword) {
-          Alert.alert("Passwords do not match");
+          Toast.show({
+            type: "error",
+            text1: "รหัสผ่านไม่ตรงกัน",
+            text2: "กรุณาตรวจสอบรหัสผ่านอีกครั้ง",
+          });
           setLoading(false);
           return;
         }
@@ -204,14 +202,40 @@ export default function AuthScreen() {
           secPassword: confirmPassword,
         });
 
-        Alert.alert("Success", "Account created");
+        Toast.show({
+          type: "success",
+          text1: "สมัครสมาชิกสำเร็จ",
+          text2: "กรุณาตรวจสอบ OTP ในอีเมลของคุณ",
+          visibilityTime: 4000,
+        });
         setIsLogin(true);
       }
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || "Connection error. Please try again.";
 
-      Alert.alert("Authentication Failed", message);
+    } catch (error: any) {
+      const status = error.response?.status;
+      let title = "เกิดข้อผิดพลาด";
+      let message = error.response?.data?.message ?? "ลองใหม่อีกครั้ง";
+
+      if (status === 401) {
+        title = "เข้าสู่ระบบไม่สำเร็จ";
+        message = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+      } else if (status === 403) {
+        title = "ยังไม่ได้ยืนยันตัวตน";
+        message = "กรุณายืนยัน OTP ก่อนเข้าสู่ระบบ";
+      } else if (status === 409) {
+        title = "อีเมลนี้ถูกใช้แล้ว";
+        message = "กรุณาใช้อีเมลอื่นหรือเข้าสู่ระบบ";
+      } else if (!error.response) {
+        title = "ไม่สามารถเชื่อมต่อได้";
+        message = "กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+      }
+
+      Toast.show({
+        type: "error",
+        text1: title,
+        text2: message,
+        visibilityTime: 4000,
+      });
     } finally {
       setLoading(false);
     }
@@ -252,7 +276,7 @@ export default function AuthScreen() {
           <Animated.View style={[
             styles.card,
             isLargeScreen && styles.cardLarge,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}>
 
             {/* ── Logo ── */}
@@ -277,20 +301,14 @@ export default function AuthScreen() {
                 : "เข้าร่วม GrowthSheet และเริ่มต้นการเรียนรู้ที่ชาญฉลาดยิ่งขึ้น"}
             </Text>
 
-            {/* ── Login / Register Toggle ── */}
+            {/* ── Toggle ── */}
             <View style={styles.toggleWrap}>
               <TouchableOpacity
                 style={[styles.toggleTab, isLogin && styles.toggleTabActive]}
                 onPress={() => setIsLogin(true)}
                 activeOpacity={0.8}
               >
-                <Text
-                  style={[
-                    styles.toggleTabText,
-                    { fontFamily: f.regular },
-                    isLogin && styles.toggleTabTextActive,
-                  ]}
-                >
+                <Text style={[styles.toggleTabText, { fontFamily: f.regular }, isLogin && styles.toggleTabTextActive]}>
                   เข้าสู่ระบบ
                 </Text>
               </TouchableOpacity>
@@ -299,13 +317,7 @@ export default function AuthScreen() {
                 onPress={() => setIsLogin(false)}
                 activeOpacity={0.8}
               >
-                <Text
-                  style={[
-                    styles.toggleTabText,
-                    { fontFamily: f.regular },
-                    !isLogin && styles.toggleTabTextActive,
-                  ]}
-                >
+                <Text style={[styles.toggleTabText, { fontFamily: f.regular }, !isLogin && styles.toggleTabTextActive]}>
                   สมัครสมาชิก
                 </Text>
               </TouchableOpacity>
@@ -314,9 +326,7 @@ export default function AuthScreen() {
             {/* ── Username (register only) ── */}
             {!isLogin && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
-                  ชื่อผู้ใช้ (Username)
-                </Text>
+                <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>ชื่อผู้ใช้ (Username)</Text>
                 <TextInput
                   placeholder="ชื่อผู้ใช้ของคุณ"
                   style={[styles.input, { fontFamily: f.regular }]}
@@ -329,9 +339,7 @@ export default function AuthScreen() {
 
             {/* ── Email ── */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
-                อีเมล (Email)
-              </Text>
+              <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>อีเมล (Email)</Text>
               <TextInput
                 placeholder="อีเมลที่ลงทะเบียนไว้"
                 style={[styles.input, { fontFamily: f.regular }]}
@@ -345,9 +353,7 @@ export default function AuthScreen() {
 
             {/* ── Password ── */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
-                รหัสผ่าน (Password)
-              </Text>
+              <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>รหัสผ่าน (Password)</Text>
               <TextInput
                 placeholder="ระบุรหัสผ่านของคุณ"
                 style={[styles.input, { fontFamily: f.regular }]}
@@ -360,7 +366,10 @@ export default function AuthScreen() {
 
             {/* ── Forgot password (login only) ── */}
             {isLogin && (
-              <TouchableOpacity style={styles.forgotRow}>
+              <TouchableOpacity
+                style={styles.forgotRow}
+                onPress={() => router.push("/forgot-password" as any)}
+              >
                 <Text style={[styles.forgotText, { fontFamily: f.regular }]}>
                   ลืมรหัสผ่าน?
                 </Text>
@@ -370,9 +379,7 @@ export default function AuthScreen() {
             {/* ── Confirm Password (register only) ── */}
             {!isLogin && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>
-                  ยืนยันรหัสผ่าน
-                </Text>
+                <Text style={[styles.fieldLabel, { fontFamily: f.medium }]}>ยืนยันรหัสผ่าน</Text>
                 <TextInput
                   placeholder="ยืนยันรหัสผ่านอีกครั้ง"
                   style={[styles.input, { fontFamily: f.regular }]}
@@ -389,7 +396,7 @@ export default function AuthScreen() {
               style={({ pressed }) => [
                 styles.primaryBtn,
                 loading && { opacity: 0.7 },
-                { transform: [{ scale: pressed ? 0.96 : 1 }] }
+                { transform: [{ scale: pressed ? 0.96 : 1 }] },
               ]}
               onPress={handleAuthAction}
               disabled={loading}
@@ -407,9 +414,7 @@ export default function AuthScreen() {
             {isGoogleSupported && (
               <View style={styles.dividerRow}>
                 <View style={styles.divLine} />
-                <Text style={[styles.divText, { fontFamily: f.regular }]}>
-                  หรือ
-                </Text>
+                <Text style={[styles.divText, { fontFamily: f.regular }]}>หรือ</Text>
                 <View style={styles.divLine} />
               </View>
             )}
@@ -420,7 +425,7 @@ export default function AuthScreen() {
                 style={({ pressed }) => [
                   styles.googleBtn,
                   (!request || googleLoading) && { opacity: 0.6 },
-                  { transform: [{ scale: pressed ? 0.96 : 1 }] }
+                  { transform: [{ scale: pressed ? 0.96 : 1 }] },
                 ]}
                 onPress={handleGoogleLogin}
                 disabled={!request || googleLoading}
@@ -429,12 +434,7 @@ export default function AuthScreen() {
                   <ActivityIndicator color={B.primary} />
                 ) : (
                   <>
-                    <AntDesign
-                      name="google"
-                      size={20}
-                      color="#4285F4"
-                      style={{ marginRight: 10 }}
-                    />
+                    <AntDesign name="google" size={20} color="#4285F4" style={{ marginRight: 10 }} />
                     <Text style={[styles.googleBtnText, { fontFamily: f.medium }]}>
                       Sign in with Google
                     </Text>
@@ -453,27 +453,10 @@ export default function AuthScreen() {
 /* ──────────────────────── STYLES ──────────────────────── */
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: B.bg,
-  },
-
-  /* Scroll */
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 36,
-  },
-  scrollContentLarge: {
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-
-  /* Card — transparent on mobile, elevated white on large screens */
-  card: {
-    width: "100%",
-  },
+  safeArea: { flex: 1, backgroundColor: B.bg },
+  scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 36 },
+  scrollContentLarge: { alignItems: "center", paddingVertical: 60 },
+  card: { width: "100%" },
   cardLarge: {
     maxWidth: 480,
     backgroundColor: B.surface,
@@ -486,78 +469,18 @@ const styles = StyleSheet.create({
     shadowRadius: 28,
     elevation: 10,
   },
-
-  /* Logo */
-  logoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 32,
-    gap: 10,
-  },
-  logoImg: {
-    width: 38,
-    height: 38,
-    borderRadius: 9,
-  },
-  logoText: {
-    fontSize: 14,
-    color: B.primary,
-    letterSpacing: 2,
-  },
-
-  /* Headline */
-  title: {
-    fontSize: 29,
-    color: B.primary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 17,
-    color: B.textMain,
-    lineHeight: 27,
-    marginBottom: 28,
-  },
-
-  /* Toggle pill */
-  toggleWrap: {
-    flexDirection: "row",
-    backgroundColor: B.toggleBg,
-    borderRadius: 50,
-    padding: 4,
-    marginBottom: 28,
-    alignSelf: "center",
-  },
-  toggleTab: {
-    paddingVertical: 8,
-    paddingHorizontal: 26,
-    borderRadius: 50,
-  },
-  toggleTabActive: {
-    backgroundColor: B.primary,
-    shadowColor: B.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.28,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  toggleTabText: {
-    fontSize: 14,
-    color: B.textMain,
-  },
-  toggleTabTextActive: {
-    color: "#FFFFFF",
-  },
-
-  /* Form fields */
-  fieldGroup: {
-    marginBottom: 18,
-  },
-  fieldLabel: {
-    fontSize: 17,
-    color: B.textMain,
-    marginBottom: 8,
-  },
+  logoRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 32, gap: 10 },
+  logoImg: { width: 38, height: 38, borderRadius: 9 },
+  logoText: { fontSize: 14, color: B.primary, letterSpacing: 2 },
+  title: { fontSize: 29, color: B.primary, marginBottom: 8 },
+  subtitle: { fontSize: 17, color: B.textMain, lineHeight: 27, marginBottom: 28 },
+  toggleWrap: { flexDirection: "row", backgroundColor: B.toggleBg, borderRadius: 50, padding: 4, marginBottom: 28, alignSelf: "center" },
+  toggleTab: { paddingVertical: 8, paddingHorizontal: 26, borderRadius: 50 },
+  toggleTabActive: { backgroundColor: B.primary, shadowColor: B.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.28, shadowRadius: 6, elevation: 4 },
+  toggleTabText: { fontSize: 14, color: B.textMain },
+  toggleTabTextActive: { color: "#FFFFFF" },
+  fieldGroup: { marginBottom: 18 },
+  fieldLabel: { fontSize: 17, color: B.textMain, marginBottom: 8 },
   input: {
     backgroundColor: B.surface,
     borderWidth: 1.5,
@@ -569,19 +492,8 @@ const styles = StyleSheet.create({
     color: B.textMain,
     minHeight: 52,
   },
-
-  /* Forgot password */
-  forgotRow: {
-    alignSelf: "flex-end",
-    marginTop: -6,
-    marginBottom: 24,
-  },
-  forgotText: {
-    fontSize: 14,
-    color: B.link,
-  },
-
-  /* Primary CTA button */
+  forgotRow: { alignSelf: "flex-end", marginTop: -6, marginBottom: 24 },
+  forgotText: { fontSize: 14, color: B.link },
   primaryBtn: {
     backgroundColor: "#C8CCF2",
     borderWidth: 1.5,
@@ -593,29 +505,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 20,
   },
-  primaryBtnText: {
-    fontSize: 17,
-    color: B.primary,
-  },
-
-  /* Divider */
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 12,
-  },
-  divLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: B.border,
-  },
-  divText: {
-    fontSize: 13,
-    color: "#9CA3AF",
-  },
-
-  /* Google button */
+  primaryBtnText: { fontSize: 17, color: B.primary },
+  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 12 },
+  divLine: { flex: 1, height: 1, backgroundColor: B.border },
+  divText: { fontSize: 13, color: "#9CA3AF" },
   googleBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -627,8 +520,5 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: 20,
   },
-  googleBtnText: {
-    fontSize: 17,
-    color: B.primary,
-  },
+  googleBtnText: { fontSize: 17, color: B.primary },
 });

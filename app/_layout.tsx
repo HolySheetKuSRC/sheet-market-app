@@ -1,37 +1,31 @@
+import { apiRequest } from "@/utils/api";
+import { registerForPushNotificationsAsync } from "@/utils/pushNotification";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { apiRequest } from "@/utils/api";
-
+import Toast from "react-native-toast-message";
 
 import Notification, { NotificationHandle } from "../components/notification";
-import { getAccessToken } from "../utils/token";
-
-import { registerForPushNotificationsAsync } from "@/utils/pushNotification";
 import { CartProvider } from "../context/CartContext";
-
+import { getAccessToken } from "../utils/token";
 
 type NotiFunc = (msg?: string) => void;
 
-const NotificationContext = createContext<NotiFunc>(() => { });
+const NotificationContext = createContext<NotiFunc>(() => {});
 export const useNotification = () => useContext(NotificationContext);
 
 export default function RootLayout() {
   const notificationRef = useRef<NotificationHandle>(null);
-
   const [isReady, setIsReady] = useState(false);
-
   const segments = useSegments();
   const router = useRouter();
 
   const checkAuth = async () => {
     try {
       const token = await getAccessToken();
-
       const currentSegment = segments[0] as string | undefined;
-
       const isAtRoot = !currentSegment;
       const inAuthGroup = isAtRoot || currentSegment === "login";
       const inProtectedGroup =
@@ -53,40 +47,24 @@ export default function RootLayout() {
     checkAuth();
   }, [segments]);
 
-  // registor Push Notification Expo go 
   const init = async () => {
     const tokenExpo = await registerForPushNotificationsAsync();
-
     console.log("Push Token", tokenExpo);
-
     if (!tokenExpo) return;
-
     await apiRequest("/userdevice/expo-token", {
       method: "POST",
-      body: JSON.stringify({
-        token: tokenExpo,
-        deviceType: "android",
-      }),
+      body: JSON.stringify({ token: tokenExpo, deviceType: "android" }),
     });
   };
 
   if (!isReady) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
 
-  /**
-   * 🔔 ฟังก์ชันเรียก Notification จากทุกหน้า
-   */
   const notify = (msg?: string) => {
     notificationRef.current?.show(msg || "Notification");
   };
@@ -103,12 +81,13 @@ export default function RootLayout() {
                 name="sheet/[id]"
                 options={{ presentation: "card" }}
               />
+              
+              <Stack.Screen name="forgot-password" />
             </Stack>
 
             <StatusBar style="dark" />
-
-            {/* 🔔 Global Notification */}
             <Notification ref={notificationRef} />
+            <Toast />
           </View>
         </CartProvider>
       </NotificationContext.Provider>
