@@ -212,8 +212,10 @@ const SheetCard: React.FC<SheetCardProps> = ({
           {isOwned && variant === "marketplace" ? (
             /* ✅ Marketplace — user already owns this sheet */
             <View style={styles.mpOwnedRow}>
-              <Ionicons name="checkmark-circle" size={15} color="#22C55E" />
-              <Text style={styles.mpOwnedText}>ซื้อแล้ว</Text>
+              <View style={styles.ownedBadgeLabel}>
+                <Ionicons name="checkmark-circle" size={15} color="#22C55E" />
+                <Text style={styles.ownedBadgeLabelText}>ซื้อแล้ว</Text>
+              </View>
               <TouchableOpacity
                 style={styles.viewLibraryBtn}
                 onPress={(e) => {
@@ -595,31 +597,44 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 6,
+    marginTop: 28,  // Extra space to align with where price + actionRow would be
   },
 
-  mpOwnedText: {
-    flex: 1,
+  ownedBadgeLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    height: 36,
+    backgroundColor: "#DCFCE7",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+
+  ownedBadgeLabelText: {
     fontSize: 13,
     fontFamily: "Mitr_500Medium",
     color: "#16A34A",
   },
 
   viewLibraryBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    flex: 1,
+    height: 36,
     borderRadius: 8,
-    backgroundColor: "#DCFCE7",
-    borderWidth: 1,
-    borderColor: "#86EFAC",
+    backgroundColor: "#22C55E",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#22C55E",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
 
   viewLibraryBtnText: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: "Mitr_500Medium",
-    color: "#16A34A",
+    color: "#fff",
   },
 });
 
