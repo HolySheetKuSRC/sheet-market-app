@@ -19,21 +19,21 @@ import { styles } from "../../styles/withdrawal.styles";
 import { apiRequest } from "../../utils/api";
 import { getUserIdFromSessionToken } from "../../utils/token";
 
-// ===== Types =====
+// ===== Types (ปรับให้ตรงกับ Java Backend) =====
 interface SellerBalanceResponse {
-  totalBalance: number;
-  pendingBalance: number;
-  availableBalance: number;
+  netRevenue: number;
+  withdrawn: number;
+  available: number; // ตรงกับชื่อฟิลด์ใน WithdrawalService.java
 }
 
 interface WithdrawalHistoryItem {
   id: string;
   amount: number;
-  status: string; // COMPLETED, PENDING, REJECTED
+  status: string; 
   createdAt: string;
 }
 
-// ===== Helper: format date to DD / MM / YYYY (พ.ศ.) =====
+// ===== Helper: format date =====
 function formatThaiDate(dateStr: string): string {
   try {
     const d = new Date(dateStr);
@@ -46,31 +46,21 @@ function formatThaiDate(dateStr: string): string {
   }
 }
 
-// ===== Helper: translate status =====
 function getStatusLabel(status: string): string {
   switch (status?.toUpperCase()) {
-    case "COMPLETED":
-      return "สำเร็จ";
-    case "PENDING":
-      return "รอตรวจสอบ";
-    case "REJECTED":
-      return "ถูกปฏิเสธ";
-    default:
-      return status;
+    case "COMPLETED": return "สำเร็จ";
+    case "PENDING": return "รอตรวจสอบ";
+    case "REJECTED": return "ถูกปฏิเสธ";
+    default: return status;
   }
 }
 
-// ===== Helper: get style variant by status =====
 function getStatusVariant(status: string) {
   switch (status?.toUpperCase()) {
-    case "COMPLETED":
-      return "Completed";
-    case "PENDING":
-      return "Pending";
-    case "REJECTED":
-      return "Rejected";
-    default:
-      return "Completed";
+    case "COMPLETED": return "Completed";
+    case "PENDING": return "Pending";
+    case "REJECTED": return "Rejected";
+    default: return "Completed";
   }
 }
 
@@ -84,32 +74,25 @@ export default function WithdrawalScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // ===== Modal state =====
   const [modalVisible, setModalVisible] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
-  // ===== Fetch Balance =====
+  // ===== Fetch Balance (แก้ไขการแกะ JSON) =====
   const fetchBalance = useCallback(async () => {
     try {
       const userId = await getUserIdFromSessionToken();
-      if (!userId) {
-        setError("ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่");
-        return;
-      }
+      if (!userId) return;
+
       const response = await apiRequest("/payments/withdrawals/balance", {
         headers: { "X-USER-ID": userId },
       });
+
       if (response.ok) {
         const json = await response.json();
-        if (json.success) {
-          setBalance(json.data);
-        } else {
-          console.warn("API error fetching balance:", json.message);
-        }
-      } else {
-        console.warn("Failed to fetch balance:", response.status);
+        // เนื่องจาก Backend ส่ง SellerBalanceResponse มาโดยตรง ไม่ได้หุ้ม success/data
+        setBalance(json);
       }
     } catch (err) {
       console.error("Error fetching balance:", err);
@@ -130,15 +113,15 @@ export default function WithdrawalScreen() {
 
         if (response.ok) {
           const json = await response.json();
-          const items: WithdrawalHistoryItem[] = json.success ? (json.data?.content || []) : (json.content || []);
+          // สำหรับ Page<T> ของ Spring ข้อมูลจะอยู่ที่ json.content
+          const items: WithdrawalHistoryItem[] = json.content || [];
+          
           if (append) {
             setHistory((prev) => [...prev, ...items]);
           } else {
             setHistory(items);
           }
-          setHasMore(json.success ? !json.data?.last : !json.last);
-        } else {
-          console.warn("Failed to fetch history:", response.status);
+          setHasMore(!json.last);
         }
       } catch (err) {
         console.error("Error fetching history:", err);
@@ -147,7 +130,6 @@ export default function WithdrawalScreen() {
     [],
   );
 
-  // ===== Initial Load =====
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -158,7 +140,6 @@ export default function WithdrawalScreen() {
     init();
   }, [fetchBalance, fetchHistory]);
 
-  // ===== Pull-to-refresh =====
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setPage(0);
@@ -166,7 +147,6 @@ export default function WithdrawalScreen() {
     setRefreshing(false);
   }, [fetchBalance, fetchHistory]);
 
-  // ===== Load more (pagination) =====
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore) return;
     setLoadingMore(true);
@@ -176,21 +156,20 @@ export default function WithdrawalScreen() {
     setLoadingMore(false);
   }, [hasMore, loadingMore, page, fetchHistory]);
 
-  // ===== Open withdraw modal =====
   const handleWithdraw = () => {
     setWithdrawAmount("");
     setModalError(null);
     setModalVisible(true);
   };
 
-  // ===== Submit withdrawal request =====
   const submitWithdrawal = async () => {
     const amount = parseFloat(withdrawAmount);
     if (!withdrawAmount || isNaN(amount) || amount <= 0) {
       setModalError("กรุณาใส่จำนวนเงินที่ถูกต้อง");
       return;
     }
-    if (balance && amount > balance.availableBalance) {
+    // ใช้ .available ให้ตรงกับ Interface ใหม่
+    if (balance && amount > balance.available) {
       setModalError("จำนวนเงินเกินยอดที่ถอนได้");
       return;
     }
@@ -201,7 +180,6 @@ export default function WithdrawalScreen() {
       const userId = await getUserIdFromSessionToken();
       if (!userId) {
         setModalError("ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่");
-        setWithdrawing(false);
         return;
       }
 
@@ -219,11 +197,10 @@ export default function WithdrawalScreen() {
       if (response.ok && data.success) {
         setModalVisible(false);
         if (Platform.OS === "web") {
-          alert(data.message || "สร้างคำขอถอนเงินเรียบร้อย รอ admin อนุมัติ");
+          alert(data.message || "สร้างคำขอถอนเงินเรียบร้อย");
         } else {
-          Alert.alert("สำเร็จ", data.message || "สร้างคำขอถอนเงินเรียบร้อย รอ admin อนุมัติ");
+          Alert.alert("สำเร็จ", data.message || "สร้างคำขอถอนเงินเรียบร้อย");
         }
-        // Refresh balance & history
         setPage(0);
         await Promise.all([fetchBalance(), fetchHistory(0)]);
       } else {
@@ -237,57 +214,39 @@ export default function WithdrawalScreen() {
     }
   };
 
-  // ===== Render history item =====
-  const renderHistoryItem = ({
-    item,
-  }: {
-    item: WithdrawalHistoryItem;
-  }) => {
+  const renderHistoryItem = ({ item }: { item: WithdrawalHistoryItem }) => {
     const variant = getStatusVariant(item.status);
     return (
-      <View
-        style={[
-          styles.historyItem,
-          variant === "Completed" && styles.historyItemCompleted,
-          variant === "Pending" && styles.historyItemPending,
-          variant === "Rejected" && styles.historyItemRejected,
-        ]}
-      >
-        <View
-          style={[
-            styles.historyIconBox,
-            variant === "Completed" && styles.historyIconCompleted,
-            variant === "Pending" && styles.historyIconPending,
-            variant === "Rejected" && styles.historyIconRejected,
-          ]}
-        >
+      <View style={[
+        styles.historyItem,
+        variant === "Completed" && styles.historyItemCompleted,
+        variant === "Pending" && styles.historyItemPending,
+        variant === "Rejected" && styles.historyItemRejected,
+      ]}>
+        <View style={[
+          styles.historyIconBox,
+          variant === "Completed" && styles.historyIconCompleted,
+          variant === "Pending" && styles.historyIconPending,
+          variant === "Rejected" && styles.historyIconRejected,
+        ]}>
           <Ionicons name="logo-usd" size={20} color="#fff" />
         </View>
-
         <View style={styles.historyTextContainer}>
-          <Text style={styles.historyDate}>
-            วันที่ : {formatThaiDate(item.createdAt)}
-          </Text>
-          <Text style={styles.historyStatus}>
-            สถานะ : {getStatusLabel(item.status)}
-          </Text>
+          <Text style={styles.historyDate}>วันที่ : {formatThaiDate(item.createdAt)}</Text>
+          <Text style={styles.historyStatus}>สถานะ : {getStatusLabel(item.status)}</Text>
         </View>
-
-        <Text
-          style={[
-            styles.historyAmount,
-            variant === "Completed" && styles.historyAmountCompleted,
-            variant === "Pending" && styles.historyAmountPending,
-            variant === "Rejected" && styles.historyAmountRejected,
-          ]}
-        >
-          +{item.amount}฿
+        <Text style={[
+          styles.historyAmount,
+          variant === "Completed" && styles.historyAmountCompleted,
+          variant === "Pending" && styles.historyAmountPending,
+          variant === "Rejected" && styles.historyAmountRejected,
+        ]}>
+          {item.amount}฿
         </Text>
       </View>
     );
   };
 
-  // ===== Loading state =====
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -304,90 +263,53 @@ export default function WithdrawalScreen() {
         data={history}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <>
-            {/* ===== Balance Card ===== */}
             <View style={styles.balanceCard}>
               <View style={styles.balanceIconBox}>
                 <Ionicons name="wallet-outline" size={28} color="#fff" />
               </View>
-              <Text style={styles.balanceLabel}>ยอดเงินทั้งหมด</Text>
+              <Text style={styles.balanceLabel}>ยอดเงินที่ถอนได้</Text>
               <Text style={styles.balanceAmount}>
-                ฿{balance?.availableBalance?.toLocaleString() ?? "0"}
+                ฿{balance?.available?.toLocaleString() ?? "0"}
               </Text>
-              <TouchableOpacity
-                style={styles.withdrawBtn}
-                onPress={handleWithdraw}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={styles.withdrawBtn} onPress={handleWithdraw} activeOpacity={0.8}>
                 <Text style={styles.withdrawBtnText}>ถอนเลย</Text>
               </TouchableOpacity>
             </View>
-
-            {/* ===== History Title ===== */}
             <Text style={styles.historyTitle}>ประวัติการถอนเงิน</Text>
-
             {error && <Text style={styles.errorText}>{error}</Text>}
           </>
         }
         renderItem={renderHistoryItem}
         onEndReached={loadMore}
         onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          loadingMore ? (
-            <ActivityIndicator
-              size="small"
-              color="#6C63FF"
-              style={{ paddingVertical: 20 }}
-            />
-          ) : null
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <Text style={styles.emptyText}>ยังไม่มีประวัติการถอนเงิน</Text>
-          ) : null
-        }
+        ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#6C63FF" style={{ paddingVertical: 20 }} /> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.emptyText}>ยังไม่มีประวัติการถอนเงิน</Text> : null}
       />
-      {/* ===== Withdrawal Modal ===== */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !withdrawing && setModalVisible(false)}
-      >
+
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => !withdrawing && setModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => !withdrawing && setModalVisible(false)}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => { }}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
-              >
+              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
                 <View style={styles.modalContent}>
-                  {/* Header */}
                   <View style={styles.modalHeader}>
                     <View style={styles.modalIconBox}>
                       <Ionicons name="cash-outline" size={28} color="#fff" />
                     </View>
                     <Text style={styles.modalTitle}>ถอนเงิน</Text>
-                    <TouchableOpacity
-                      style={styles.modalCloseBtn}
-                      onPress={() => !withdrawing && setModalVisible(false)}
-                    >
+                    <TouchableOpacity style={styles.modalCloseBtn} onPress={() => !withdrawing && setModalVisible(false)}>
                       <Ionicons name="close" size={22} color="#888" />
                     </TouchableOpacity>
                   </View>
 
-                  {/* Available balance */}
                   <View style={styles.modalBalanceRow}>
                     <Text style={styles.modalBalanceLabel}>ยอดเงินที่ถอนได้</Text>
-                    <Text style={styles.modalBalanceValue}>
-                      ฿{balance?.availableBalance?.toLocaleString() ?? "0"}
-                    </Text>
+                    <Text style={styles.modalBalanceValue}>฿{balance?.available?.toLocaleString() ?? "0"}</Text>
                   </View>
 
-                  {/* Amount input */}
                   <Text style={styles.modalInputLabel}>จำนวนเงินที่ต้องการถอน (บาท)</Text>
                   <TextInput
                     style={styles.modalInput}
@@ -402,34 +324,18 @@ export default function WithdrawalScreen() {
                     editable={!withdrawing}
                   />
 
-                  {/* Error */}
-                  {modalError && (
-                    <Text style={styles.modalErrorText}>{modalError}</Text>
-                  )}
+                  {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
 
-                  {/* Buttons */}
                   <View style={styles.modalBtnRow}>
-                    <TouchableOpacity
-                      style={styles.modalCancelBtn}
-                      onPress={() => setModalVisible(false)}
-                      disabled={withdrawing}
-                    >
+                    <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setModalVisible(false)} disabled={withdrawing}>
                       <Text style={styles.modalCancelBtnText}>ยกเลิก</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[
-                        styles.modalSubmitBtn,
-                        withdrawing && { opacity: 0.6 },
-                      ]}
+                      style={[styles.modalSubmitBtn, withdrawing && { opacity: 0.6 }]}
                       onPress={submitWithdrawal}
                       disabled={withdrawing}
-                      activeOpacity={0.8}
                     >
-                      {withdrawing ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={styles.modalSubmitBtnText}>ยืนยันถอนเงิน</Text>
-                      )}
+                      {withdrawing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalSubmitBtnText}>ยืนยันถอนเงิน</Text>}
                     </TouchableOpacity>
                   </View>
                 </View>
