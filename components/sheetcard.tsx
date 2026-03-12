@@ -169,7 +169,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
       {/* 📦 Content */}
       <View style={styles.cardContent}>
 
-        {/* ── Flexible text area — absorbs all extra vertical space ────────────── */}
+        {/* ── Flexible text area — groups title / description / tags ─────────────── */}
         <View style={styles.cardTextArea}>
           <Text
             style={[
@@ -208,15 +208,15 @@ const SheetCard: React.FC<SheetCardProps> = ({
           )}
         </View>
 
-        {/* ── Footer: always pinned to bottom of card ─────────────────────── */}
+        {/* ── Footer: price+buttons (marketplace) or download+like (library) ── */}
         <View style={styles.cardFooter}>
           {isOwned ? (
             <View style={styles.ownedActions}>
-              {/* ⬇️ Download */}
+              {/* ⬇️ Download — proper visible style in both variants */}
               <TouchableOpacity
                 style={[
                   styles.downloadButton,
-                  variant === "library" && { backgroundColor: "transparent", paddingVertical: 0 },
+                  variant === "library" && styles.downloadButtonLibrary,
                 ]}
                 onPress={(e) => {
                   e.stopPropagation();
@@ -224,13 +224,15 @@ const SheetCard: React.FC<SheetCardProps> = ({
                 }}
                 activeOpacity={0.9}
               >
-                {variant !== "library" && (
-                  <Ionicons name="download-outline" size={14} color="#fff" />
-                )}
+                <Ionicons
+                  name="download-outline"
+                  size={14}
+                  color={variant === "library" ? "#6366F1" : "#fff"}
+                />
                 <Text
                   style={[
                     styles.downloadText,
-                    variant === "library" && { color: "#6366F1", fontSize: 14 },
+                    variant === "library" && styles.downloadTextLibrary,
                   ]}
                 >
                   ดาวน์โหลด
@@ -411,17 +413,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingBottom: 10,
     paddingTop: 4,
-    flex: 1,
-    // ── space-between pushes cardFooter to the absolute bottom of the card ─
-    justifyContent: 'space-between',
+    // No flex:1 here — card height is content-driven (no fixed parent height).
+    // Using flex:1 + justifyContent:space-between without a fixed parent collapses
+    // the flex child to 0 in Yoga's second pass, causing content to overflow the
+    // card's white background (visible due to overflow:'visible' for shadows).
   },
 
-  // Text/tags grow area — absorbs all spare vertical space
+  // Simple grouping view — title, description, tags in normal document flow
   cardTextArea: {
-    flex: 1,
+    // intentionally no flex:1 — see cardContent comment above
   },
 
-  // Footer: price + action buttons always pinned to card bottom
+  // Footer follows text area in normal flow; top padding provides visual breathing room
   cardFooter: {
     paddingTop: 8,
   },
@@ -528,10 +531,22 @@ const styles = StyleSheet.create({
     gap: 4,
   },
 
+  // Library variant: softer indigo pill instead of solid dark indigo
+  downloadButtonLibrary: {
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1.5,
+    borderColor: "#C7D2FE",
+  },
+
   downloadText: {
     color: "#fff",
     fontSize: 11,
     fontFamily: "Mitr_500Medium",
+  },
+
+  // Library variant text colour
+  downloadTextLibrary: {
+    color: "#6366F1",
   },
 
   likeButton: {
