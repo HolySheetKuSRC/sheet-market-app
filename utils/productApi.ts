@@ -5,11 +5,13 @@ export const getProducts = async ({
   size = 10,
   sort = "latest",
   tags = [],
+  isPublished = true,
 }: {
   page?: number;
   size?: number;
   sort?: string;
   tags?: string[];
+  isPublished?: boolean;
 }) => {
 
   const params = new URLSearchParams();
@@ -17,6 +19,7 @@ export const getProducts = async ({
   params.append("page", String(page));
   params.append("size", String(size));
   params.append("sort", sort);
+  params.append("isPublished", String(isPublished));
 
   tags.forEach(tag => params.append("tags", tag));
 
