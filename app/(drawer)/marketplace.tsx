@@ -1,35 +1,34 @@
 import {
-  Mitr_400Regular,
-  Mitr_500Medium,
-  Mitr_600SemiBold,
-  useFonts,
+    Mitr_400Regular,
+    Mitr_500Medium,
+    Mitr_600SemiBold,
+    useFonts,
 } from "@expo-google-fonts/mitr";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
-import { useNavigation, useRouter } from "expo-router";
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  LayoutChangeEvent,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-  Modal,
+    ActivityIndicator,
+    FlatList,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 import { universityData as rawUniversityData } from "../../constants/universities";
 import { apiRequest } from "../../utils/api";
 
 import FilterPopup, {
-  FilterPopupHandle,
-  SORT_OPTIONS,
-  SortType,
+    FilterPopupHandle,
+    SORT_OPTIONS,
+    SortType,
 } from "../../components/FilterPopup";
 
 import CartIconWithBadge from "../../components/CartIconWithBadge";
@@ -78,7 +77,6 @@ export default function MarketplaceScreen() {
   const filterRef = useRef<FilterPopupHandle>(null);
   const [sortType, setSortType] = useState<SortType>("newest");
   const [filterSidebarOpen, setFilterSidebarOpen] = useState(false);
-  const [listWidth, setListWidth] = useState(0);
 
   const [sheets, setSheets] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +85,8 @@ export default function MarketplaceScreen() {
   const [page, setPage] = useState(0);
   const [isLastPage, setIsLastPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { search: searchParam } = useLocalSearchParams<{ search?: string }>();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
@@ -97,21 +97,14 @@ export default function MarketplaceScreen() {
     ? universityData.find((u) => u.value === selectedUniId)?.label ?? "มหาวิทยาลัย"
     : null;
 
+  // Derive effective list width from screenWidth, accounting for the sidebar when open.
+  const effectiveWidth = isLargeScreen && filterSidebarOpen ? screenWidth - SIDEBAR_W : screenWidth;
+
   const numColumns =
-    listWidth >= 1024 ? 5
-    : listWidth >= 768  ? 4
-    : listWidth >= 480  ? 3
+    effectiveWidth >= 1280 ? 5
+    : effectiveWidth >= 1024 ? 4
+    : effectiveWidth >= 768  ? 3
     : 2;
-
-  const cardWidth =
-    listWidth > 0
-      ? Math.floor((listWidth - H_PAD * 2 - CARD_GAP * (numColumns - 1)) / numColumns)
-      : 160;
-
-  const handleListLayout = (e: LayoutChangeEvent) => {
-    const w = e.nativeEvent.layout.width;
-    if (w > 0 && w !== listWidth) setListWidth(w);
-  };
 
   const parseDate = (dateVal: any) => {
     if (!dateVal) return 0;
@@ -150,12 +143,19 @@ export default function MarketplaceScreen() {
   const sortedSheets = useMemo(() => {
     let filteredList = sheets;
 
+    if (submittedSearch && submittedSearch.trim() !== "") {
+      const kw = submittedSearch.trim().toLowerCase();
+      filteredList = filteredList.filter(sheet =>
+        sheet.title?.toLowerCase().includes(kw)
+      );
+    }
+
     if (selectedUniId && selectedUniId !== 'all' && selectedUniId !== 'ทั้งหมด') {
-      filteredList = sheets.filter(sheet => sheet.university?.id === Number(selectedUniId));
+      filteredList = filteredList.filter(sheet => sheet.university?.id === Number(selectedUniId));
     }
 
     return sortByUpdatedAt(filteredList, sortType);
-  }, [sheets, sortType, selectedUniId]);
+  }, [sheets, sortType, selectedUniId, submittedSearch]);
 
   const fetchSheets = async (
     pageNum: number,
@@ -169,13 +169,8 @@ export default function MarketplaceScreen() {
 
       const currentSize = pageNum === 0 ? 12 : 6;
 
-      let url = "";
-      
-      if (searchTxt && searchTxt.trim() !== "") {
-        url = `/products/search?keyword=${encodeURIComponent(searchTxt.trim())}&page=${pageNum}&size=${currentSize}&isPublished=true`;
-      } else {
-        url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
-      }
+      // The backend has no /search endpoint; title filtering is done client-side.
+      const url = `/products?page=${pageNum}&size=${currentSize}&isPublished=true`;
 
       // ไม่ต้องใส่ URL เต็ม ใส่แค่ path ข้างหลัง (/products...)
       // ไม่ต้องทำ Header เอง apiRequest จัดการให้
@@ -212,6 +207,14 @@ export default function MarketplaceScreen() {
       setLoadingMore(false);
     }
   };
+
+  // Apply search keyword passed via navigation params (e.g. from Home screen)
+  useEffect(() => {
+    if (searchParam) {
+      setSearchQuery(searchParam);
+      setSubmittedSearch(searchParam);
+    }
+  }, [searchParam]);
 
   useEffect(() => {
     setLoading(true);
@@ -426,16 +429,16 @@ export default function MarketplaceScreen() {
       ) : (
         <View style={styles.mainRow}>
           {/* Grid area — flex:1 so sidebar pushes it */}
-          <View style={styles.listArea} onLayout={handleListLayout}>
+          <View style={styles.listArea}>
             <FlatList
               key={numColumns.toString()}
               data={sortedSheets}
               renderItem={({ item }) => (
-                <SheetCard item={item} cardWidth={cardWidth} />
+                <SheetCard item={item} />
               )}
               keyExtractor={(item) => String(item.id)}
               numColumns={numColumns}
-              columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD }}
+              columnWrapperStyle={{ gap: CARD_GAP, paddingHorizontal: H_PAD, justifyContent: 'center' }}
               contentContainerStyle={styles.listContent}
               ListHeaderComponent={renderHeader}
               ListFooterComponent={renderFooter}

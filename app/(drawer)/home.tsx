@@ -97,13 +97,8 @@ export default function HomeScreen() {
   const [loadingTrending, setLoadingTrending] = useState(true);
   const [loadingNew, setLoadingNew] = useState(true);
 
-  // ── Card sizing — identical formula to Marketplace ────────────────────────
-  const CARD_GAP = 10;
-  const H_PAD = 14;
-  const numCols = width >= 1024 ? 5 : width >= 768 ? 4 : width >= 480 ? 3 : 2;
-  const CARD_WIDTH = width > 0
-    ? Math.floor((width - H_PAD * 2 - CARD_GAP * (numCols - 1)) / numCols)
-    : 160;
+  // ── Card sizing for horizontal lists — fixed width, not grid math ─────────
+  // horizontal lists — SheetCard uses its own internal fixed width
 
   // ── greeting based on local time ──────────────────────────────────────────
   const greeting = (() => {
@@ -259,8 +254,9 @@ export default function HomeScreen() {
     if (searchText.trim()) {
       router.push({
         pathname: '/marketplace',
-        params: { query: searchText.trim() },
+        params: { search: searchText.trim() },
       } as any);
+      setSearchText('');
     }
   };
 
@@ -380,10 +376,10 @@ export default function HomeScreen() {
             data={trendingSheets}
             keyExtractor={item => item.id?.toString()}
             renderItem={({ item }) => (
-              <SheetCard item={item} cardWidth={CARD_WIDTH} />
+              <SheetCard item={item} />
             )}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: CARD_GAP, paddingBottom: 8 }}
+            contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
             ListEmptyComponent={<Text style={styles.emptyText}>ยังไม่มีข้อมูล</Text>}
           />
         )}
@@ -401,10 +397,10 @@ export default function HomeScreen() {
             data={newSheets}
             keyExtractor={item => item.id?.toString()}
             renderItem={({ item }) => (
-              <SheetCard item={item} cardWidth={CARD_WIDTH} />
+              <SheetCard item={item} />
             )}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: CARD_GAP, paddingBottom: 8 }}
+            contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
             ListEmptyComponent={<Text style={styles.emptyText}>ยังไม่มีข้อมูล</Text>}
           />
         )}

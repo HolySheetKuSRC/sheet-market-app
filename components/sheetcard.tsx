@@ -98,11 +98,8 @@ const SheetCard: React.FC<SheetCardProps> = ({
     } as any);
   };
 
-  const resolvedWidth: number | string = explicitCardWidth
-    ? explicitCardWidth
-    : isThreeColumns
-    ? (width - 48) / 3
-    : "48%";
+  // Fixed widths — iPad-first. Callers can still override with cardWidth prop.
+  const resolvedWidth: number = explicitCardWidth ?? (width >= 768 ? 220 : 165);
 
   const handlePress = () => {
     if (onPress) {
@@ -121,7 +118,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
         styles.card,
         {
           width: resolvedWidth as any,
-          ...(explicitCardWidth ? { marginRight: 0 } : {}),
+          marginRight: 0,
           transform: [{ scale: pressed ? 0.97 : 1 }],
         },
       ]}
@@ -177,6 +174,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
               variant === "library" && { color: "#292524", fontSize: 17, fontFamily: "Mitr_400Regular" },
             ]}
             numberOfLines={2}
+            ellipsizeMode="tail"
           >
             {item.title}
           </Text>
@@ -187,6 +185,7 @@ const SheetCard: React.FC<SheetCardProps> = ({
               variant === "library" && { color: "#979FAF", fontSize: 12 },
             ]}
             numberOfLines={2}
+            ellipsizeMode="tail"
           >
             {item.description}
           </Text>
@@ -419,9 +418,10 @@ const styles = StyleSheet.create({
     // card's white background (visible due to overflow:'visible' for shadows).
   },
 
-  // Simple grouping view — title, description, tags in normal document flow
+  // Lock text area to a fixed height so every card in the same row has
+  // identical button positions regardless of text length.
   cardTextArea: {
-    // intentionally no flex:1 — see cardContent comment above
+    minHeight: 112,
   },
 
   // Footer follows text area in normal flow; top padding provides visual breathing room
