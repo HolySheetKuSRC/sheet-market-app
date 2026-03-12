@@ -102,8 +102,12 @@ export default function WithdrawalScreen() {
         headers: { "X-USER-ID": userId },
       });
       if (response.ok) {
-        const data: SellerBalanceResponse = await response.json();
-        setBalance(data);
+        const json = await response.json();
+        if (json.success) {
+          setBalance(json.data);
+        } else {
+          console.warn("API error fetching balance:", json.message);
+        }
       } else {
         console.warn("Failed to fetch balance:", response.status);
       }
@@ -125,14 +129,14 @@ export default function WithdrawalScreen() {
         );
 
         if (response.ok) {
-          const data = await response.json();
-          const items: WithdrawalHistoryItem[] = data.content || [];
+          const json = await response.json();
+          const items: WithdrawalHistoryItem[] = json.success ? (json.data?.content || []) : (json.content || []);
           if (append) {
             setHistory((prev) => [...prev, ...items]);
           } else {
             setHistory(items);
           }
-          setHasMore(!data.last);
+          setHasMore(json.success ? !json.data?.last : !json.last);
         } else {
           console.warn("Failed to fetch history:", response.status);
         }

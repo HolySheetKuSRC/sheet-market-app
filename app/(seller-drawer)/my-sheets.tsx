@@ -6,6 +6,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   RefreshControl,
   ScrollView,
   Text,
@@ -53,6 +54,7 @@ const STATUS_FILTERS = [
   { label: "อนุมัติแล้ว", value: "APPROVED" },
   { label: "ถูกปฏิเสธ", value: "REJECTED" },
   { label: "ถูกระงับ", value: "SUSPENDED" },
+  { label: "ที่ถูกลบ", value: "DELETED" },
 ] as const;
 
 // ===== Helpers =====
@@ -66,6 +68,8 @@ function getStatusLabel(status: string): string {
       return "ถูกปฏิเสธ";
     case "SUSPENDED":
       return "ถูกระงับ";
+    case "DELETED":
+      return "ที่ถูกลบ";
     default:
       return status;
   }
@@ -94,6 +98,11 @@ function getStatusStyle(status: string) {
         badge: { ...styles.statusRejected, backgroundColor: "#FEF2F2", borderColor: "#EF4444" },
         text: { ...styles.statusTextRejected, color: "#DC2626" },
       };
+    case "DELETED":
+      return {
+        badge: { backgroundColor: "#F1F5F9", borderColor: "#CBD5E1" },
+        text: { color: "#64748B" },
+      };
     default:
       return {
         badge: styles.statusPending,
@@ -120,11 +129,17 @@ export default function MySheetsScreen() {
     pending: 0,
     rejected: 0,
     suspended: 0,
+    deleted: 0,
   });
 
   // ── Appeal Modal state ──
   const [appealModalVisible, setAppealModalVisible] = useState(false);
   const [appealSheetId, setAppealSheetId] = useState<string | null>(null);
+
+  // ── Delete Modal state ──
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [sheetToDelete, setSheetToDelete] = useState<SheetItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const screenWidth = Dimensions.get("window").width;
   const numColumns = screenWidth > 900 ? 3 : screenWidth > 600 ? 3 : 2;
@@ -145,8 +160,13 @@ export default function MySheetsScreen() {
 
         if (status === "SUSPENDED") {
           url = `/products/seller/suspended-sheets?page=${pageNum}&size=10`;
-        } else if (status) {
-          url += `&status=${status}`;
+        } else if (status === "DELETED") {
+          url = `/products/seller/deleted-sheets?page=${pageNum}&size=10`;
+        } else {
+          url += `&isDeleted=false`;
+          if (status) {
+            url += `&status=${status}`;
+          }
         }
 
         const response = await apiRequest(url, {
@@ -187,13 +207,14 @@ export default function MySheetsScreen() {
 
       const headers = { "X-USER-ID": userId };
 
-      const [allRes, approvedRes, pendingRes, rejectedRes, suspendedRes] =
+      const [allRes, approvedRes, pendingRes, rejectedRes, suspendedRes, deletedRes] =
         await Promise.all([
-          apiRequest(`/products/seller/sheet-applications?page=0&size=1`, { headers }),
-          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=APPROVED`, { headers }),
-          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=PENDING`, { headers }),
-          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=REJECTED`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&isDeleted=false`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=APPROVED&isDeleted=false`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=PENDING&isDeleted=false`, { headers }),
+          apiRequest(`/products/seller/sheet-applications?page=0&size=1&status=REJECTED&isDeleted=false`, { headers }),
           apiRequest(`/products/seller/suspended-sheets?page=0&size=1`, { headers }),
+          apiRequest(`/products/seller/deleted-sheets?page=0&size=1`, { headers }),
         ]);
 
       const parse = async (res: Response) => {
@@ -204,15 +225,16 @@ export default function MySheetsScreen() {
         return 0;
       };
 
-      const [all, approved, pending, rejected, suspended] = await Promise.all([
+      const [all, approved, pending, rejected, suspended, deleted] = await Promise.all([
         parse(allRes),
         parse(approvedRes),
         parse(pendingRes),
         parse(rejectedRes),
         parse(suspendedRes),
+        parse(deletedRes),
       ]);
 
-      setStatusCounts({ all, approved, pending, rejected, suspended });
+      setStatusCounts({ all, approved, pending, rejected, suspended, deleted });
     } catch (err) {
       console.error("Error fetching status counts:", err);
     }
@@ -255,6 +277,46 @@ export default function MySheetsScreen() {
     setLoadingSheets(true);
     await fetchSheets(0, status);
     setLoadingSheets(false);
+  };
+
+  // ===== Delete Sheet =====
+  const handleDeleteSheet = async () => {
+    if (!sheetToDelete) return;
+
+    setDeleting(true);
+    try {
+      const userId = await getUserIdFromSessionToken();
+      if (!userId) {
+        setError("ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่");
+        setDeleting(false);
+        return;
+      }
+
+      const response = await apiRequest(`/products/${sheetToDelete.id}`, {
+        method: "DELETE",
+        headers: { "X-USER-ID": userId },
+      });
+
+      if (response.ok) {
+        // Update local list
+        setSheets((prev) => prev.filter((s) => s.id !== sheetToDelete.id));
+        // Update total count
+        setTotalElements((prev) => prev - 1);
+        // Refresh counts to stay synced
+        fetchStatusCounts();
+        setDeleteModalVisible(false);
+        setSheetToDelete(null);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to delete sheet:", response.status, errorData);
+        alert("ไม่สามารถลบชีทได้ กรุณาลองใหม่อีกครั้ง");
+      }
+    } catch (err) {
+      console.error("Error deleting sheet:", err);
+      alert("เกิดข้อผิดพลาดในการลบชีท");
+    } finally {
+      setDeleting(false);
+    }
   };
 
 
@@ -305,16 +367,21 @@ export default function MySheetsScreen() {
             >
               <Ionicons name="warning-outline" size={18} color="#EF4444" />
             </TouchableOpacity>
+          ) : item.status?.toUpperCase() === "DELETED" ? (
+            <View style={[styles.editButton, { backgroundColor: "#F1F5F9", borderColor: "#CBD5E1" }]}>
+              <Ionicons name="trash-outline" size={18} color="#94A3B8" />
+            </View>
           ) : (
             <TouchableOpacity
-              style={styles.editButton}
+              style={[styles.editButton, { borderColor: "#FEE2E2" }]}
               onPress={(e) => {
                 e.stopPropagation();
-                // Future: navigate to edit page
+                setSheetToDelete(item);
+                setDeleteModalVisible(true);
               }}
               activeOpacity={0.7}
             >
-              <Ionicons name="create-outline" size={18} color="#6C63FF" />
+              <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </TouchableOpacity>
           )}
         </View>
@@ -424,6 +491,12 @@ export default function MySheetsScreen() {
                 </Text>
                 <Text style={styles.statLabel}>ถูกระงับ</Text>
               </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: "#64748B" }]}>
+                  {statusCounts.deleted}
+                </Text>
+                <Text style={styles.statLabel}>ที่ถูกลบ</Text>
+              </View>
             </View>
 
             {/* Filter Tabs */}
@@ -505,6 +578,52 @@ export default function MySheetsScreen() {
           onRefresh();
         }}
       />
+
+      {/* ── Delete Confirmation Modal ── */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => !deleting && setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            activeOpacity={1}
+            onPress={() => !deleting && setDeleteModalVisible(false)}
+          />
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="trash-outline" size={32} color="#EF4444" />
+            </View>
+            <Text style={styles.modalTitle}>ยืนยันการลบชีท</Text>
+            <Text style={styles.modalMessage}>
+              คุณต้องการลบชีท "{sheetToDelete?.title}" ใช่หรือไม่?{"\n"}
+              การดำเนินการนี้ไม่สามารถย้อนกลับได้
+            </Text>
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setDeleteModalVisible(false)}
+                disabled={deleting}
+              >
+                <Text style={styles.cancelButtonText}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.deleteButton]}
+                onPress={handleDeleteSheet}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.deleteButtonText}>ยืนยันการลบ</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
