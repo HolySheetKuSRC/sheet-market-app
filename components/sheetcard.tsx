@@ -6,11 +6,11 @@ import {
     Alert,
     Dimensions,
     Image,
+    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
-    Pressable,
 } from "react-native";
 
 import { apiRequest } from "../utils/api";
