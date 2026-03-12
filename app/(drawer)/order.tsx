@@ -17,6 +17,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { Dropdown } from "react-native-element-dropdown";
+import { bankData } from "../../constants/banks";
 import { apiRequest } from '../../utils/api';
 import { getSessionToken } from '../../utils/token';
 
@@ -58,6 +60,7 @@ export default function OrderScreen() {
   const [refundTarget, setRefundTarget] = useState<{ orderId: string, itemId: string, sheetName: string } | null>(null);
   const [refundReason, setRefundReason] = useState("");
   const [bankName, setBankName] = useState("");
+  const [isBankFocus, setIsBankFocus] = useState(false);
   const [bankAccountName, setBankAccountName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [evidenceFile, setEvidenceFile] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -338,7 +341,42 @@ export default function OrderScreen() {
               <Text style={styles.modalSubtitle}>วิชา: {refundTarget?.sheetName}</Text>
 
               <TextInput style={[styles.input, { height: 80 }]} placeholder="ระบุเหตุผล *" multiline value={refundReason} onChangeText={setRefundReason} />
-              <TextInput style={styles.input} placeholder="ธนาคาร *" value={bankName} onChangeText={setBankName} />
+              <Dropdown
+                style={[styles.input, isBankFocus && { borderColor: "#6366F1" }]}
+                placeholderStyle={{ color: "#94A3B8" }}
+                selectedTextStyle={{ color: "#292524", fontFamily: "Mitr" }}
+                inputSearchStyle={{ fontFamily: "Mitr" }}
+                iconStyle={{ width: 20, height: 20 }}
+                placeholder="เลือกธนาคาร *"
+                data={bankData}
+                search
+                searchPlaceholder="พิมพ์ชื่อธนาคาร..."
+                maxHeight={300}
+                labelField="label"
+                valueField="value"
+                value={bankName}
+                onFocus={() => setIsBankFocus(true)}
+                onBlur={() => setIsBankFocus(false)}
+                onChange={(item) => {
+                  setBankName(item.value);
+                  setIsBankFocus(false);
+                }}
+                renderLeftIcon={() => (
+                  <Ionicons
+                    name="card-outline"
+                    size={20}
+                    color={bankName ? "#333" : "#B7B7D2"}
+                    style={{ marginRight: 6 }}
+                  />
+                )}
+                renderRightIcon={() => (
+                  <Ionicons
+                    name={isBankFocus ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#B7B7D2"
+                  />
+                )}
+              />
               <TextInput style={styles.input} placeholder="เลขที่บัญชี *" keyboardType="numeric" value={bankAccountNumber} onChangeText={setBankAccountNumber} />
               <TextInput style={styles.input} placeholder="ชื่อบัญชี *" value={bankAccountName} onChangeText={setBankAccountName} />
 
