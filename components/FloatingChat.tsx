@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
+  KeyboardEvent,
   PanResponder,
   Platform,
   Pressable,
@@ -110,11 +111,23 @@ export const FloatingChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(() => Math.random().toString(36).substring(2, 10));
+  const [kbHeight, setKbHeight] = useState(0);
 
   const resetChat = () => {
     setMessages([]);
     setSessionId(Math.random().toString(36).substring(2, 10));
   };
+
+  // Keyboard height tracking — reliable for absolute/floating panels on iOS & Android
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = (e: KeyboardEvent) => setKbHeight(e.endCoordinates.height);
+    const onHide = () => setKbHeight(0);
+    const sub1 = Keyboard.addListener(showEvent, onShow);
+    const sub2 = Keyboard.addListener(hideEvent, onHide);
+    return () => { sub1.remove(); sub2.remove(); };
+  }, []);
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -286,11 +299,7 @@ export const FloatingChat = () => {
           </LinearGradient>
 
           {/* Chat body */}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={isTablet ? 0 : 44}
-            style={{ flex: 1 }}
-          >
+          <View style={{ flex: 1 }}>
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -314,10 +323,13 @@ export const FloatingChat = () => {
               ListEmptyComponent={<EmptyState />}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
               onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              style={{ flex: 1 }}
             />
             {loading && <ThinkingDots />}
             <ChatInput onSend={handleSend} loading={loading} />
-          </KeyboardAvoidingView>
+            {/* Keyboard spacer: pushes ChatInput above the on-screen keyboard */}
+            <View style={{ height: kbHeight }} />
+          </View>
         </Animated.View>
       )}
     </View>
