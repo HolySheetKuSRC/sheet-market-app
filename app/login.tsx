@@ -4,7 +4,6 @@ import {
   Mitr_600SemiBold,
   useFonts,
 } from "@expo-google-fonts/mitr";
-import { AntDesign } from "@expo/vector-icons";
 import axios from "axios";
 import * as Haptics from "expo-haptics";
 import { Stack, useRouter } from "expo-router";
@@ -27,16 +26,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
 import { saveTokens } from "../utils/token";
 
-WebBrowser.maybeCompleteAuthSession();
-
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-const GOOGLE_CLIENT_ID =
-  "657352686440-of813ues4uubhm85i56rp73c7b68ammr.apps.googleusercontent.com";
 
 const B = {
   primary: "#3E4CD2",
@@ -62,7 +54,6 @@ export default function AuthScreen() {
 
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -78,73 +69,6 @@ export default function AuthScreen() {
       Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
-
-  /* ---------------- GOOGLE AUTH ---------------- */
-
-  const GOOGLE_IOS_CLIENT_ID = "";
-  const isGoogleSupported = Platform.OS !== "ios" || !!GOOGLE_IOS_CLIENT_ID;
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID || GOOGLE_CLIENT_ID,
-    scopes: ["profile", "email"],
-    responseType: "id_token",
-  });
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const idToken = response.params?.id_token;
-      if (idToken) {
-        handleGoogleBackend(idToken);
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Google Login ล้มเหลว",
-          text2: "ไม่ได้รับ ID Token",
-        });
-      }
-    }
-  }, [response]);
-
-  const handleGoogleBackend = async (idToken: string) => {
-    try {
-      setGoogleLoading(true);
-      const res = await axios.post(`${API_URL}/auth/google-login`, { idToken });
-
-      await saveTokens(
-        res.data.access_token,
-        res.data.refresh_token,
-        res.data.session_token
-      );
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(drawer)/home" as any);
-    } catch (error) {
-      Toast.show({
-        type: "error",
-        text1: "Google Login ล้มเหลว",
-        text2: "กรุณาลองใหม่อีกครั้ง",
-      });
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      if (!request) return;
-      setGoogleLoading(true);
-      await promptAsync();
-    } catch (error) {
-      Toast.show({
-        type: "error",
-        text1: "Google Login Error",
-        text2: "กรุณาลองใหม่อีกครั้ง",
-      });
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
 
   /* ---------------- EMAIL LOGIN / REGISTER ---------------- */
 
@@ -410,39 +334,6 @@ export default function AuthScreen() {
               )}
             </Pressable>
 
-            {/* ── OR divider ── */}
-            {isGoogleSupported && (
-              <View style={styles.dividerRow}>
-                <View style={styles.divLine} />
-                <Text style={[styles.divText, { fontFamily: f.regular }]}>หรือ</Text>
-                <View style={styles.divLine} />
-              </View>
-            )}
-
-            {/* ── Google Button ── */}
-            {isGoogleSupported && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.googleBtn,
-                  (!request || googleLoading) && { opacity: 0.6 },
-                  { transform: [{ scale: pressed ? 0.96 : 1 }] },
-                ]}
-                onPress={handleGoogleLogin}
-                disabled={!request || googleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator color={B.primary} />
-                ) : (
-                  <>
-                    <AntDesign name="google" size={20} color="#4285F4" style={{ marginRight: 10 }} />
-                    <Text style={[styles.googleBtnText, { fontFamily: f.medium }]}>
-                      Sign in with Google
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            )}
-
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -506,19 +397,4 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   primaryBtnText: { fontSize: 17, color: B.primary },
-  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 12 },
-  divLine: { flex: 1, height: 1, backgroundColor: B.border },
-  divText: { fontSize: 13, color: "#9CA3AF" },
-  googleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: B.surface,
-    borderWidth: 1.5,
-    borderColor: B.border,
-    borderRadius: 50,
-    minHeight: 52,
-    paddingHorizontal: 20,
-  },
-  googleBtnText: { fontSize: 17, color: B.primary },
 });
