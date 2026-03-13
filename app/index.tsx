@@ -1,18 +1,21 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { getAccessToken } from '../utils/token';
+import { clearTokens, getStoredAuthTokens, hasCompleteAuthTokens } from '../utils/token';
 
 export default function Index() {
   const [target, setTarget] = useState<null | string>(null);
 
   useEffect(() => {
     const bootstrap = async () => {
-      const token = await getAccessToken();
+      const tokens = await getStoredAuthTokens();
 
-      if (token) {
+      if (hasCompleteAuthTokens(tokens)) {
         setTarget('/(drawer)/home');
       } else {
+        if (tokens.accessToken || tokens.refreshToken || tokens.sessionToken) {
+          await clearTokens();
+        }
         setTarget('/login');
       }
     };

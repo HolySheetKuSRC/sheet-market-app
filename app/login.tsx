@@ -115,7 +115,6 @@ export default function AuthScreen() {
             text1: "รหัสผ่านไม่ตรงกัน",
             text2: "กรุณาตรวจสอบรหัสผ่านอีกครั้ง",
           });
-          setLoading(false);
           return;
         }
 
@@ -126,16 +125,23 @@ export default function AuthScreen() {
           secPassword: confirmPassword,
         });
 
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Toast.show({
           type: "success",
           text1: "สมัครสมาชิกสำเร็จ",
           text2: "กรุณาตรวจสอบ OTP ในอีเมลของคุณ",
           visibilityTime: 4000,
         });
+
+        // Return to login mode and clear inputs
         setIsLogin(true);
+        setUsername("");
+        setPassword("");
+        setConfirmPassword("");
       }
 
     } catch (error: any) {
+      console.error("Auth error:", error);
       const status = error.response?.status;
       let title = "เกิดข้อผิดพลาด";
       let message = error.response?.data?.message ?? "ลองใหม่อีกครั้ง";
@@ -160,6 +166,7 @@ export default function AuthScreen() {
         text2: message,
         visibilityTime: 4000,
       });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
