@@ -129,7 +129,6 @@ export default function AuthScreen() {
         Toast.show({
           type: "success",
           text1: "สมัครสมาชิกสำเร็จ",
-          text2: "กรุณาตรวจสอบ OTP ในอีเมลของคุณ",
           visibilityTime: 4000,
         });
 
