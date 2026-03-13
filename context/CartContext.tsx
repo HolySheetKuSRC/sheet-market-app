@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { apiRequest } from '../utils/api';
+import { clearTokens, getStoredAuthTokens, hasCompleteAuthTokens } from '../utils/token';
 import { Alert } from 'react-native';
 
 export interface CartItem {
@@ -33,6 +34,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const fetchCart = useCallback(async () => {
     try {
       setLoading(true);
+
+      const tokens = await getStoredAuthTokens();
+      if (!tokens.accessToken) {
+        setCartItems([]);
+        return;
+      }
+
+      if (!hasCompleteAuthTokens(tokens)) {
+        console.warn('Incomplete auth token state detected. Clearing stored auth.');
+        await clearTokens();
+        setCartItems([]);
+        return;
+      }
+
       const response = await apiRequest('/cart/user', { method: 'GET' });
 
       if (response.status === 429) {
@@ -50,6 +65,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           sellerName: item.sellerName ?? '-',
         }));
         setCartItems(items);
+      } else if (response.status === 401) {
+        // Silent handle for unauthorized (expired or no session)
+        setCartItems([]);
       } else {
         console.error('Fetch failed status:', response.status);
       }

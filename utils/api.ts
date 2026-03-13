@@ -47,9 +47,10 @@ export const apiRequest = async (
           // 🔥 แก้ไขจุดนี้: รองรับทั้ง access_token และ accessToken (ตามที่ Spring Boot มักจะส่ง)
           const newAccessToken = data.access_token || data.accessToken; 
           const newRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
+          const newSessionToken = data.session_token || data.sessionToken;
 
           if (newAccessToken) {
-            await saveTokens(newAccessToken, newRefreshToken);
+            await saveTokens(newAccessToken, newRefreshToken, newSessionToken);
             console.log("✅ Refresh Token สำเร็จ! กำลังยิง Request เดิมซ้ำ...");
 
             headers["Authorization"] = `Bearer ${newAccessToken}`;
@@ -120,9 +121,10 @@ export const apiMultipartRequest = async (
           // 🔥 แก้ไขจุดนี้ให้เหมือนกัน
           const newAccessToken = data.access_token || data.accessToken;
           const newRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
+          const newSessionToken = data.session_token || data.sessionToken;
 
           if (newAccessToken) {
-            await saveTokens(newAccessToken, newRefreshToken);
+            await saveTokens(newAccessToken, newRefreshToken, newSessionToken);
             headers["Authorization"] = `Bearer ${newAccessToken}`;
             response = await fetch(`${API_URL}${endpoint}`, {
               ...options,

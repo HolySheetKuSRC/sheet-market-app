@@ -86,6 +86,33 @@ export const getSessionToken = async (): Promise<string | null> => {
   }
 };
 
+export interface StoredAuthTokens {
+  accessToken: string | null;
+  refreshToken: string | null;
+  sessionToken: string | null;
+}
+
+export const getStoredAuthTokens = async (): Promise<StoredAuthTokens> => {
+  const [accessToken, refreshToken, sessionToken] = await Promise.all([
+    getAccessToken(),
+    getRefreshToken(),
+    getSessionToken(),
+  ]);
+
+  return {
+    accessToken,
+    refreshToken,
+    sessionToken,
+  };
+};
+
+export const hasCompleteAuthTokens = ({
+  accessToken,
+  refreshToken,
+}: Pick<StoredAuthTokens, "accessToken" | "refreshToken">): boolean => {
+  return Boolean(accessToken && refreshToken);
+};
+
 /**
  * CLEAR TOKENS (LOGOUT)
  */

@@ -9,7 +9,7 @@ import Toast from "react-native-toast-message";
 
 import Notification, { NotificationHandle } from "../components/notification";
 import { CartProvider } from "../context/CartContext";
-import { getAccessToken } from "../utils/token";
+import { clearTokens, getStoredAuthTokens, hasCompleteAuthTokens } from "../utils/token";
 
 type NotiFunc = (msg?: string) => void;
 
@@ -24,16 +24,21 @@ export default function RootLayout() {
 
   const checkAuth = async () => {
     try {
-      const token = await getAccessToken();
+      const tokens = await getStoredAuthTokens();
+      const hasAuth = hasCompleteAuthTokens(tokens);
       const currentSegment = segments[0] as string | undefined;
       const isAtRoot = !currentSegment;
       const inAuthGroup = isAtRoot || currentSegment === "login";
       const inProtectedGroup =
         currentSegment === "(drawer)" || currentSegment === "cart";
 
-      if (!token && inProtectedGroup) {
+      if (!hasAuth && (tokens.accessToken || tokens.refreshToken || tokens.sessionToken)) {
+        await clearTokens();
+      }
+
+      if (!hasAuth && inProtectedGroup) {
         router.replace("/login");
-      } else if (token && inAuthGroup) {
+      } else if (hasAuth && inAuthGroup) {
         router.replace("/(drawer)/home");
       }
     } catch (e) {
